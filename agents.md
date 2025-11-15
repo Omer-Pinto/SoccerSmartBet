@@ -120,43 +120,13 @@ Fetch for each team:
 
 ---
 
-## 6. How Claude/Droid Should Build Code (Very Important)
+## 6. Implementation References
 
-Claude/Droid must follow patterns from:
+- **LangGraphWrappers DSL:** See `external_projects/LangGraphWrappers.md` for the up-to-date overview of the wrapper layer (GraphWrapper, node/model/tool abstractions, MCP integration, and guidance on when to fall back to raw LangGraph/LangChain APIs).
+- **StocksMarketRecommender Patterns:** See `external_projects/StocksMarketRecommender.md` for the reference flow architecture (graph managers, state/structured outputs, routers, subgraph orchestration) that SoccerSmartBet should mirror.
 
-1. **[LangGraphWrappers](https://github.com/Omer-Pinto/LangGraphWrappers)**
-   - Use `GraphWrapper`, `NodeWrapper`, `PythonNodeWrapper`, `ModelWrapper`.
-   - Don’t write bare LangGraph nodes manually.
-   - Use `EdgeType.EDGE` / `EdgeType.CONDITIONAL`.
+Both summaries supersede earlier high-level notes, so use them as the canonical references when designing new flows or extending infrastructure.
 
-2. **[StocksMarketRecommender](https://github.com/Omer-Pinto/StocksMarketRecommender)**
-   - Each flow = `graph_manager.py`, with:  
-     - List of models (ModelWrapper)  
-     - List of nodes  
-     - Edges  
-     - `setup()` / `cleanup()`  
-   - Node implementations in `node_actions.py`.  
-   - State definitions in `state.py`.  
-   - Output schemas in `structured_outputs.py`.  
-   - External tools in `tools_setup.py`.  
-   - Prompts kept in `prompts.py`.
-
-3. **Subgraphs for teams/games**
-   - Pre-Gambling Flow’s fetchers MUST be implemented as **subgraphs**, one per team/game, running in parallel.
-
-4. **Minimal DB schemas at first**
-   - Use placeholder ORM models with TODOs.  
-   - DB design evolves later.
-
-5. **Flexibility**
-   - Everything should remain extendible.  
-   - Avoid hard-coding fields.  
-   - Prefer typing (Pydantic/TypedDict) over loose dicts.
-
-**Note:**  
-The information in Section 6 is an executive summary.  
-For deeper analysis of the referenced repositories (LangGraphWrappers and StocksMarketRecommender), dedicated Markdown “skill” files will be created separately.  
-Those documents will contain a full breakdown of patterns, abstractions, and implementation details that this overview intentionally does not cover.
 ---
 
 ## 7. TBD Areas (Explicit)
