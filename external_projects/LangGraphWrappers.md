@@ -1,0 +1,16 @@
+## Overview
+LangGraphWrappers is a thin DSL over LangGraph that turns verbose node/model wiring into declarative metadata. A `GraphWrapper` receives a typed LangGraph state, lists of `ModelWrapper` instances, node wrappers, and `(source, EdgeType, targets)` tuples, compiles a `StateGraph`, and ships with a built-in `MemorySaver` checkpoint plus a per-run `sidekick_id`. Routers are surfaced through `NodeWrapper.router`, so conditional edges can branch without exposing LangGraph internals to each flow implementation.
+
+## Core Abstractions
+- **Graph construction** – `GraphWrapper.build_and_compile_graph()` loops over node metadata (`NodeWrapper`, `PythonNodeWrapper`, `ToolNodeWrapper`) and edge specs, automatically emitting `add_node`, `add_edge`, or `add_conditional_edges`. The runtime interface is a single `run_superstep(initial_state)` coroutine.
+- **Node wrappers** – `NodeWrapper` injects its `ModelWrapper` onto the async callable (`action.__model__`), giving node actions direct access to the bound LLM or tool-enabled client. `PythonNodeWrapper` supports pure-Python nodes (e.g., orchestrating subgraphs) while `ToolNodeWrapper` wraps LangGraph’s `ToolNode` with a curated tool list.
+- **Models & providers** – `ModelWrapper` currently wraps `ChatOpenAI` but is parameterized by a large `Model` enum. Utility helpers (`get_base_url_for_model`, `get_api_key_for_model`) switch endpoints/keys for Groq, Anthropic, Gemini, DeepSeek, Ollama, etc., allowing the same node code to bind to different providers or schemas (`method="json_schema"`, custom `BaseModel`).
+- **Control channel** – `messages.ControlMessage` extends `BaseMessage` with a `type="control"` marker so coordination nodes can push non-LLM signals through the LangGraph state message stream.
+
+## Tooling & Integration Points
+- **Lifecycle-managed toolkits** – `ToolsWrapper` standardizes `setup()`/`cleanup()` for tool bundles. `FileManagementToolkitWrapper`, `PushNotificationTool`, and `YahooFinanceMCPTools` demonstrate how to wrap LangChain toolkits, REST push APIs (Pushover), and MCP servers that launch via `uv run` and expose tools through `langchain_mcp_adapters`.
+- **MCP embedding** – `YahooFinanceMCPTools` spawns the MCP server located under `tools/mcps/yahoo_finance_mcp/` using `MultiServerMCPClient`, making it trivial to add more MCP-backed tool suites by mimicking this pattern.
+- **Extending coverage** – Because wrappers are intentionally minimal, extending them typically means adding new enums/utilities (e.g., provider-specific auth) or richer graph helpers (validation, telemetry). More advanced LangGraph constructs (interrupt/error boundaries, channels) would require enhancements here before downstream flows can adopt them.
+
+## Flexibility & Fallback Plan
+The wrapper layer purposely avoids hiding LangGraph; every concept (state class, node action, router) still maps 1:1 to LangGraph primitives, so projects can drop to vanilla LangGraph/LangChain APIs whenever these wrappers become a bottleneck. If SoccerSmartBet requires capabilities not yet surfaced (multi-tenant checkpointing, retries, timeline visualizers, etc.), we can either extend LangGraphWrappers or bypass it and call LangGraph directly with the same node logic.
