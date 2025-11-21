@@ -1,230 +1,31 @@
-# SoccerSmartBet Configuration
+# SoccerSmartBet MVP Configuration
 # =============================================================================
-# This file contains the core configuration for the SoccerSmartBet system.
-# Sensitive credentials (API keys, passwords) must be provided via environment
-# variables or .env file - they are NOT stored here.
+# Minimal configuration for initial development.
+# Sensitive credentials (API keys, DB passwords) come from .env file.
+#
+# .env File Usage:
+# - For MVP, use a single .env file in this directory (config/.env)
+# - Copy .env.example to .env and fill in your credentials
+# - Future: Can create .env.staging and .env.production for separate environments
+# =============================================================================
 
 # Betting Configuration
 # -----------------------------------------------------------------------------
-# Controls which games are selected and betting thresholds
 betting:
-  # Minimum odds threshold to consider a game "interesting"
-  # Games below this threshold may be filtered out
-  min_odds_threshold: 1.5
-  
-  # Maximum number of games to bet on per day
-  # Smart Game Picker will select up to this many games
-  max_daily_games: 3
-  
-  # Simulated stake amount per game (in NIS)
-  stake_per_game: 100
-
-# Scheduling Configuration
-# -----------------------------------------------------------------------------
-# Controls when flows are triggered
-scheduling:
-  # Pre-Gambling Flow trigger time (cron format: "minute hour * * *")
-  # Default: 14:00 (2:00 PM) daily
-  pre_gambling_cron: "0 14 * * *"
-  
-  # Timezone for scheduling
-  timezone: "Asia/Jerusalem"
-  
-  # Post-Games Flow delay (hours after latest kickoff)
-  # How long to wait after the last game starts before checking results
-  post_games_delay_hours: 3
-  
-  # Enable automatic scheduling (set to false for manual triggers only)
-  auto_schedule_enabled: true
+  min_odds_threshold: 1.5    # Minimum odds to consider a game interesting
+  max_daily_games: 3          # Maximum games to select per day
+  stake_per_game: 100         # Simulated stake amount (NIS)
 
 # Database Configuration
 # -----------------------------------------------------------------------------
-# Connection settings for staging and production databases
-# Credentials are loaded from environment variables (see .env.example)
+# Credentials loaded from environment variables (DB_USER, DB_PASSWORD, etc.)
 database:
-  staging:
-    host: "localhost"
-    port: 5432
-    database: "soccersmartbet_staging"
-    # DB_STAGING_USER and DB_STAGING_PASSWORD via .env
-    pool_size: 10
-    max_overflow: 20
-    echo: false  # Set to true for SQL query logging
-    
-  production:
-    host: "localhost"
-    port: 5433
-    database: "soccersmartbet_prod"
-    # DB_PROD_USER and DB_PROD_PASSWORD via .env
-    pool_size: 20
-    max_overflow: 40
-    echo: false
-
-# LangSmith Configuration
-# -----------------------------------------------------------------------------
-# Tracing and observability for LangGraph flows
-langsmith:
-  # Enable/disable LangSmith tracing
-  tracing_enabled: true
-  
-  # LangSmith project name
-  project_name: "SoccerSmartBet"
-  
-  # LANGSMITH_API_KEY loaded from environment variable
-  
-  # Endpoint (default is usually fine)
-  endpoint: "https://api.smith.langchain.com"
+  host: localhost
+  port: 5432
+  name: soccersmartbet
 
 # Model Configuration
 # -----------------------------------------------------------------------------
-# LLM model selection for different agents
-# Using gpt-4o-mini as cost-efficient default (~$0.15/$0.60 per 1M tokens)
+# Using gpt-4o-mini for cost efficiency (~$0.15/$0.60 per 1M tokens)
 models:
-  # Default model for general use
-  default: "gpt-4o-mini"
-  
-  # Smart Game Picker agent (selects interesting games)
-  smart_picker: "gpt-4o-mini"
-  
-  # Game Intelligence Agent (H2H, venue, weather, atmosphere analysis)
-  game_agent: "gpt-4o-mini"
-  
-  # Team Intelligence Agent (form, injuries, rotation, morale analysis)
-  team_agent: "gpt-4o-mini"
-  
-  # Offline Analysis agent (P&L analytics, insights)
-  analytics_agent: "gpt-4o-mini"
-  
-  # Model parameters
-  temperature: 0.7
-  max_tokens: 2000
-
-# API Configuration
-# -----------------------------------------------------------------------------
-# External data source APIs
-# API keys loaded from environment variables (see .env.example)
-apis:
-  # Fixtures and match data
-  fixtures:
-    # Will be populated after Task 0.1 (Football Data Sources Research)
-    # Example providers: API-Football, TheSportsDB, etc.
-    enabled: true
-    timeout_seconds: 30
-    retry_attempts: 3
-    
-  # Weather data for match conditions
-  weather:
-    # Example: OpenWeatherMap, WeatherAPI.com
-    # WEATHER_API_KEY from environment
-    enabled: true
-    timeout_seconds: 10
-    retry_attempts: 2
-    
-  # Betting odds from winner.co.il
-  odds:
-    source: "winner.co.il"
-    # Scraping-based, may not have API key
-    enabled: true
-    timeout_seconds: 30
-    retry_attempts: 3
-    use_scraping: true  # Set to true if no API available
-    
-  # Optional: Team news, injuries, suspensions
-  team_news:
-    # Will be populated after research
-    enabled: true
-    timeout_seconds: 20
-    retry_attempts: 2
-
-# Feature Flags
-# -----------------------------------------------------------------------------
-# Toggle experimental or optional features
-features:
-  # Enable parallel execution of game and team subgraphs
-  parallel_subgraphs: true
-  
-  # Enforce strict structured output validation (Pydantic models)
-  strict_structured_outputs: true
-  
-  # Store unfiltered games for historical analysis
-  persist_unfiltered_games: true
-  
-  # Enable partial data tolerance (continue even if some tools fail)
-  tolerate_partial_data: true
-  
-  # Enable MCP (Model Context Protocol) tools where available
-  use_mcp_tools: true
-  
-  # Enable sophisticated game picker (vs. simple odds filter)
-  smart_game_selection: true
-
-# Logging Configuration
-# -----------------------------------------------------------------------------
-# Structured logging settings
-logging:
-  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
-  level: "INFO"
-  
-  # Log format: "json" for structured logs, "text" for human-readable
-  format: "json"
-  
-  # Log file path (relative to project root)
-  file_path: "logs/soccersmartbet.log"
-  
-  # Rotate logs daily
-  rotation: "daily"
-  
-  # Keep logs for 30 days
-  retention_days: 30
-  
-  # Include trace IDs for correlation with LangSmith
-  include_trace_ids: true
-
-# Performance Configuration
-# -----------------------------------------------------------------------------
-# Timeouts and retry settings
-performance:
-  # Maximum time for entire Pre-Gambling Flow (seconds)
-  pre_gambling_timeout: 600  # 10 minutes
-  
-  # Maximum time for single game subgraph (seconds)
-  game_subgraph_timeout: 120  # 2 minutes
-  
-  # Maximum time for single team subgraph (seconds)
-  team_subgraph_timeout: 120  # 2 minutes
-  
-  # Maximum concurrent game subgraphs
-  max_parallel_games: 5
-  
-  # Maximum concurrent team subgraphs per game
-  max_parallel_teams_per_game: 2
-  
-  # Tool call timeout (seconds)
-  tool_timeout: 30
-  
-  # Tool retry attempts on failure
-  tool_retry_attempts: 3
-  
-  # Exponential backoff multiplier for retries
-  retry_backoff_multiplier: 2
-
-# Data Quality Configuration
-# -----------------------------------------------------------------------------
-# Settings for handling missing or partial data
-data_quality:
-  # Minimum number of successful tools required for valid GameReport
-  min_game_tools_success: 2  # Out of ~4 tools
-  
-  # Minimum number of successful tools required for valid TeamReport
-  min_team_tools_success: 3  # Out of ~11 tools
-  
-  # Allow reports with quality warnings
-  allow_partial_reports: true
-  
-  # Flag reports with missing critical data
-  flag_incomplete_reports: true
-
-# Environment
-# -----------------------------------------------------------------------------
-# Current environment (affects which DB config is used)
-environment: "staging"  # Options: "staging", "production"
+  default: gpt-4o-mini
