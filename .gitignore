@@ -170,3 +170,5 @@ cython_debug/
 
 .DS_Store
 LangGraphWrappers/
+# Orchestration state - ephemeral, changes constantly
+ORCHESTRATION_STATE.md
