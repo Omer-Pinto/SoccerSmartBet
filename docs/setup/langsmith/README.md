@@ -6,7 +6,7 @@ LangSmith provides observability for LangGraph flows: tracing, debugging, and pe
 
 - Python 3.13
 - LangSmith account (free tier): [https://smith.langchain.com/](https://smith.langchain.com/)
-- Install packages: `pip install langchain langgraph langsmith python-dotenv`
+- Install dependencies: `uv sync` (recommended) or `pip install -e ".[dev]"`
 
 ## Setup Steps
 
