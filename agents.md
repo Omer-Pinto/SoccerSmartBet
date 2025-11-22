@@ -146,3 +146,121 @@ Keep code modular so these can be swapped later.
 - Additional AI agents can be added easily by defining new ModelWrappers + NodeWrappers.
 
 ---
+## 9. Git Workflow & Pull Request Best Practices
+
+### 9.1 Git Hygiene - CRITICAL RULES
+
+**NEVER do the following on shared PR branches:**
+- ❌ **`git commit --amend`** - Rewrites history, breaks collaboration
+- ❌ **`git push --force`** - Overwrites remote history, can lose others' work
+- ❌ **`git rebase`** on pushed branches - Rewrites commit history
+- ❌ **`git reset --hard`** followed by force push - Destructive
+
+**Always do:**
+- ✅ Create **new commits** for fixes and changes
+- ✅ Use **regular push** (no --force)
+- ✅ Keep full commit history visible
+- ✅ Only amend/force-push on **personal branches before anyone has pulled**
+
+**Why this matters:**
+- Maintains audit trail of what changed and when
+- Allows reviewers to see incremental fixes
+- Prevents loss of work if others have pulled the branch
+- Makes debugging easier with bisect/blame
+
+### 9.2 Pull Request Comment Protocol
+
+**When responding to PR review comments:**
+
+1. **Reply DIRECTLY to each comment thread** - Don't post a summary comment
+   - Use GitHub's "Reply" button on each specific comment
+   - Address the exact concern raised in that thread
+   - Format: "✅ Fixed. [Brief description]. Commit: [short-sha]"
+
+2. **Never post standalone summary comments** like:
+   - ❌ "All comments addressed in commits X, Y, Z"
+   - ❌ Large markdown table summarizing all fixes
+   - These create clutter and don't help reviewers track individual threads
+
+3. **Link fixes to specific commits:**
+   - Each reply should mention the commit that addresses it
+   - Example: "✅ Fixed. Moved file to docs/setup/. Commit: abc1234"
+   - Helps reviewers verify the fix
+
+4. **For multiple related comments:**
+   - Still reply to each individually
+   - You can reference related fixes: "✅ Fixed (also addresses comment above). Commit: abc1234"
+
+5. **Droids MUST follow this protocol:**
+   - When asked to "fix PR comments", droids must:
+     1. Read ALL comment threads using \`gh api /repos/{owner}/{repo}/pulls/{pr}/comments\`
+     2. Make code fixes and commit
+     3. Reply to EACH comment individually using:
+        \`\`\`bash
+        gh api -X POST /repos/{owner}/{repo}/pulls/comments/{comment_id}/replies \\
+          -f body="✅ Fixed. [description]. Commit: [sha]"
+        \`\`\`
+     4. NOT post a general issue comment summarizing fixes
+
+### 9.3 Code Review Response Workflow
+
+**Standard workflow for addressing PR feedback:**
+
+1. **Read all comments first** - Don't start coding until you understand all requests
+2. **Group related changes** - Make logical commits, not one commit per comment
+3. **Commit with clear messages** - Reference what comments you're addressing
+4. **Push changes** - Regular push, no force
+5. **Reply to each comment thread** - As described in 9.2
+6. **Request re-review** - Mark yourself as ready after all addressed
+
+**Example good commit message:**
+\`\`\`
+[Fix PR #1] Consolidate to single .env at project root
+
+- Addresses comments #2551043155, #2553097325
+- Move from config/langsmith/.env to project root
+- Update tests and documentation
+
+Co-authored-by: factory-droid[bot] <...>
+\`\`\`
+
+### 9.4 What NOT to Do (Lessons Learned)
+
+**Real examples of bad practices:**
+- ❌ Amending commits on a shared PR branch (loses history)
+- ❌ Posting "✅ All comments addressed" as one big comment (reviewers can't track)
+- ❌ Not replying to individual comment threads (reviewer has to hunt for fixes)
+- ❌ Force-pushing after reviewer has looked at code (breaks their diff view)
+- ❌ Writing "pip install X" in docs instead of adding to pyproject.toml
+- ❌ Manual .env parsing instead of using standard libraries (python-dotenv)
+
+**Result of bad practices:**
+- Wasted ~30% of token budget on back-and-forth
+- Multiple iterations to fix simple issues
+- Frustration for both human and AI
+- Messy git history that's hard to understand
+
+### 9.5 Droid-Specific Instructions
+
+**When a droid is asked to "fix PR comments":**
+
+# Pseudocode for droid PR comment fixing workflow:
+1. fetch_all_pr_comments(pr_number)
+2. parse_comments_into_actionable_tasks()
+3. make_code_fixes()
+4. git_commit(message="[Fix PR #X] Description of fixes")
+5. git_push()  # NEVER git push --force
+6. for each comment in pr_comments:
+       reply_to_comment_thread(
+           comment_id=comment.id,
+           body=f"✅ Fixed. {description}. Commit: {commit_sha}"
+       )
+7. NOT: post_general_summary_comment()  # DON'T DO THIS
+\`\`\`
+
+**Testing before pushing:**
+- Run tests locally if possible
+- Verify file paths are correct
+- Check pyproject.toml syntax if modifying
+- Ensure .env.example has no secrets
+
