@@ -244,7 +244,6 @@ Co-authored-by: factory-droid[bot] <...>
 
 **When a droid is asked to "fix PR comments":**
 
-\`\`\`python
 # Pseudocode for droid PR comment fixing workflow:
 1. fetch_all_pr_comments(pr_number)
 2. parse_comments_into_actionable_tasks()
@@ -265,5 +264,3 @@ Co-authored-by: factory-droid[bot] <...>
 - Check pyproject.toml syntax if modifying
 - Ensure .env.example has no secrets
 
----
-</coding_guidelines>
