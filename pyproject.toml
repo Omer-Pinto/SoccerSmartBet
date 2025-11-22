@@ -26,3 +26,6 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --strict-markers"
+
+[tool.hatch.build.targets.wheel]
+packages = ["soccersmartbet"]
