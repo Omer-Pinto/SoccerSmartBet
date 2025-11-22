@@ -5,27 +5,23 @@ import pytest
 from pathlib import Path
 from typing import TypedDict, Annotated
 from operator import add
+from dotenv import load_dotenv
 
 
 @pytest.fixture(scope="module")
 def langsmith_env():
-    """Load LangSmith environment variables from config/langsmith/.env"""
+    """Load LangSmith environment variables from .env at project root"""
     project_root = Path(__file__).parent.parent.parent
-    env_path = project_root / "config" / "langsmith" / ".env"
+    env_path = project_root / ".env"
     
     if not env_path.exists():
         pytest.skip(
-            "config/langsmith/.env not found. "
-            "Copy docs/setup/langsmith/.env.example to config/langsmith/.env"
+            ".env not found at project root. "
+            "Copy .env.example to .env and configure LangSmith API key"
         )
     
-    # Load environment variables
-    with open(env_path) as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith('#'):
-                key, value = line.split('=', 1)
-                os.environ[key.strip()] = value.strip()
+    # Load environment variables using python-dotenv
+    load_dotenv(env_path)
     
     return os.environ
 

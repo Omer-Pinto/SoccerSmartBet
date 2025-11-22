@@ -6,7 +6,7 @@ LangSmith provides observability for LangGraph flows: tracing, debugging, and pe
 
 - Python 3.13
 - LangSmith account (free tier): [https://smith.langchain.com/](https://smith.langchain.com/)
-- Install packages: `pip install langchain langgraph langsmith`
+- Install packages: `pip install langchain langgraph langsmith python-dotenv`
 
 ## Setup Steps
 
@@ -19,17 +19,17 @@ LangSmith provides observability for LangGraph flows: tracing, debugging, and pe
 ### 2. Configure Environment
 
 ```bash
-# Copy example file
-cp docs/setup/langsmith/.env.example config/langsmith/.env
+# Copy example file to project root
+cp .env.example .env
 
-# Edit config/langsmith/.env and add your key:
+# Edit .env and add your LangSmith API key:
 LANGSMITH_TRACING=true
 LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=ls_proj_abc123...  # Your actual key
 LANGSMITH_PROJECT=SoccerSmartBet
 ```
 
-**Important**: Ensure `config/langsmith/.env` is in `.gitignore`!
+**Important**: `.env` is already in `.gitignore` - never commit it!
 
 ### 3. Verify Setup
 
@@ -65,9 +65,9 @@ services:
 
 | Issue | Solution |
 |-------|----------|
-| Tests fail ".env not found" | Copy `.env.example` to `config/langsmith/.env` |
-| Tests fail "placeholder value" | Replace `your_key_here` with actual key |
+| Tests fail ".env not found" | Copy `.env.example` to `.env` at project root |
+| Tests fail "placeholder value" | Replace `your_key_here` with actual key in `.env` |
 | API connection fails | Verify key, check internet |
-| No traces in dashboard | Wait 60s, refresh, verify `LANGSMITH_TRACING=true` |
+| No traces in dashboard | Wait 60s, refresh, verify `LANGSMITH_TRACING=true` in `.env` |
 
 **Resources:** [LangSmith Docs](https://docs.smith.langchain.com/) · [LangGraph Tracing](https://langchain-ai.github.io/langgraph/how-tos/tracing/)
