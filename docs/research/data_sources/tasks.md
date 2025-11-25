@@ -1,7 +1,7 @@
 # Data Sources - API Registrations
 
 **Purpose:** Checklist for acquiring API keys for Pre-Gambling Flow data sources  
-**Status:** Ready for execution after PR #2 approval
+**Status:** Updated - api-football.com fraud corrected, apifootball.com added
 
 ---
 
@@ -11,13 +11,15 @@ This document lists all free API services that require registration and API key 
 
 **See:** [executive_summary.md](executive_summary.md) for full data stack overview and [sources/](sources/) for detailed API documentation.
 
+**⚠️ IMPORTANT:** Do NOT confuse **apifootball.com** (legitimate, no hyphen) with **api-football.com** (fraudulent, with hyphen). See [sources/NON_VIABLE_SOURCES.md](sources/NON_VIABLE_SOURCES.md).
+
 ---
 
 ## Required API Registrations
 
-### 1. football-data.org - Fixtures Source
+### 1. football-data.org - Fixtures & H2H Source
 
-**Purpose:** Fetch daily fixtures for major European leagues  
+**Purpose:** Fetch daily fixtures and head-to-head statistics  
 **Free Tier:** 100 requests/day, 10 requests/minute
 
 - [ ] Visit https://www.football-data.org/client/register
@@ -27,9 +29,13 @@ This document lists all free API services that require registration and API key 
   ```bash
   FOOTBALL_DATA_API_KEY=your_api_key_here
   ```
-- [ ] Test API access:
+- [ ] Test API access (fixtures):
   ```bash
   curl -H "X-Auth-Token: YOUR_KEY" https://api.football-data.org/v4/matches
+  ```
+- [ ] Test H2H endpoint:
+  ```bash
+  curl -H "X-Auth-Token: YOUR_KEY" https://api.football-data.org/v4/matches/MATCH_ID/head2head
   ```
 
 **Detailed Docs:** [sources/football-data.org.md](sources/football-data.org.md)
@@ -62,26 +68,31 @@ This document lists all free API services that require registration and API key 
 
 ---
 
-### 3. API-Football - Injuries, H2H, Player Stats
+### 3. apifootball.com - Injuries, H2H Backup, Team Form
 
-**Purpose:** Fetch injuries, suspensions, H2H statistics, player form  
-**Free Tier:** 100 requests/day
+**Purpose:** Fetch injuries, suspensions, H2H statistics (backup), team form  
+**Free Tier:** 180 requests/hour (6,480 requests/day)
 
-- [ ] Visit https://dashboard.api-football.com/register
+**⚠️ NOTE:** This is **apifootball.com** (NO hyphen), NOT api-football.com (fraudulent).
+
+- [ ] Visit https://apifootball.com/
 - [ ] Create free account
 - [ ] Get API key from dashboard
 - [ ] Add to project `.env` file:
   ```bash
-  API_FOOTBALL_KEY=your_api_key_here
+  APIFOOTBALL_API_KEY=your_api_key_here
   ```
-- [ ] Test sidelined endpoint (injuries):
+- [ ] Test teams endpoint (includes injury data):
   ```bash
-  curl -H "x-rapidapi-host: v3.football.api-sports.io" \
-       -H "x-rapidapi-key: YOUR_KEY" \
-       "https://v3.football.api-sports.io/sidelined?team=33"
+  curl "https://apiv3.apifootball.com/?action=get_teams&league_id=152&APIkey=YOUR_KEY"
   ```
+- [ ] Test events endpoint (for H2H and team form):
+  ```bash
+  curl "https://apiv3.apifootball.com/?action=get_events&from=2024-01-01&to=2024-12-31&team_id=141&APIkey=YOUR_KEY"
+  ```
+- [ ] Verify `player_injured` field in response
 
-**Detailed Docs:** [sources/api-football.md](sources/api-football.md)
+**Detailed Docs:** [sources/apifootball.md](sources/apifootball.md)
 
 ---
 
@@ -111,7 +122,7 @@ Create a `.env.example` file in the project root with the following structure:
 # Football Data Sources (Task 0.1)
 FOOTBALL_DATA_API_KEY=get_from_football-data.org_register_page
 ODDS_API_KEY=get_from_the-odds-api.com
-API_FOOTBALL_KEY=get_from_api-football.com_dashboard
+APIFOOTBALL_API_KEY=get_from_apifootball.com_dashboard
 
 # Open-Meteo (no key required)
 # No configuration needed
@@ -133,20 +144,39 @@ LANGCHAIN_PROJECT=SoccerSmartBet
 
 | Service | Vertical | API Key Needed | .env Variable | Free Tier Limit |
 |---------|----------|----------------|---------------|-----------------|
-| football-data.org | Fixtures | ✅ Yes | `FOOTBALL_DATA_API_KEY` | 100 req/day |
+| football-data.org | Fixtures, H2H | ✅ Yes | `FOOTBALL_DATA_API_KEY` | 100 req/day, 10 req/min |
 | The Odds API | Odds | ✅ Yes | `ODDS_API_KEY` | 500 credits/month |
-| API-Football | Injuries, H2H, Form | ✅ Yes | `API_FOOTBALL_KEY` | 100 req/day |
+| **apifootball.com** | Injuries, H2H backup, Team Form | ✅ Yes | `APIFOOTBALL_API_KEY` | 180 req/hour (6,480 req/day) |
 | Open-Meteo | Weather | ❌ No | N/A | 10,000 req/day |
 
 **Total API Keys Needed:** 3
+
+**Changed from previous version:** 
+- ❌ Removed: API-Football (`API_FOOTBALL_KEY`) - fraudulent (2021-2023 data only)
+- ✅ Added: apifootball.com (`APIFOOTBALL_API_KEY`) - legitimate 180 req/hour FREE
+- ✅ Expanded: football-data.org now also used for H2H (not just fixtures)
+
+---
+
+## ⚠️ CRITICAL: Do NOT Use api-football.com
+
+**Why:** api-football.com's free tier only provides **2021-2023 data**, making it useless for live betting in 2025.
+
+**What to use instead:**
+- **Injuries:** apifootball.com (180 req/hour)
+- **H2H:** football-data.org (already using) + apifootball.com backup
+- **Team Form:** apifootball.com
+
+**See:** [sources/NON_VIABLE_SOURCES.md](sources/NON_VIABLE_SOURCES.md) for full explanation of the fraud.
 
 ---
 
 ## Next Steps
 
 1. **Complete all registrations** above and test each API
-2. **Implementation tasks** will be incorporated into main task breakdown (see [BATCH_PLAN.md](../../../BATCH_PLAN.md))
-3. **Tool development** will reference source documentation from [sources/](sources/) directory
+2. **Verify apifootball.com returns 2024-2025 data** (unlike api-football.com)
+3. **Implementation tasks** will be incorporated into main task breakdown (see [BATCH_PLAN.md](../../../BATCH_PLAN.md))
+4. **Tool development** will reference source documentation from [sources/](sources/) directory
 
 ---
 
@@ -155,4 +185,5 @@ LANGCHAIN_PROJECT=SoccerSmartBet
 - [executive_summary.md](executive_summary.md) - Full data stack overview and status
 - [verticals/](verticals/) - Requirements for each data vertical
 - [sources/](sources/) - Detailed API documentation with code examples
+- [sources/NON_VIABLE_SOURCES.md](sources/NON_VIABLE_SOURCES.md) - Fraudulent sources to avoid
 - [PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md](../../../PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md) - Main task breakdown

@@ -1,8 +1,8 @@
 # SoccerSmartBet - Data Sources Executive Summary
 
-**Date:** 2025-11-22  
+**Date:** 2025-11-25  
 **Researcher:** Football Research Droid  
-**Status:** Updated per PR #2 review feedback
+**Status:** Updated - api-football.com fraud corrected, viable alternatives added
 
 ---
 
@@ -12,11 +12,13 @@
 |----------|--------|--------|-------------|-------|
 | **Fixtures** | football-data.org | ✅ Enabled | 🟢 Free API + Key | 12 competitions, 10 req/min |
 | **Odds** | The Odds API | ✅ Enabled | 🟢 Free API + Key | 500 credits/month, decimal format |
-| **Injuries/Suspensions** | API-Football | ✅ Enabled | 🟢 Free API + Key | Included in free tier (100 req/day) |
-| **H2H Stats** | API-Football | ✅ Enabled | 🟢 Free API + Key | Same as injuries source |
+| **Injuries/Suspensions** | apifootball.com | ✅ Enabled | 🟢 Free API + Key | 180 req/hour (6,480/day), player injury tracking |
+| **H2H Stats** | football-data.org | ✅ Enabled | 🟢 Free API + Key | /matches/{id}/head2head endpoint |
+| **H2H Stats (Backup)** | apifootball.com | ✅ Enabled | 🟢 Free API + Key | Event filtering for H2H matches |
+| **Team Form** | apifootball.com | ✅ Enabled | 🟢 Free API + Key | Recent matches per team |
 | **Weather** | Open-Meteo | ✅ Enabled | 🟢 Free, No Key | 10k req/day, no signup needed |
 | **Team News** | Scraping | 🔴 Disabled | 🔴 Scraping | Paid APIs only, scrapers too fragile |
-| **Player Form** | API-Football | 🟡 Limited | 🟢 Free API + Key | Basic stats only (goals/assists) |
+| **Player Form** | apifootball.com | 🟡 Limited | 🟢 Free API + Key | Basic stats (goals/assists/games played) |
 | **Morale/Coach News** | Scraping | 🔴 Disabled | 🔴 Scraping | No structured APIs available |
 | **Rotation Policy** | Manual/Scraping | 🔴 Disabled | 🔴 Scraping | Coach statements only, unreliable |
 
@@ -32,6 +34,23 @@
 
 ---
 
+## 🚫 CRITICAL: api-football.com is FRAUDULENT
+
+**⚠️ DO NOT USE api-football.com (with hyphen)**
+
+**Initial research error:** Task 0.1 initially recommended api-football.com for injuries, suspensions, and H2H statistics.
+
+**Discovered fraud:** api-football.com's **free tier only provides 2021-2023 data**, making it completely useless for live betting in 2025.
+
+**Corrected sources:**
+- ✅ **apifootball.com** (NO hyphen) - legitimate free API, 180 req/hour
+- ✅ **football-data.org** (already in use) - expanded to H2H
+- ✅ **TheSportsDB.com** (backup) - free tier available
+
+See [NON_VIABLE_SOURCES.md](sources/NON_VIABLE_SOURCES.md) for full details on the fraud.
+
+---
+
 ## 🎯 Primary Sources (One Per Vertical)
 
 ### Fixtures
@@ -43,12 +62,19 @@
 - **Why:** Free 500 credits/month, decimal odds (Israeli format), stable API
 
 ### Injuries & Suspensions
-- **Source:** [API-Football Sidelined Endpoint](sources/api-football.md#sidelined)
-- **Why:** Included in free tier, comprehensive data
+- **Source:** [apifootball.com](sources/apifootball.md)
+- **Why:** 180 req/hour FREE, `player_injured` field in team data, 6,480 req/day capacity
+- **Backup:** TheSportsDB.com (100 req/min free)
 
 ### H2H Statistics
-- **Source:** [API-Football H2H Endpoint](sources/api-football.md#h2h)
-- **Why:** Same API as injuries, efficient quota usage
+- **Source:** [football-data.org /matches/{id}/head2head endpoint](sources/football-data.org.md)
+- **Why:** Already in use for fixtures, simple H2H subresource
+- **Backup:** [apifootball.com](sources/apifootball.md) - filter events by both teams
+
+### Team Form (Recent Matches)
+- **Source:** [apifootball.com](sources/apifootball.md)
+- **Why:** Get last N matches per team via events endpoint
+- **Backup:** football-data.org /teams/{id}/matches endpoint
 
 ### Weather
 - **Source:** [Open-Meteo](sources/open-meteo.md)
@@ -59,8 +85,8 @@
 ## ⚠️ Key Concerns
 
 ### Enabled Sources
-1. **Rate Limits:** API-Football limited to 100 requests/day on free tier
-   - Mitigation: Cache data, optimize requests
+1. **Rate Limits:** apifootball.com provides 180 req/hour (6,480/day) - more than sufficient
+   - Mitigation: Cache data, ~20-30 requests/day expected
 2. **The Odds API Credits:** 500 credits/month = ~16 days at 30 games/day
    - Mitigation: Request odds only for filtered games (3-5/day), not all fixtures
 3. **League Coverage:** football-data.org only covers 12 competitions
@@ -85,7 +111,7 @@
 |---------|------------------|----------------|-------------------|
 | football-data.org | https://www.football-data.org/client/register | Yes (free) | `FOOTBALL_DATA_API_KEY` |
 | The Odds API | https://the-odds-api.com/ | Yes (free) | `ODDS_API_KEY` |
-| API-Football | https://dashboard.api-football.com/register | Yes (free) | `API_FOOTBALL_KEY` |
+| apifootball.com | https://apifootball.com/ | Yes (free) | `APIFOOTBALL_API_KEY` |
 | Open-Meteo | N/A | No | N/A |
 
 **Instructions:** 
@@ -97,8 +123,9 @@
 1. ✅ Fixtures fetcher (football-data.org) - foundation for game selection
 2. ✅ Odds fetcher (The Odds API) - critical for filtering games
 3. ✅ Weather fetcher (Open-Meteo) - cancellation risk assessment
-4. ✅ Injuries/Suspensions fetcher (API-Football) - team strength evaluation
-5. ✅ H2H fetcher (API-Football) - historical context
+4. ✅ Injuries/Suspensions fetcher (apifootball.com) - team strength evaluation
+5. ✅ H2H fetcher (football-data.org + apifootball.com backup) - historical context
+6. ✅ Team form fetcher (apifootball.com) - recent performance
 
 ### 3. Testing & Validation
 - Test all APIs with sample requests (see [tasks.md](tasks.md))
@@ -113,29 +140,77 @@
 - **[executive_summary.md](executive_summary.md)** (this file): Overview, status table, next steps
 - **[verticals/](verticals/)**: One file per data vertical (fixtures, odds, injuries, etc.)
 - **[sources/](sources/)**: One file per data source with code examples and API details
+- **[sources/NON_VIABLE_SOURCES.md](sources/NON_VIABLE_SOURCES.md)**: Fraudulent/paid sources to avoid
 - **[data_sources_original.md](../data_sources_original.md)**: Full original research (backup reference)
 - **[tasks.md](tasks.md)**: Action items for API registrations
 
 ---
 
-## 🔄 Changes from Original Research
+## 🔄 Changes from Previous Version
 
-1. **Structured documentation**
-   - Split 900-line file into focused, consumable docs
-   - Separated source details from vertical overviews
-   - Moved code examples to source-specific files
+### 1. **CRITICAL FIX: api-football.com Fraud Discovered**
+   - **Removed:** api-football.com (free tier limited to 2021-2023 data)
+   - **Added:** apifootball.com (legitimate 180 req/hour FREE API)
+   - **Added:** football-data.org H2H endpoint (already using this API)
+   - **Added:** NON_VIABLE_SOURCES.md documenting the fraud
 
-2. **Disabled scraping-based verticals**
+### 2. **New Source: apifootball.com**
+   - Replaces api-football.com for injuries, suspensions, H2H, team form
+   - 180 req/hour (6,480 req/day) vs api-football.com's fraudulent 100 req/day
+   - Simpler API, no nested authentication headers
+   - See [sources/apifootball.md](sources/apifootball.md)
+
+### 3. **Expanded football-data.org Usage**
+   - Already using for fixtures
+   - Now also using `/matches/{id}/head2head` endpoint for H2H
+   - Can also use `/teams/{id}/matches` for team form backup
+
+### 4. **Disabled scraping-based verticals**
    - Team news (BBC, ESPN scraping)
    - Morale/coach news
    - Rotation policy
    - Reason: Too fragile, legal concerns, not critical for MVP
 
-3. **No paid services**
+### 5. **No paid services**
    - Sportmonks team news (paid only)
    - Any enterprise APIs
    - Reason: LLM costs only, per project constraints
 
 ---
 
+## 🎓 Lessons Learned
+
+1. **Always verify free tier date ranges** - api-football.com's 2021-2023 limitation was not obvious
+2. **Test API endpoints before committing** - sample requests would have revealed the fraud earlier
+3. **Read community forums** - official docs often hide critical limitations
+4. **Beware of "free tier" marketing** - many services offer trial-only, not sustained free access
+5. **Prioritize APIs with proven longevity** - football-data.org has been free for years
+
+---
+
+## 📊 Final Data Stack Summary
+
+**Core APIs (FREE, Sustained):**
+1. **football-data.org** - Fixtures, H2H
+2. **The Odds API** - Betting lines
+3. **apifootball.com** - Injuries, suspensions, H2H backup, team form
+4. **Open-Meteo** - Weather
+
+**Total API Keys Needed:** 3 (football-data.org, The Odds API, apifootball.com)
+
+**Estimated Daily Requests:**
+- Fixtures: 1 request/day
+- Odds: 3-5 requests/day (filtered games only)
+- Weather: 3-5 requests/day
+- Injuries: 6-10 requests/day (2 per game)
+- H2H: 3-5 requests/day (1 per game)
+- Team Form: 6-10 requests/day (2 per game)
+- **Total:** ~25-40 requests/day across all APIs
+
+**Well under all rate limits.**
+
+---
+
 **See:** [verticals/](verticals/) for detailed vertical analysis and [sources/](sources/) for API documentation.
+
+**⚠️ IMPORTANT:** Do NOT confuse **apifootball.com** (legitimate, no hyphen) with **api-football.com** (fraudulent, with hyphen).
