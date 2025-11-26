@@ -53,17 +53,18 @@ User and AI predictions for today's games.
 - Always 100 NIS stake (CHECK constraint)
 - AI bets include justification TEXT
 
-### 5. pnl_totals
-Cumulative P&L tracking (**just 2 rows!**).
+### 5. bankroll
+Bankroll tracking (**just 2 rows!**).
 
 **How it works:**
-- Start: user=0, ai=0
-- Each day: previous_total + today's_pnl = new_total
-- No historical game-by-game tracking needed
+- Start: user=10,000 USD, ai=10,000 USD
+- Each day: previous_bankroll + today's_profit = new_bankroll
 
 **Example:**
-- Day 1: User wins (+110), AI loses (-200) → user=110, ai=-200
-- Day 2: User loses (-100), AI wins (+320) → user=10, ai=120
+- Day 1: User wins at 1.1 odds → profit = (1.1-1)×100 = +10 → bankroll = 10,010
+- Day 1: AI loses → profit = -100 → bankroll = 9,900
+- Day 2: User loses → profit = -100 → bankroll = 9,910
+- Day 2: AI wins at 3.2 odds → profit = (3.2-1)×100 = +220 → bankroll = 10,120
 
 ---
 
@@ -81,8 +82,8 @@ Cumulative P&L tracking (**just 2 rows!**).
 - No separate results table - just outcome/home_score/away_score columns
 - NULL until game completes
 
-**4. Cumulative P&L only**
-- pnl_totals stores running totals (2 rows)
+**4. Cumulative bankroll tracking only**
+- bankroll stores running totals (2 rows, starting at 10,000 USD each)
 - No historical game-by-game P&L tracking
 
 **5. UUID for parallel writes**
@@ -91,6 +92,13 @@ Cumulative P&L tracking (**just 2 rows!**).
 
 **6. Israeli Toto notation**
 - n1 = home win, n2 = away win, n3 = draw (not standard 1/X/2 order)
+
+**7. Israeli Toto profit formula**
+- Win: profit = (odds - 1) × stake
+  - Example: 100 stake at 1.1 odds → profit = (1.1 - 1) × 100 = **+10 USD**
+  - Example: 100 stake at 2.1 odds → profit = (2.1 - 1) × 100 = **+110 USD**
+- Lose: profit = -stake
+  - Example: 100 stake lost → profit = **-100 USD**
 
 ---
 
@@ -125,17 +133,21 @@ VALUES (1, 'user', '1', 2.10, NULL),
 UPDATE games SET outcome = '1', home_score = 2, away_score = 1, status = 'completed'
 WHERE game_id = 1;
 
--- 2. Update cumulative P&L
-UPDATE pnl_totals SET
-    total_pnl = total_pnl + 110.00,  -- Won: 100 × 2.10 - 100
+-- 2. Calculate profit using Israeli Toto formula: (odds - 1) × stake
+-- User bet on '1' (home win) at 2.10 odds and WON
+UPDATE bankroll SET
+    total_bankroll = total_bankroll + (2.10 - 1) * 100,  -- +110 profit
     games_played = games_played + 1,
     games_won = games_won + 1
 WHERE bettor = 'user';
+-- Result: 10,000 → 10,110
 
-UPDATE pnl_totals SET
-    total_pnl = total_pnl - 100.00,  -- Lost
+-- AI bet on 'x' (draw) at 3.40 odds and LOST
+UPDATE bankroll SET
+    total_bankroll = total_bankroll - 100,  -- Lost stake
     games_played = games_played + 1
 WHERE bettor = 'ai';
+-- Result: 10,000 → 9,900
 ```
 
 ---

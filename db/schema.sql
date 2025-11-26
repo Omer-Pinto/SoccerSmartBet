@@ -123,18 +123,20 @@ CREATE INDEX idx_bets_game ON bets(game_id);
 COMMENT ON COLUMN bets.stake IS 'Always 100 NIS per system rules';
 
 -- ============================================================================
--- TABLE: pnl_totals
--- Purpose: Cumulative P&L tracking (just 2 rows!)
+-- TABLE: bankroll
+-- Purpose: Bankroll tracking - each starts at 10,000 USD
 -- ============================================================================
-CREATE TABLE pnl_totals (
+CREATE TABLE bankroll (
     bettor VARCHAR(10) PRIMARY KEY CHECK (bettor IN ('user', 'ai')),
-    total_pnl DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    total_bankroll DECIMAL(10,2) NOT NULL DEFAULT 10000.00,
     games_played INTEGER NOT NULL DEFAULT 0,
     games_won INTEGER NOT NULL DEFAULT 0,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Initialize with starting totals
-INSERT INTO pnl_totals (bettor) VALUES ('user'), ('ai');
+-- Initialize with 10,000 USD each
+INSERT INTO bankroll (bettor, total_bankroll) VALUES 
+    ('user', 10000.00), 
+    ('ai', 10000.00);
 
-COMMENT ON TABLE pnl_totals IS 'Cumulative P&L totals - updated daily, no historical game-by-game tracking';
+COMMENT ON TABLE bankroll IS 'Bankroll tracking - each starts at 10,000 USD, bets 100 USD per game. Israeli Toto: profit = (odds - 1) × stake';
