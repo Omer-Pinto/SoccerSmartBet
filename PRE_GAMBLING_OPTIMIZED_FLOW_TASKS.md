@@ -7,10 +7,16 @@
 ## 0. Research & Setup (🔍 Pre-Implementation)
 
 ### 0.1 Football Data Sources Research
-- [ ] Research and catalog free football APIs and existing MCP servers for: fixtures, team news, injuries, weather, H2H stats. **Primary odds source: winner.co.il** (scraping if needed). Check existing MCPs (MCP browser for scraping, GitHub for football MCPs). **Do not plan to develop custom MCPs** - we'll write Python functions instead. Document reliability and coverage.
+- [x] Research and catalog free football APIs and existing MCP servers for: fixtures, team news, injuries, weather, H2H stats. Check existing MCPs (MCP browser for scraping, GitHub for football MCPs). **Do not plan to develop custom MCPs** - we'll write Python functions instead. Document reliability and coverage.
 
 ### 0.2 LangSmith Integration Setup
-- [ ] Create dedicated LangSmith project for SoccerSmartBet and configure environment variables. Verify tracing works with test LangGraph run.
+- [x] Create dedicated LangSmith project for SoccerSmartBet and configure environment variables. Verify tracing works with test LangGraph run.
+
+### 0.3 Update Football API Keys (👤 Omer-led)
+- [ ] Register for API keys from sources identified in research (football-data.org, apifootball.com, the-odds-api, open-meteo). Store in config. **Assigned: omer-me**
+
+### 0.4 Test All APIs
+- [ ] Simple integration test for each API from executive_summary.md: verify connectivity, response format, rate limits. Create `tests/api_integration/` with one test per source.
 
 ---
 
@@ -202,16 +208,3 @@
 8. **MCP Strategy:** Use existing MCPs where available (browser, any football MCPs found). Don't develop custom MCPs - write Python functions wrapped as LangGraph tools instead.
 
 ---
-
-## Progress Tracking
-
-**Total Tasks:** 27 (down from 43)
-**Breakdown:**
-- Research & Setup: 2 tasks
-- Infrastructure: 4 tasks
-- Graph Architecture: 5 tasks (includes tools setup)
-- Main Flow Nodes: 7 tasks
-- Game Intelligence Subgraph: 2 tasks (consolidated from 5)
-- Team Intelligence Subgraph: 2 tasks (consolidated from 12)
-- Integration & Testing: 4 tasks
-- Deployment & Monitoring: 2 tasks

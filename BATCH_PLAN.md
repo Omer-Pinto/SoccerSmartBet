@@ -5,25 +5,35 @@
 
 ---
 
-## Batch 1: Research & Foundation (3 tasks - Fully Parallel)
+## Batch 1: Research & Foundation
 
-**Dependencies:** None
-**Parallelism:** All 3 can run simultaneously
+**Status:** All merged to main
 
-| Task | Droid | Description |
-|------|-------|-------------|
-| 0.1 | FootballResearchDroid | Research football APIs, MCPs, winner.co.il odds source |
-| 0.2 | InfraDroid | LangSmith project setup, environment variables |
-| 1.2 | InfraDroid | Create config.yaml for thresholds, API keys, DB connections |
-
-**Deliverables:**
-- 0.1 → `docs/research/data_sources.md` (catalog of APIs/MCPs)
-- 0.2 → `config/langsmith/.env.example`, setup verification
-- 1.2 → `config/config.yaml` with all settings structure
+| Task | Droid | Status |
+|------|-------|--------|
+| 0.1 | FootballResearchDroid | ✅ MERGED (#2) |
+| 0.2 | InfraDroid | ✅ MERGED (#1) |
+| 1.2 | InfraDroid | Pending CR (#3) |
 
 ---
 
-## Batch 2: Schema & Docker (2 tasks - Sequential)
+## Batch 2: API Registration & Testing
+
+**Dependencies:** 0.1 research complete
+**User-led task:** API key registration
+
+| Task | Owner | Description | Depends On |
+|------|-------|-------------|------------|
+| 0.3 | **omer-me** | Register for API keys from research sources | 0.1 |
+| 0.4 | ToolBuilderDroid | Simple integration tests for all APIs | 0.3 |
+
+**Deliverables:**
+- 0.3 → API keys in config
+- 0.4 → `tests/api_integration/` test suite
+
+---
+
+## Batch 3: Schema & Docker
 
 **Dependencies:** 
 - 1.1 depends on 0.1 (needs data source understanding)
@@ -40,7 +50,7 @@
 
 ---
 
-## Batch 3: Core Architecture (3 tasks - Parallel after Batch 2)
+## Batch 4: Core Architecture
 
 **Dependencies:** All need schema (1.1) and config (1.2)
 
@@ -57,7 +67,7 @@
 
 ---
 
-## Batch 4: Tools Implementation (11 tasks - Highly Parallel)
+## Batch 5: Tools Implementation
 
 **Dependencies:** Need state/schemas (Batch 3) for tool signatures
 
@@ -86,7 +96,7 @@
 
 ---
 
-## Batch 5: Main Flow Nodes (7 tasks - Some Parallelism)
+## Batch 6: Main Flow Nodes
 
 **Dependencies:** Need tools (Batch 4) and schemas (Batch 3)
 
@@ -104,7 +114,7 @@
 
 ---
 
-## Batch 6: Subgraphs (4 tasks - Some Parallelism)
+## Batch 7: Subgraphs
 
 **Dependencies:** Need tools (Batch 4) and schemas (Batch 3)
 
@@ -121,7 +131,7 @@
 
 ---
 
-## Batch 7: Main Graph Manager (1 task)
+## Batch 8: Main Graph Manager
 
 **Dependencies:** All nodes + subgraphs (Batch 5 + 6)
 
@@ -133,7 +143,7 @@
 
 ---
 
-## Batch 8: Integration & Testing (4 tasks)
+## Batch 9: Integration & Testing
 
 **Dependencies:** Complete system (Batch 7)
 
@@ -148,7 +158,7 @@
 
 ---
 
-## Batch 9: Deployment (2 tasks)
+## Batch 10: Deployment
 
 **Dependencies:** Working tested system (Batch 8)
 
@@ -163,10 +173,10 @@
 
 ## Summary
 
-- **Total Tasks:** 27
-- **Total Batches:** 9
-- **Most Parallel Batch:** Batch 4 (11 tools - can use 5 droids)
-- **Critical Path:** Batch 1 → Batch 2 → Batch 3 → Batch 4 → Batch 5/6 → Batch 7 → Batch 8 → Batch 9
+- **Total Tasks:** 29
+- **Total Batches:** 10
+- **Batch 1:** ✅ 2/3 tasks complete (0.1, 0.2 merged; 1.2 in CR)
+- **Critical Path:** Batch 1 → Batch 2 (user) → Batch 3 → Batch 4 → Batch 5 → Batch 6/7 → Batch 8 → Batch 9 → Batch 10
 
 ---
 
