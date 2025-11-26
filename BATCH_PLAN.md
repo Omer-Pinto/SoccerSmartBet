@@ -22,9 +22,9 @@
 **Dependencies:** 0.1 research complete
 **User-led task:** API key registration
 
-| Task | Owner | Description | Depends On |
-|------|-------|-------------|------------|
-| 0.3 | **omer-me** | Register for API keys from research sources | 0.1 |
+| Task | Droid            | Description | Depends On |
+|------|------------------|-------------|------------|
+| 0.3 | **omer-me**      | Register for API keys from research sources | 0.1 |
 | 0.4 | ToolBuilderDroid | Simple integration tests for all APIs | 0.3 |
 
 **Deliverables:**

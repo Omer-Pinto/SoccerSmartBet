@@ -4,7 +4,7 @@
 
 ---
 
-## Batch 1 Tasks
+## Batch 1: Research & Foundation
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
@@ -14,7 +14,16 @@
 
 ---
 
-## Batch 2 Tasks
+## Batch 2: API Registration & Testing
+
+| Task | Status | PR | Notes |
+|------|--------|-----|-------|
+| 0.3 API Key Registration | Not Started | - | User task (omer-me) |
+| 0.4 API Integration Tests | Not Started | - | Blocked on 0.3 |
+
+---
+
+## Batch 3: Schema & Docker
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
@@ -25,4 +34,4 @@
 
 ## Pending Batches
 
-**Batch 3+:** Not started - blocked on Batch 1 & 2 completion
+**Batch 4+:** Not started
