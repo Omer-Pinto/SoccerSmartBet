@@ -23,7 +23,7 @@
 ## 1. Infrastructure & Foundation (🗄️ Database/Config)
 
 ### 1.1 PostgreSQL Schema Design
-- [ ] Design complete PostgreSQL schema with tables: games, teams, players, betting_lines, game_reports, team_reports, unfiltered_games, bets, results. Include foreign keys, indexes, and constraints for relational integrity and historical tracking.
+- [x] Design complete PostgreSQL schema with 5 tables: games (odds + results merged), game_reports, team_reports, bets, bankroll. Simplified from original 9-table design. No teams/players/betting_lines/results tables needed.
 
 ### 1.2 Configuration Management
 - [ ] Create config file (YAML/JSON) for: min odds threshold, max daily games, API keys, cron schedule, DB connections (staging/prod), LangSmith keys, model selection (default: gpt-4o-mini), and feature flags.

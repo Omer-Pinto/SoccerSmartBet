@@ -27,8 +27,8 @@
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
-| 1.1 DB Schema | In CR | #4 | Awaiting review |
-| 1.4 Docker Compose | In CR | #5 | Awaiting review |
+| 1.1 DB Schema | ✅ MERGED | #4 | Complete (simplified to 5 tables) |
+| 1.4 Docker Compose | Not Started | - | Blocked on deployment planning |
 
 ---
 

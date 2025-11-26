@@ -2,18 +2,17 @@
 
 > **Source:** PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md (27 tasks)
 > **Strategy:** Group tasks by dependencies, maximize parallelism within each batch
+> **Note:** For task status, see ORCHESTRATION_STATE.md and PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md
 
 ---
 
 ## Batch 1: Research & Foundation
 
-**Status:** All merged to main
-
-| Task | Droid | Status |
-|------|-------|--------|
-| 0.1 | FootballResearchDroid | ✅ MERGED (#2) |
-| 0.2 | InfraDroid | ✅ MERGED (#1) |
-| 1.2 | InfraDroid | Pending CR (#3) |
+| Task | Droid | Description |
+|------|-------|-------------|
+| 0.1 | FootballResearchDroid | Research free football APIs and MCP servers |
+| 0.2 | InfraDroid | LangSmith project setup and integration |
+| 1.2 | InfraDroid | Configuration management (YAML/JSON) |
 
 ---
 
@@ -22,9 +21,9 @@
 **Dependencies:** 0.1 research complete
 **User-led task:** API key registration
 
-| Task | Droid            | Description | Depends On |
-|------|------------------|-------------|------------|
-| 0.3 | **omer-me**      | Register for API keys from research sources | 0.1 |
+| Task | Droid | Description | Depends On |
+|------|-------|-------------|------------|
+| 0.3 | **omer-me** | Register for API keys from research sources | 0.1 |
 | 0.4 | ToolBuilderDroid | Simple integration tests for all APIs | 0.3 |
 
 **Deliverables:**
@@ -41,7 +40,7 @@
 
 | Task | Droid | Description | Depends On |
 |------|-------|-------------|------------|
-| 1.1 | InfraDroid | PostgreSQL schema design (games, teams, reports, bets) | 0.1 |
+| 1.1 | InfraDroid | PostgreSQL schema (5 tables: games, game_reports, team_reports, bets, bankroll) | 0.1 |
 | 1.4 | InfraDroid | docker-compose.yml with staging/prod DB | 1.1 |
 
 **Deliverables:**
@@ -175,15 +174,7 @@
 
 - **Total Tasks:** 29
 - **Total Batches:** 10
-- **Batch 1:** ✅ 2/3 tasks complete (0.1, 0.2 merged; 1.2 in CR)
 - **Critical Path:** Batch 1 → Batch 2 (user) → Batch 3 → Batch 4 → Batch 5 → Batch 6/7 → Batch 8 → Batch 9 → Batch 10
 
 ---
 
-## Execution Strategy
-
-1. **Batch 1:** Start with 2-3 droids (FootballResearchDroid + 2x InfraDroid)
-2. **User reviews PRs** between each batch
-3. **Batch 4:** Maximum parallelism (5 ToolBuilderDroid instances)
-4. **Adapt:** Based on user feedback and issues found
-5. **One batch at a time** - full stop for review between batches
