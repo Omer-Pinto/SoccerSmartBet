@@ -148,6 +148,78 @@ Keep code modular so these can be swapped later.
 ---
 ## 9. Git Workflow & Pull Request Best Practices
 
+### 9.0 Standard Task Workflow - CRITICAL PROCESS
+
+**Every task MUST follow this workflow:**
+
+1. **Create worktree with dedicated branch:**
+   ```bash
+   git worktree add /path/to/SoccerSmartBet-task-description -b task-N.M/description
+   cd /path/to/SoccerSmartBet-task-description
+   ```
+   Example: `batch-2/api-testing` for tasks 0.3 + 0.4
+
+2. **Do the work:**
+   - Make changes, create files, implement features
+   - Commit frequently with clear messages
+   - Test thoroughly
+
+3. **Push to remote:**
+   ```bash
+   git push -u origin task-N.M/description
+   ```
+   - **NEVER** push directly to main
+   - Push the feature branch only
+
+4. **Open Pull Request:**
+   ```bash
+   gh pr create --base main --title "[Task N.M] Description" --body "..."
+   ```
+   - Use GitHub CLI or web UI
+   - Write clear PR description with summary of changes
+   - Reference relevant task numbers (e.g., Task 0.4)
+
+5. **Get approval:**
+   - Wait for human review
+   - Address any PR comments (see section 9.3)
+   - Push additional commits if needed (regular push, NO --force)
+
+6. **Merge from GitHub (NOT locally):**
+   ```bash
+   gh pr merge <PR#> --squash --delete-branch
+   ```
+   - **CRITICAL:** Merge via GitHub UI or `gh pr merge` command
+   - **NEVER** do `git merge` locally then push
+   - This maintains proper PR history and audit trail
+
+7. **Update local main and close worktree:**
+   ```bash
+   cd /path/to/SoccerSmartBet  # Main worktree
+   git checkout main
+   git pull origin main
+   git worktree remove /path/to/SoccerSmartBet-task-description
+   ```
+
+8. **Update state tracking files:**
+   - Update the **relevant flow's task file** to mark tasks complete
+     - Currently: `PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md` (Pre-Gambling Flow)
+     - Future flows will have their own task tracking files
+   - Update `ORCHESTRATION_STATE.md` with PR number and status
+   - Commit and push these updates to main
+
+**Why this workflow matters:**
+- ✅ Every change goes through PR review
+- ✅ Full audit trail in GitHub
+- ✅ Clean separation of work across tasks
+- ✅ Easy to rollback if something breaks
+- ✅ Proper co-authorship tracking with factory-droid
+
+**Common mistakes to avoid:**
+- ❌ Merging locally (`git merge task-N.M/description`) then pushing to main
+- ❌ Working directly on main branch
+- ❌ Forgetting to push branch before creating PR
+- ❌ Closing worktree before merge completes
+
 ### 9.1 Git Hygiene - CRITICAL RULES
 
 **NEVER do the following on shared PR branches:**
