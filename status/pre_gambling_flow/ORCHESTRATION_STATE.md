@@ -10,7 +10,7 @@
 |------|--------|-----|-------|
 | 0.1 Football Research | ✅ COMPLETE | #2 | Complete |
 | 0.2 LangSmith Setup | ✅ COMPLETE | #1 | Complete |
-| 1.2 Config Management | In CR | #3 | Awaiting review |
+| 1.2 Config Management | ✅ COMPLETE | #3 | Complete |
 
 ---
 

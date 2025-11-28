@@ -26,7 +26,7 @@
 - [x] Design complete PostgreSQL schema with 5 tables: games (odds + results merged), game_reports, team_reports, bets, bankroll. Simplified from original 9-table design. No teams/players/betting_lines/results tables needed.
 
 ### 1.2 Configuration Management
-- [ ] Create config file (YAML/JSON) for: min odds threshold, max daily games, API keys, cron schedule, DB connections (staging/prod), LangSmith keys, model selection (default: gpt-4o-mini), and feature flags.
+- [x] Create config file (YAML/JSON) for: min odds threshold, max daily games, API keys, cron schedule, DB connections (staging/prod), LangSmith keys, model selection (default: gpt-4o-mini), and feature flags. ✅ **COMPLETE** - Minimal MVP config.yaml (29 lines) with betting params, DB config, model selection. Database credentials in .env at project root.
 
 ### 1.3 State Class & Structured Outputs Foundation
 - [ ] Define TypedDict state class with LangGraph reducers following StocksMarketRecommender pattern. Create base Pydantic models for GameInfo, TeamInfo, GameReport, TeamReport, CombinedReport.
