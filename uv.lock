@@ -607,6 +607,7 @@ dependencies = [
     { name = "langchain" },
     { name = "langgraph" },
     { name = "langsmith" },
+    { name = "pytest" },
     { name = "python-dotenv" },
 ]
 
@@ -621,6 +622,7 @@ requires-dist = [
     { name = "langchain", specifier = ">=0.1.0" },
     { name = "langgraph", specifier = ">=0.0.1" },
     { name = "langsmith", specifier = ">=0.1.0" },
+    { name = "pytest", specifier = ">=9.0.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
