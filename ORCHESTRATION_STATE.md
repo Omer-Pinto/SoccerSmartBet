@@ -8,8 +8,8 @@
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
-| 0.1 Football Research | ✅ MERGED | #2 | Complete |
-| 0.2 LangSmith Setup | ✅ MERGED | #1 | Complete |
+| 0.1 Football Research | ✅ COMPLETE | #2 | Complete |
+| 0.2 LangSmith Setup | ✅ COMPLETE | #1 | Complete |
 | 1.2 Config Management | In CR | #3 | Awaiting review |
 
 ---
@@ -19,7 +19,7 @@
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
 | 0.3 API Key Registration | ✅ COMPLETE | - | User completed: 3 API keys registered |
-| 0.4 API Integration Tests | ✅ MERGED | #10 | 24 passing tests across 4 APIs |
+| 0.4 API Integration Tests | ✅ COMPLETE | #10 | 24 passing tests across 4 APIs |
 
 ---
 
@@ -27,8 +27,8 @@
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
-| 1.1 DB Schema | ✅ MERGED | #4 | Complete (simplified to 5 tables) |
-| 1.4 Docker Compose | Not Started | - | Blocked on deployment planning |
+| 1.1 DB Schema | ✅ COMPLETE | #4 | Complete (simplified to 5 tables) |
+| 1.4 Docker Compose | In CR | - | Awaiting review |
 
 ---
 
