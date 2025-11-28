@@ -1,12 +1,11 @@
 # SoccerSmartBet MVP Configuration
 # =============================================================================
 # Minimal configuration for initial development.
-# Sensitive credentials (API keys, DB passwords) come from .env file.
+# Sensitive credentials (API keys, DB passwords) come from .env file at project root.
 #
 # .env File Usage:
-# - For MVP, use a single .env file in this directory (config/.env)
+# - For MVP, use a single .env file at the project root
 # - Copy .env.example to .env and fill in your credentials
-# - Future: Can create .env.staging and .env.production for separate environments
 # =============================================================================
 
 # Betting Configuration
