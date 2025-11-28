@@ -20,27 +20,87 @@ class TestWeatherEndpoint:
 
     def test_get_weather_by_coordinates(self):
         """Test retrieving weather for specific lat/lon coordinates"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Make request to /v1/forecast with latitude/longitude
-        # - Validate response structure
-        # - Check for temperature, precipitation, wind speed
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        
+        # Old Trafford coordinates
+        latitude = 53.4631
+        longitude = -2.2913
+        
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "hourly": "temperature_2m,precipitation,windspeed_10m"
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Validate response structure
+        assert "latitude" in data
+        assert "longitude" in data
+        assert "hourly" in data
+        assert "temperature_2m" in data["hourly"]
+        assert "precipitation" in data["hourly"]
+        assert "windspeed_10m" in data["hourly"]
 
     def test_weather_hourly_forecast(self):
         """Test retrieving hourly weather forecast"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Request hourly forecast data
-        # - Verify hourly breakdown
-        # - Check forecast extends several hours ahead
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        
+        # London coordinates
+        latitude = 51.5074
+        longitude = -0.1278
+        
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "hourly": "temperature_2m",
+            "forecast_days": 3
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Verify hourly data
+        assert "hourly" in data
+        assert "time" in data["hourly"]
+        assert "temperature_2m" in data["hourly"]
+        
+        # Should have multiple hours (at least 24 hours × 3 days)
+        assert len(data["hourly"]["time"]) >= 72
 
     def test_precipitation_probability(self):
         """Test retrieving precipitation probability"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Request precipitation_probability parameter
-        # - Verify percentage values (0-100)
-        # - Check for rain/snow indicators
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        
+        # Paris coordinates
+        latitude = 48.8566
+        longitude = 2.3522
+        
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "hourly": "precipitation_probability,precipitation"
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "hourly" in data
+        assert "precipitation_probability" in data["hourly"]
+        assert "precipitation" in data["hourly"]
+        
+        # Check values are in valid range
+        if data["hourly"]["precipitation_probability"]:
+            for prob in data["hourly"]["precipitation_probability"][:10]:
+                if prob is not None:
+                    assert 0 <= prob <= 100
 
 
 class TestWeatherVariables:
@@ -48,24 +108,73 @@ class TestWeatherVariables:
 
     def test_temperature(self):
         """Test retrieving temperature data"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Request temperature_2m variable
-        # - Verify temperature in Celsius
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        
+        params = {
+            "latitude": 51.5074,
+            "longitude": -0.1278,
+            "hourly": "temperature_2m"
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "hourly" in data
+        assert "temperature_2m" in data["hourly"]
+        
+        # Check that temperatures are reasonable (in Celsius)
+        temps = data["hourly"]["temperature_2m"]
+        if temps and temps[0] is not None:
+            # Should be in reasonable range for Earth (-50 to 50°C)
+            assert -50 <= temps[0] <= 50
 
     def test_wind_speed(self):
         """Test retrieving wind speed data"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Request windspeed_10m variable
-        # - Verify wind speed in km/h or m/s
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        
+        params = {
+            "latitude": 51.5074,
+            "longitude": -0.1278,
+            "hourly": "windspeed_10m"
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "hourly" in data
+        assert "windspeed_10m" in data["hourly"]
+        
+        # Wind speed should be non-negative
+        speeds = data["hourly"]["windspeed_10m"]
+        if speeds and speeds[0] is not None:
+            assert speeds[0] >= 0
 
     def test_precipitation(self):
         """Test retrieving precipitation data"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Request precipitation variable
-        # - Verify precipitation in mm
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        
+        params = {
+            "latitude": 51.5074,
+            "longitude": -0.1278,
+            "hourly": "precipitation"
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "hourly" in data
+        assert "precipitation" in data["hourly"]
+        
+        # Precipitation should be non-negative (in mm)
+        precip = data["hourly"]["precipitation"]
+        if precip and precip[0] is not None:
+            assert precip[0] >= 0
 
 
 class TestDateTimeHandling:
@@ -73,17 +182,52 @@ class TestDateTimeHandling:
 
     def test_specific_datetime_forecast(self):
         """Test retrieving weather for specific match kickoff time"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Request forecast for specific date/time
-        # - Verify correct time slice returned
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        from datetime import datetime, timedelta
+        
+        # Get forecast for tomorrow
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        params = {
+            "latitude": 51.5074,
+            "longitude": -0.1278,
+            "hourly": "temperature_2m",
+            "start_date": tomorrow,
+            "end_date": tomorrow
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "hourly" in data
+        assert "time" in data["hourly"]
+        
+        # Check that times are for tomorrow
+        if data["hourly"]["time"]:
+            first_time = data["hourly"]["time"][0]
+            assert tomorrow in first_time
 
     def test_timezone_handling(self):
         """Test timezone parameter for international matches"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Request with specific timezone parameter
-        # - Verify time values are in correct timezone
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        
+        params = {
+            "latitude": 51.5074,
+            "longitude": -0.1278,
+            "hourly": "temperature_2m",
+            "timezone": "Europe/London"
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "timezone" in data
+        # Verify timezone is as requested
+        assert "Europe/London" in data["timezone"] or data["timezone"] in ["GMT", "BST"]
 
 
 class TestErrorHandling:
@@ -91,17 +235,34 @@ class TestErrorHandling:
 
     def test_invalid_coordinates(self):
         """Test behavior with invalid lat/lon coordinates"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Make request with out-of-range coordinates
-        # - Verify error response
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        
+        # Invalid latitude (> 90)
+        params = {
+            "latitude": 999,
+            "longitude": 0,
+            "hourly": "temperature_2m"
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        # Should return 400 for invalid coordinates
+        assert response.status_code == 400
 
     def test_invalid_parameters(self):
         """Test behavior with invalid parameters"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Make request with non-existent weather variable
-        # - Verify error response
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        
+        params = {
+            "latitude": 51.5074,
+            "longitude": -0.1278,
+            "hourly": "invalid_weather_variable_xyz"
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        # Should return error for invalid parameter
+        assert response.status_code == 400
 
 
 class TestNoAuthRequired:
@@ -109,8 +270,21 @@ class TestNoAuthRequired:
 
     def test_request_without_api_key(self):
         """Test that requests work without API key"""
-        # TODO: Implement by ToolBuilderDroid
-        # - Make request without any authentication
-        # - Verify successful response
-        # - Confirm Open-Meteo truly requires no key
-        pytest.skip("To be implemented by ToolBuilderDroid")
+        import requests
+        
+        # Make request without any API key or authentication
+        params = {
+            "latitude": 51.5074,
+            "longitude": -0.1278,
+            "hourly": "temperature_2m"
+        }
+        
+        response = requests.get(f"{BASE_URL}/forecast", params=params, timeout=10)
+        
+        # Should succeed without any authentication
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Verify we got actual weather data
+        assert "hourly" in data
+        assert "temperature_2m" in data["hourly"]
