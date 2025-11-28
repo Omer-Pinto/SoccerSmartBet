@@ -82,5 +82,5 @@ STADIUM_COORDS = {
 ---
 
 ## See Also
-- [Game Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#42-game-intelligence-agent-node) - uses weather for risk assessment
+- [Game Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_FLOW_TASKS.md#42-game-intelligence-agent-node) - uses weather for risk assessment
 - [Open-Meteo Source](../sources/open-meteo.md) - API details and code examples

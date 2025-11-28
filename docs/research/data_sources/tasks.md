@@ -186,4 +186,4 @@ LANGCHAIN_PROJECT=SoccerSmartBet
 - [verticals/](verticals/) - Requirements for each data vertical
 - [sources/](sources/) - Detailed API documentation with code examples
 - [sources/NON_VIABLE_SOURCES.md](sources/NON_VIABLE_SOURCES.md) - Fraudulent sources to avoid
-- [PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md](../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md) - Main task breakdown
+- [PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md](../../../status/pre_gambling_flow/PRE_GAMBLING_FLOW_TASKS.md) - Main task breakdown

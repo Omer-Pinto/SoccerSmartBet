@@ -78,5 +78,5 @@ The Odds API returns decimal odds, which match the Israeli Toto system:
 ---
 
 ## See Also
-- [Task 3.3: Fetch Lines Node](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#33-fetch-lines-from-winnercoil-node) - needs update to use The Odds API
-- [Minimum Odds Threshold Config](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#12-configuration-management)
+- [Task 3.3: Fetch Lines Node](../../../../status/pre_gambling_flow/PRE_GAMBLING_FLOW_TASKS.md#33-fetch-lines-from-winnercoil-node) - needs update to use The Odds API
+- [Minimum Odds Threshold Config](../../../../status/pre_gambling_flow/PRE_GAMBLING_FLOW_TASKS.md#12-configuration-management)

@@ -127,6 +127,6 @@ GET https://apiv3.apifootball.com/?action=get_teams&league_id=302&APIkey=YOUR_KE
 ---
 
 ## See Also
-- [Team Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#5-team-intelligence-agent-subgraph) - uses injury data for impact assessment
+- [Team Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_FLOW_TASKS.md#5-team-intelligence-agent-subgraph) - uses injury data for impact assessment
 - [apifootball.com Source](../sources/apifootball.md) - API details and code examples
 - [NON_VIABLE_SOURCES.md](../sources/NON_VIABLE_SOURCES.md) - Why api-football.com is fraudulent

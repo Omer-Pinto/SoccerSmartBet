@@ -1,208 +1,210 @@
-# Pre-Gambling Flow - Task Breakdown
+# Pre-Gambling Flow - Optimized Task Breakdown
 
-> **Legend:** 
-> - 🤖 Purple (Bot icon) = Smart agent using LangGraph/LangGraphWrappers
-> - 🐍 Green (Python icon) = Code implementation  
-> - 🗄️ Grey (DB icon) = Database/infrastructure code
-> - ⏰ Blue (Clock icon) = Trigger/scheduler
-> - 🔍 Research = Investigation/discovery task
+> **Changes from original:** Consolidated 16 fetcher nodes into 2 smart agents with tool access (Game Intelligence Agent + Team Intelligence Agent). Kept parallelism, sophisticated game picker, winner.co.il odds source. Estimated ~20-30 LLM calls total using gpt-4o-mini.
 
 ---
 
 ## 0. Research & Setup (🔍 Pre-Implementation)
 
 ### 0.1 Football Data Sources Research
-- [ ] Research and catalog free football APIs, MCPs (prioritize MCP browser, starred GitHub MCPs), and data sources for: fixtures, lines/odds, team news, injuries, weather, H2H stats. Document reliability, rate limits, and coverage.
+- [x] Research and catalog free football APIs and existing MCP servers for: fixtures, team news, injuries, weather, H2H stats. Check existing MCPs (MCP browser for scraping, GitHub for football MCPs). **Do not plan to develop custom MCPs** - we'll write Python functions instead. Document reliability and coverage.
 
 ### 0.2 LangSmith Integration Setup
-- [ ] Create dedicated LangSmith project for SoccerSmartBet and configure environment variables: LANGSMITH_TRACING, LANGSMITH_ENDPOINT, LANGSMITH_API_KEY. Verify tracing works with test LangGraph run.
+- [x] Create dedicated LangSmith project for SoccerSmartBet and configure environment variables. Verify tracing works with test LangGraph run.
+
+### 0.3 Update Football API Keys (👤 Omer-led)
+- [x] Register for API keys from sources identified in research (football-data.org, apifootball.com, the-odds-api, open-meteo). Store in config. **Assigned: omer-me** ✅ **COMPLETE** - All 3 API keys registered and added to `.env` file.
+
+### 0.4 Test All APIs
+- [x] Simple integration test for each API from executive_summary.md: verify connectivity, response format, rate limits. Create `tests/api_integration/` with one test per source. ✅ **COMPLETE** - 24 passing tests across 4 APIs (football-data.org, The Odds API, apifootball.com, Open-Meteo). All tests verify current/upcoming data with dynamic date validation.
 
 ---
 
 ## 1. Infrastructure & Foundation (🗄️ Database/Config)
 
 ### 1.1 PostgreSQL Schema Design
-- [ ] Design complete PostgreSQL schema with tables: games, teams, players, betting_lines, game_reports, team_reports, unfiltered_games, bets, results. Include foreign keys, indexes, and constraints for relational integrity and historical tracking.
+- [x] Design complete PostgreSQL schema with 5 tables: games (odds + results merged), game_reports, team_reports, bets, bankroll. Simplified from original 9-table design. No teams/players/betting_lines/results tables needed.
 
 ### 1.2 Configuration Management
-- [ ] Create config file (YAML/JSON) for: min odds threshold, max daily games, API keys, cron schedule, DB connections (staging/prod), LangSmith keys, and feature flags. Support environment-specific overrides.
+- [ ] Create config file (YAML/JSON) for: min odds threshold, max daily games, API keys, cron schedule, DB connections (staging/prod), LangSmith keys, model selection (default: gpt-4o-mini), and feature flags.
 
 ### 1.3 State Class & Structured Outputs Foundation
-- [ ] Define TypedDict state class with LangGraph reducers (`add_messages`, `add`) following StocksMarketRecommender pattern. Create base Pydantic models for GameInfo, TeamInfo, GameReport, FilterCriteria.
+- [ ] Define TypedDict state class with LangGraph reducers following StocksMarketRecommender pattern. Create base Pydantic models for GameInfo, TeamInfo, GameReport, TeamReport, CombinedReport.
 
 ### 1.4 Docker Compose for Database Environments
-- [ ] Create docker-compose.yml with two PostgreSQL containers (staging on port 5432, production on port 5433), volumes for persistence, and initialization scripts. Include .env files for credentials.
+- [ ] Create docker-compose.yml with two PostgreSQL containers (staging on port 5432, production on port 5433), volumes for persistence, and initialization scripts.
 
 ---
 
 ## 2. Graph Architecture (LangGraphWrappers)
 
 ### 2.1 Pre-Gambling Flow GraphManager
-- [ ] Create `pre_gambling_flow/graph_manager.py` wiring all nodes, edges, and subgraphs using GraphWrapper. Expose `setup()`, `run_graph()`, `cleanup()` methods following StocksMarketRecommender skeleton.
+- [ ] Create `pre_gambling_flow/graph_manager.py` wiring all nodes, edges, and parallel subgraphs using GraphWrapper. Expose `setup()`, `run_graph()`, `cleanup()` methods.
 
 ### 2.2 State Definition
-- [ ] Implement `pre_gambling_flow/state.py` with fields: messages, selected_games, filtered_games, game_reports, team_reports, combined_reports, phase enum. Use LangGraph reducers for list accumulation and message tracking.
+- [ ] Implement `pre_gambling_flow/state.py` with fields: messages, selected_game_ids, filtered_game_ids, phase enum. **Critical:** Game/team data goes **directly to DB** from parallel subgraphs (not accumulated in state). State is for coordination only: tracking which games are being processed, flow phase, and message history. Simple list reducer for messages, simple add reducer for game_ids.
 
 ### 2.3 Structured Outputs Schema
-- [ ] Create `pre_gambling_flow/structured_outputs.py` with Pydantic models: SelectedGames, FilteredGame, GameData, TeamData, CombinedReport, TriggerPayload. Each model maps to a node's expected output format.
+- [ ] Create `pre_gambling_flow/structured_outputs.py` with Pydantic models: SelectedGames, FilteredGame, GameReport, TeamReport, CombinedReport, TriggerPayload. Enforce strict validation for critical nodes.
 
 ### 2.4 Prompts Repository
-- [ ] Implement `pre_gambling_flow/prompts.py` containing system messages for Smart Game Picker, Game Data Fetchers, Team Data Fetchers. Prompts should guide agents on data prioritization and structured output format.
+- [ ] Implement `pre_gambling_flow/prompts.py` containing system messages for Smart Game Picker, Game Intelligence Agent, Team Intelligence Agent. Emphasize sophisticated analysis over plain stats.
 
-### 2.5 Routers (if needed)
-- [ ] Create `pre_gambling_flow/routers.py` for conditional routing logic (e.g., skip fetching if no games filtered, handle partial data). Use `NodeWrapper.router` pattern from LangGraphWrappers.
+### 2.5 Tools Setup
+- [ ] Implement `pre_gambling_flow/tools_setup.py` centralizing all data fetching tools: fetch_h2h(), fetch_venue(), fetch_weather(), fetch_form(), fetch_injuries(), fetch_suspensions(), fetch_news(), search_team_news(). Use existing MCPs where they exist (e.g., MCP browser), Python requests for APIs, Python functions wrapped as LangGraph tools for custom logic. MCPs are for external/sandboxed usage, not our internal tools.
 
-### 2.6 Tools Setup
-- [ ] Implement `pre_gambling_flow/tools_setup.py` centralizing toolkit instantiation (web scrapers, API clients, MCP tools for data sources). Manage lifecycle with `ToolsWrapper.setup()/cleanup()`.
+  **Note:** If LangGraphWrappers doesn't support flexible tool binding for these custom tools, we have two options:
+  1. Extend LangGraphWrappers with "bring-your-own-tools-and-mcps" mode, OR
+  2. Use raw LangGraph/LangChain for tool-using agent nodes while keeping GraphWrapper for flow orchestration
+  
+  Will flag immediately if we hit this limitation during implementation.
 
 ---
 
 ## 3. Main Flow Nodes
 
 ### 3.1 Pre-Gambling Trigger (⏰ Scheduler)
-- [ ] Implement cron/scheduler (Python APScheduler or system cron) that initiates Pre-Gambling Flow daily at configured time. Trigger should inject initial state and handle error recovery/retries.
+- [ ] Implement cron/scheduler (Python APScheduler) that initiates Pre-Gambling Flow daily at configured time (e.g., 14:00). Handle error recovery/retries.
 
 ### 3.2 Smart Game Picker Node (🤖 AI Agent)
-- [ ] Create `NodeWrapper` with AI agent that analyzes today's soccer fixtures across leagues and selects interesting games based on criteria. Agent outputs SelectedGames structured model with game IDs, teams, kickoff times, leagues.
+- [ ] Create `NodeWrapper` with AI agent that analyzes today's fixtures and selects **interesting games** based on rivalry, importance, playoff implications, derby status, league prestige. Not a simple odds filter. Outputs SelectedGames structured model with justifications.
 
-### 3.3 Fetch Lines & Filter Games Node (🐍 Code)
-- [ ] Implement `PythonNodeWrapper` that fetches betting lines (n1, n2, n3) from API/scraper for selected games and filters by minimum odds threshold. Outputs FilteredGame list (min 3 games) and raw unfiltered data.
+### 3.3 Fetch Lines from winner.co.il Node (🐍 Code/Scraping)
+- [ ] Implement fetcher for betting lines (n1, n2, n3) from **winner.co.il**. Use MCP browser or scraping as needed. Apply minimum odds threshold filter. Outputs FilteredGame list (min 3 games).
 
 ### 3.4 Persist Unfiltered Games Node (🗄️ DB Operation)
-- [ ] Create `PythonNodeWrapper` executing DB insert for all games considered (even if filtered out). Stores snapshot for historical analysis and debugging of filter logic.
+- [ ] Create `PythonNodeWrapper` executing DB insert for all games considered (even if filtered out). Stores snapshot for historical analysis.
 
 ### 3.5 Combine Results to Reports Node (🐍 Code)
-- [ ] Implement `PythonNodeWrapper` that merges game data and team data (from parallel subgraphs) into final CombinedReport per game. Handles missing data gracefully, generates markdown/JSON reports.
+- [ ] Implement `PythonNodeWrapper` that queries DB for game_reports and team_reports (from parallel subgraphs) and merges into final CombinedReport per game. Handles missing data gracefully, generates structured reports.
 
 ### 3.6 Persist Reports to DB Node (🗄️ DB Operation)
-- [ ] Create `PythonNodeWrapper` inserting CombinedReport records into reports table keyed by game_id and date. Updates game status to 'ready_for_betting'.
+- [ ] Create `PythonNodeWrapper` inserting CombinedReport records into reports table. Updates game status to 'ready_for_betting'.
 
 ### 3.7 Send Gambling Trigger Node (🐍 Code)
-- [ ] Implement node that triggers Gambling Flow (via queue, webhook, or direct invocation). Passes list of game_ids and report references as TriggerPayload.
+- [ ] Implement node that triggers Gambling Flow (via queue, webhook, or direct invocation). Passes game_ids and report references as TriggerPayload.
 
 ---
 
-## 4. Game Data Fetchers Subgraph (🤖 Smart Agents)
+## 4. Game Intelligence Agent Subgraph (🤖 Smart Agent with Tools)
 
 ### 4.1 Game Subgraph Manager
-- [ ] Create `game_data_fetchers_subgraph/graph_manager.py` as reusable subgraph instantiated per filtered game (1:many parallelism). Orchestrates 5 fetcher nodes below and aggregates into GameData output.
+- [ ] Create `game_intelligence_subgraph/graph_manager.py` as reusable subgraph instantiated per filtered game (parallel execution). Orchestrates single Game Intelligence Agent node.
 
-### 4.2 Venue & Crowd Fetcher Node
-- [ ] Implement `NodeWrapper` with AI/tools fetching venue name, capacity, expected attendance for the game. Uses web scraping or MCP tools; tolerates missing data.
-
-### 4.3 Atmosphere News Fetcher Node
-- [ ] Create `NodeWrapper` gathering fan sentiment, stadium atmosphere news, security concerns, or crowd-related incidents. AI summarizes findings into brief text.
-
-### 4.4 Weather Fetcher Node
-- [ ] Implement `ToolNodeWrapper` calling weather API for game location/time, extracting rain probability, wind, temperature. Critical for cancellation risk → influences draw ('x') odds.
-
-### 4.5 Head-to-Head Results Fetcher Node
-- [ ] Create `NodeWrapper` retrieving recent H2H match results (last 5 encounters) between the two teams. AI extracts patterns (home dominance, high-scoring, etc.).
+### 4.2 Game Intelligence Agent Node
+- [ ] Implement `NodeWrapper` with AI agent (following StocksMarketRecommender pattern) equipped with tools:
+  
+  **Tools** (dumb fetchers):
+  - fetch_h2h() - Recent head-to-head results (raw data)
+  - fetch_venue() - Venue name, capacity, expected attendance
+  - fetch_weather() - Weather conditions (temperature, rain, wind)
+  - search_game_news() - Raw news articles about atmosphere, fans, security
+  
+  **AI Analysis** (what the agent actually does):
+  - **H2H Pattern Extraction:** Analyzes recent encounters to identify home dominance, high-scoring trends, defensive patterns
+  - **Atmosphere Assessment:** Synthesizes fan sentiment, stadium atmosphere news, security concerns, crowd-related incidents into betting-relevant summary
+  - **Weather Impact Analysis:** Evaluates cancellation risk and draw probability impact based on conditions
+  - **Venue Factors:** Assesses crowd size/hostility impact on home advantage
+  
+  **Output:** GameReport Pydantic model with:
+  - h2h_insights: str (patterns extracted by AI)
+  - atmosphere_summary: str (synthesized by AI)
+  - weather_risk: str (AI assessment)
+  - venue_factors: str (AI analysis)
+  
+  Agent makes **2-3 LLM calls:** initial tool orchestration call, then analysis synthesis call(s).
 
 ---
 
-## 5. Team Data Fetchers Subgraph (🤖 Smart Agents)
+## 5. Team Intelligence Agent Subgraph (🤖 Smart Agent with Tools)
 
 ### 5.1 Team Subgraph Manager
-- [ ] Create `team_data_fetchers_subgraph/graph_manager.py` as reusable subgraph instantiated per team (2 teams × N games parallelism). Orchestrates 11 fetcher nodes below and aggregates into TeamData output.
+- [ ] Create `team_intelligence_subgraph/graph_manager.py` as reusable subgraph instantiated per team (2 teams × N games parallelism). Orchestrates Team Intelligence Agent.
 
-### 5.2 Recent Form Fetcher Node
-- [ ] Implement `NodeWrapper` fetching last 5 games results for the team (W/D/L, goals scored/conceded). AI computes form trend (improving/declining).
-
-### 5.3 Recovery Time Calculator Node
-- [ ] Create `PythonNodeWrapper` calculating days since team's last match using fixture data. Outputs recovery_days integer; critical for fatigue assessment.
-
-### 5.4 Injury List Fetcher Node
-- [ ] Implement `NodeWrapper` with AI/scraper extracting current injuries with severity and expected return dates. Prioritizes key players; tolerates incomplete data.
-
-### 5.5 Suspension List Fetcher Node
-- [ ] Create `NodeWrapper` fetching suspended players (red cards, accumulated yellows) with suspension duration. AI flags impactful absences.
-
-### 5.6 Returning Players Fetcher Node
-- [ ] Implement `NodeWrapper` identifying players returning from injury/suspension for this game. AI assesses potential impact on team strength.
-
-### 5.7 Rotation & Absence List Fetcher Node
-- [ ] Create `NodeWrapper` gathering rotation policy news, coach/player absences (illness, personal, tactical). AI extracts likely lineup changes.
-
-### 5.8 Near-Future Match Importance Analyzer Node
-- [ ] Implement `NodeWrapper` analyzing team's upcoming fixtures (next 2-3 games) to infer rotation risk. AI determines if coach might rest players for current game.
-
-### 5.9 Top Players Form Analyzer Node
-- [ ] Create `NodeWrapper` fetching recent performance stats (goals, assists, GA conceded) for 3-5 key players. AI summarizes individual form trends.
-
-### 5.10 Team Morale & Coach Stability Fetcher Node
-- [ ] Implement `NodeWrapper` gathering news on team morale (recent controversies, winning streak, coach under pressure). AI extracts sentiment and stability indicators.
-
-### 5.11 Preparation & Training News Fetcher Node
-- [ ] Create `NodeWrapper` fetching training reports, coach press conference notes, tactical preparation insights. AI highlights relevant preparation quality signals.
-
-### 5.12 Other Relevant News Fetcher Node
-- [ ] Implement catch-all `NodeWrapper` for miscellaneous news (transfers, ownership changes, fan protests, etc.). AI filters for betting-relevant information only.
+### 5.2 Team Intelligence Agent Node
+- [ ] Implement `NodeWrapper` with AI agent (following StocksMarketRecommender pattern) equipped with tools:
+  
+  **Tools** (dumb fetchers):
+  - calculate_recovery_time() - Days since team's last match (pure Python utility)
+  - fetch_recent_form() - Last 5 games results (raw W/D/L, goals)
+  - fetch_injuries() - Current injury list with player names, severity
+  - fetch_suspensions() - Suspended player names, duration
+  - fetch_returning_players() - Players back from injury/suspension
+  - fetch_rotation_news() - Coach statements, rotation policy news
+  - fetch_upcoming_fixtures() - Next 2-3 games (dates, opponents)
+  - fetch_key_players_form() - Top 3-5 players' recent stats (goals, assists, GA)
+  - fetch_team_morale() - News on morale, coach pressure, controversies
+  - fetch_training_news() - Training reports, press conferences
+  - search_team_news() - Catch-all for other news (transfers, protests, ownership)
+  
+  **AI Analysis** (what the agent actually does):
+  1. **Form Trend Analysis:** Computes improving/declining trajectory from last 5 games (not just W/D/L count)
+  2. **Injury Impact Assessment:** **Critical** - Flags whether injured players are starters vs bench warmers. For teams user doesn't know (e.g., Napoli), AI must identify if missing players are key contributors.
+  3. **Rotation Risk Evaluation:** Analyzes upcoming fixtures to predict rest/rotation for current game
+  4. **Key Players Form:** Assesses whether top performers are in good form or slumping
+  5. **Morale & Stability Extraction:** Extracts sentiment indicators and coach stability from news
+  6. **Preparation Quality Signals:** Highlights relevant training/prep quality signals from news
+  7. **News Filtering:** Filters miscellaneous news (transfers, protests, ownership) for **betting relevance only** - discards irrelevant noise
+  
+  **Output:** TeamReport Pydantic model with:
+  - recovery_days: int (from calculate_recovery_time tool)
+  - form_trend: str (AI-computed: "improving", "declining", "stable" + reasoning)
+  - injury_impact: str (AI assessment: "critical starters missing" vs "minor depth issues")
+  - rotation_risk: str (AI prediction)
+  - key_players_status: str (AI summary)
+  - morale_stability: str (AI-extracted sentiment)
+  - preparation_quality: str (AI-highlighted signals)
+  - relevant_news: str (AI-filtered betting-relevant only)
+  
+  Agent makes **3-5 LLM calls:**
+  - 1 initial orchestration call (decide which tools to use)
+  - 1-2 analysis calls for complex categories (form trend + injury impact)
+  - 1-2 synthesis calls for news filtering and final report assembly
 
 ---
 
 ## 6. Integration & Testing
 
 ### 6.1 Parallel Subgraph Orchestration
-- [ ] Implement logic in main graph to spawn game subgraphs (1:N) and team subgraphs (2N:1) in parallel using LangGraph subgraph execution. Collect results via DB writes for maximum parallelism.
+- [ ] Implement parallel execution of game subgraphs (1:N) and team subgraphs (2N:1) using LangGraph. Collect results via DB writes for maximum parallelism.
 
 ### 6.2 Error Handling & Partial Data Strategy
-- [ ] Define fallback behavior when fetchers fail (timeouts, missing data sources): continue with partial reports or abort game. Implement retry logic and data quality validation.
+- [ ] Define fallback behavior when tools fail: continue with partial reports flagging data quality. Implement retry logic and logging for debugging.
 
 ### 6.3 End-to-End Flow Testing
-- [ ] Create integration test simulating full Pre-Gambling Flow with mock data sources. Verify: game selection → filtering → parallel fetching → report generation → DB persistence → trigger.
+- [ ] Create integration test simulating full Pre-Gambling Flow with mock data sources. Verify: game selection → winner.co.il odds → parallel fetching → report generation → DB persistence → trigger.
 
-### 6.4 Data Source Configuration
-- [ ] Document and configure actual APIs/scrapers for each fetcher node (weather API, sports data providers, news sources). Set up MCP servers if using sandboxed scraping.
-
-### 6.5 Football MCPs Implementation in LangGraphWrappers
-- [ ] Implement new MCP wrappers in LangGraphWrappers repo (under tools/mcps/) for football data sources discovered in task 0.1. Create ToolsWrapper classes exposing these MCPs to user graphs, following YahooFinanceMCPTools pattern.
+### 6.4 Tool Integration Testing
+- [ ] Verify all tools work correctly: existing MCPs (browser), Python API clients, Python utility functions wrapped as LangGraph tools. **No custom MCP development** - MCPs are for external consumers, we use Python tools internally.
 
 ---
 
 ## 7. Deployment & Monitoring
 
 ### 7.1 Cron Job Setup
-- [ ] Configure production cron/scheduler with error notifications, timeout handling, and manual trigger capability. Ensure idempotency for same-day re-runs.
+- [ ] Configure production cron/scheduler with error notifications and manual trigger capability. Ensure idempotency for same-day re-runs.
 
 ### 7.2 Logging & Observability
-- [ ] Instrument all nodes with structured logging (game_id, node_name, duration, errors). Add metrics for: games filtered, fetch success rates, report generation time. Integrate with LangSmith tracing from task 0.2.
+- [ ] Instrument all nodes with structured logging (game_id, node_name, duration, errors). Integrate with LangSmith tracing for full visibility into agent decisions and tool usage.
 
 ---
 
-## Design Decisions - FINALIZED ✅
+## Key Design Decisions
 
-1. **Parallelism Strategy:** ✅ AGREED - DB writes from parallel subgraphs. State for coordination only.
+1. **Agent Architecture:** 2 smart agents (Game + Team Intelligence) with rich tool access vs. 16 specialized fetcher agents. Follows **StocksMarketRecommender pattern**. Tools are dumb fetchers, agents do sophisticated analysis.
 
-2. **LangGraphWrappers vs. Raw LangGraph:** ✅ AGREED - Use LangGraphWrappers for structure and clarity. Flag immediately if limitations found. Implement additional tools/MCPs in LangGraphWrappers as needed.
+2. **State vs DB:** State for coordination only (game IDs, phase, messages). Game/team data written **directly to DB** from parallel subgraphs, not accumulated in state.
 
-3. **MCP Integration:** ✅ AGREED - Prioritize free MCPs (MCP browser, starred GitHub MCPs) over paid APIs. Avoid fragile web scrapers and expensive services like Tavily. See task 0.1 for research phase.
+3. **LLM Budget:** ~20-30 calls total per run (3 games × [2-3 game calls + 2×(3-5 team calls)] ≈ 24-33 calls). Using gpt-4o-mini for cost efficiency. Each agent makes multiple purposeful calls: orchestration, analysis, synthesis.
 
-4. **Subgraph Results Collection:** ✅ AGREED - Direct DB writes for true parallelism, avoiding complex nested state management across 12-18 agents × games/teams.
+4. **Parallelism:** Full parallel execution of subgraphs via LangGraph. Essential for performance and learning complex orchestration.
 
-5. **Structured Output Enforcement:** ✅ AGREED - Strict `method="json_schema"` for critical nodes (Game Picker, data aggregators), flexible for news fetchers.
+5. **Odds Source:** winner.co.il (Israeli Toto) as primary/only odds source. Scraping acceptable if no API available.
 
-6. **Database Choice:** ✅ PostgreSQL - Relational structure ideal for betting data (games↔teams↔players, odds, P&L), ACID compliance, excellent analytics support, free, easy Docker setup.
+6. **Game Selection:** Sophisticated AI picker based on rivalry/importance/context, NOT simple odds threshold filter.
 
-7. **Observability:** ✅ Structured logging + LangSmith tracing (dedicated project) for flow monitoring and debugging.
+7. **Data Quality:** Tolerate partial data with quality flags. Don't abort on missing non-critical information.
+
+8. **MCP Strategy:** Use existing MCPs where available (browser, any football MCPs found). Don't develop custom MCPs - write Python functions wrapped as LangGraph tools instead.
 
 ---
-
-## Progress Tracking
-
-**Total Tasks:** 43  
-**Completed:** 0  
-**In Progress:** 0  
-**Remaining:** 43
-
-**Breakdown by Category:**
-- Research & Setup: 2 tasks
-- Infrastructure: 4 tasks  
-- Graph Architecture: 6 tasks
-- Main Flow Nodes: 7 tasks
-- Game Fetchers Subgraph: 5 tasks
-- Team Fetchers Subgraph: 12 tasks
-- Integration & Testing: 5 tasks
-- Deployment & Monitoring: 2 tasks
-
-**Parallelizable Work:** Game/team fetcher nodes (17 tasks) can be developed independently once subgraph managers are defined.

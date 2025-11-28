@@ -183,7 +183,7 @@ def fetch_h2h_backup(team1_name: str, team2_name: str) -> List[Dict]:
 ---
 
 ## See Also
-- [Game Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#42-game-intelligence-agent-node) - performs H2H pattern analysis
+- [Game Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_FLOW_TASKS.md#42-game-intelligence-agent-node) - performs H2H pattern analysis
 - [football-data.org Source](../sources/football-data.org.md) - Primary H2H source
 - [apifootball.com Source](../sources/apifootball.md) - Backup H2H source
 - [NON_VIABLE_SOURCES.md](../sources/NON_VIABLE_SOURCES.md) - Why api-football.com is fraudulent
