@@ -28,7 +28,7 @@
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
 | 1.1 DB Schema | ✅ COMPLETE | #4 | Complete (simplified to 5 tables) |
-| 1.4 Docker Compose | In CR | - | Awaiting review |
+| 1.4 Docker Compose | ✅ COMPLETE | #5 | Complete |
 
 ---
 
