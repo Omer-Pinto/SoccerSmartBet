@@ -13,10 +13,10 @@
 - [x] Create dedicated LangSmith project for SoccerSmartBet and configure environment variables. Verify tracing works with test LangGraph run.
 
 ### 0.3 Update Football API Keys (👤 Omer-led)
-- [ ] Register for API keys from sources identified in research (football-data.org, apifootball.com, the-odds-api, open-meteo). Store in config. **Assigned: omer-me**
+- [x] Register for API keys from sources identified in research (football-data.org, apifootball.com, the-odds-api, open-meteo). Store in config. **Assigned: omer-me** ✅ **COMPLETE** - All 3 API keys registered and added to `.env` file.
 
 ### 0.4 Test All APIs
-- [ ] Simple integration test for each API from executive_summary.md: verify connectivity, response format, rate limits. Create `tests/api_integration/` with one test per source.
+- [x] Simple integration test for each API from executive_summary.md: verify connectivity, response format, rate limits. Create `tests/api_integration/` with one test per source. ✅ **COMPLETE** - 24 passing tests across 4 APIs (football-data.org, The Odds API, apifootball.com, Open-Meteo). All tests verify current/upcoming data with dynamic date validation.
 
 ---
 

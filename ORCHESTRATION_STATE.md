@@ -18,8 +18,8 @@
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
-| 0.3 API Key Registration | Not Started | - | User task (omer-me) |
-| 0.4 API Integration Tests | Not Started | - | Blocked on 0.3 |
+| 0.3 API Key Registration | ✅ COMPLETE | - | User completed: 3 API keys registered |
+| 0.4 API Integration Tests | ✅ MERGED | #10 | 24 passing tests across 4 APIs |
 
 ---
 
