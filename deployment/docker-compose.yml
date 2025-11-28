@@ -6,6 +6,10 @@ version: '3.8'
 # Purpose: Provides isolated PostgreSQL instances for staging and production
 # Staging: Port 5432 (development/testing)
 # Production: Port 5433 (production deployment)
+#
+# Usage:
+#   cd deployment
+#   docker-compose up -d postgres-staging
 # ============================================================================
 
 services:
@@ -16,6 +20,8 @@ services:
     image: postgres:16-alpine
     container_name: soccersmartbet-staging
     restart: unless-stopped
+    env_file:
+      - ../.env
     
     environment:
       POSTGRES_DB: ${POSTGRES_STAGING_DB:-soccersmartbet_staging}
@@ -63,6 +69,8 @@ services:
     image: postgres:16-alpine
     container_name: soccersmartbet-production
     restart: unless-stopped
+    env_file:
+      - ../.env
     
     environment:
       POSTGRES_DB: ${POSTGRES_PROD_DB:-soccersmartbet_prod}
