@@ -20,29 +20,44 @@ Before running these tests, you must:
 
 ## Test Coverage
 
-### Enabled APIs (Free Tier)
-- ✅ **football-data.org** - Fixtures, H2H statistics
-- ✅ **The Odds API** - Betting lines
-- ✅ **apifootball.com** - Injuries, suspensions, H2H backup, team form
-- ✅ **Open-Meteo** - Weather data (no key required)
+**Total: 24 tests across 4 APIs** (All passing ✅)
 
-### Test Files
-- `test_football_data_org.py` - Fixtures and H2H endpoint tests
-- `test_odds_api.py` - Betting lines retrieval tests
-- `test_apifootball.py` - Injuries, suspensions, team form tests
-- `test_open_meteo.py` - Weather data tests
+### What Each Test Validates
+
+| Vertical | API | Test | Validates |
+|----------|-----|------|-----------|
+| **Fixtures** | football-data.org | test_get_upcoming_fixtures | Matches >= today (NOT 2021-2023 data) |
+| **H2H** | football-data.org | test_get_h2h_last_5_matches_only | Last 5 meetings between 2 teams only |
+| **H2H (Backup)** | apifootball | test_get_h2h_between_two_teams | get_H2H action for 2 specific teams |
+| **Odds** | The Odds API | test_get_current_soccer_odds | Odds >= yesterday (dynamic date check) |
+| **Odds Format** | The Odds API | test_odds_decimal_format | Israeli decimal format |
+| **Odds Market** | The Odds API | test_h2h_market | 3 outcomes (1/X/2) |
+| **Injuries** | apifootball | test_get_current_team_injuries | Current season injury status |
+| **Team Form** | apifootball | test_get_last_5_team_matches | Last 30 days matches |
+| **Player Stats** | apifootball | test_get_current_top_scorers | Current season goals |
+| **Weather** | Open-Meteo | 10 weather tests | Current/future forecasts |
+| **Error Handling** | All APIs | test_invalid_api_key | Proper error responses |
+
+### Test Files Breakdown
+
+- `test_football_data_org.py` - **3 tests** (fixtures, H2H, error handling)
+- `test_odds_api.py` - **5 tests** (odds retrieval, format, market, sports list, error handling)
+- `test_apifootball.py` - **5 tests** (injuries, H2H, team form, top scorers, error handling)
+- `test_open_meteo.py` - **10 tests** (weather variables, date/time handling, no auth verification)
 
 ## Running Tests
 
+**Note:** This project uses `uv` for package management. Run tests through your IDE's test runner or uv.
+
 ```bash
 # Run all API integration tests
-pytest tests/api_integration/ -v
+uv run pytest tests/api_integration/ -v
 
 # Run specific API test
-pytest tests/api_integration/test_football_data_org.py -v
+uv run pytest tests/api_integration/test_football_data_org.py -v
 
 # Run with verbose output (show API responses)
-pytest tests/api_integration/ -v -s
+uv run pytest tests/api_integration/ -v -s
 ```
 
 ## Rate Limits
@@ -58,13 +73,14 @@ pytest tests/api_integration/ -v -s
 
 **Recommendation:** Run tests sparingly during development, use mocks for frequent testing.
 
-## Expected Behavior
+## Test Design Principles
 
-Each test should:
-1. ✅ Connect to the API successfully
-2. ✅ Return valid JSON/data structure
-3. ✅ Handle errors gracefully (rate limits, invalid requests)
-4. ✅ Validate data format matches expected schema
+All tests follow these rules:
+1. ✅ **Current data only** - No hardcoded dates, all dates calculated dynamically
+2. ✅ **Smart H2H queries** - Use dedicated H2H endpoints (limit=5), NOT date range filtering
+3. ✅ **No rate limit hammering** - Tests don't intentionally trigger rate limits
+4. ✅ **Focused on app needs** - Test what the betting app requires, not API infrastructure
+5. ✅ **Verify data currency** - Fixtures >= today, odds >= yesterday, injuries current season
 
 ## Troubleshooting
 
