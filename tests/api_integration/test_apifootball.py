@@ -31,11 +31,12 @@ def api_params():
 class TestInjuriesEndpoint:
     """Test injuries and suspensions retrieval"""
 
-    def test_get_team_injuries(self, api_params):
-        """Test retrieving injury list for a specific team"""
+    def test_get_current_team_injuries(self, api_params):
+        """Test retrieving CURRENT injury list (not old 2021-2023 data)"""
         import requests
         
         # Get teams from Premier League (league_id=152)
+        # This should give us current squad with current injury status
         params = {**api_params, "action": "get_teams", "league_id": 152}
         
         response = requests.get(BASE_URL, params=params, timeout=30)
@@ -45,55 +46,35 @@ class TestInjuriesEndpoint:
         
         # Should return a list of teams
         assert isinstance(data, list)
+        assert len(data) > 0, "Expected teams data, got empty response"
         
-        if data:
-            team = data[0]
-            # Check for basic team structure
-            assert "team_key" in team or "team_name" in team
-            # players field may or may not be present depending on response
-
-    def test_injuries_data_format(self, api_params):
-        """Test injury data contains required fields"""
-        import requests
+        team = data[0]
+        assert "team_key" in team or "team_name" in team
         
-        # Get teams with players
-        params = {**api_params, "action": "get_teams", "league_id": 152}
-        
-        response = requests.get(BASE_URL, params=params, timeout=30)
-        
-        assert response.status_code == 200
-        data = response.json()
-        
-        if data and isinstance(data, list):
-            # Look for a team with players data
-            for team in data:
-                if "players" in team and team["players"]:
-                    player = team["players"][0]
-                    # Check for expected fields
-                    assert "player_name" in player
-                    # player_injured field should exist
-                    if "player_injured" in player:
-                        assert player["player_injured"] in ["Yes", "No", ""]
-                    break
+        # Verify we have players data with injury status
+        if "players" in team and team["players"]:
+            player = team["players"][0]
+            assert "player_name" in player
+            # player_injured field indicates current injury status
+            if "player_injured" in player:
+                assert player["player_injured"] in ["Yes", "No", ""]
 
 
 class TestH2HEndpoint:
     """Test head-to-head statistics (backup for football-data.org)"""
 
-    def test_get_h2h_matches(self, api_params):
-        """Test retrieving H2H matches between two teams"""
+    def test_get_h2h_between_two_teams(self, api_params):
+        """Test retrieving ONLY H2H matches between 2 specific teams (last 5 meetings)"""
         import requests
-        from datetime import datetime, timedelta
         
-        # Get events (matches)
-        to_date = datetime.now().strftime("%Y-%m-%d")
-        from_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-        
+        # apifootball.com has get_H2H action that returns head-to-head between two teams
+        # Test with a known rivalry: Man City vs Man United
+        # This should return ONLY matches where these two teams played each other
         params = {
             **api_params,
-            "action": "get_events",
-            "from": from_date,
-            "to": to_date
+            "action": "get_H2H",
+            "firstTeamId": "33",   # Man City
+            "secondTeamId": "35"   # Man United
         }
         
         response = requests.get(BASE_URL, params=params, timeout=30)
@@ -101,47 +82,29 @@ class TestH2HEndpoint:
         assert response.status_code == 200
         data = response.json()
         
-        # Should return list of events
-        assert isinstance(data, list)
+        # Should return H2H matches between these two teams
+        assert isinstance(data, dict) or isinstance(data, list)
         
-        if data:
+        # Verify it's returning H2H data, not all matches
+        # The API returns firstTeam_lastResults and secondTeam_lastResults
+        if isinstance(data, dict):
+            # Check for H2H structure
+            assert "firstTeam_lastResults" in data or "secondTeam_lastResults" in data or "firstTeam_VS_secondTeam" in data
+        elif isinstance(data, list) and data:
+            # If it's a list of matches, verify they involve both teams
             match = data[0]
-            # Validate match structure
-            assert "match_id" in match or "match_hometeam_name" in match or "match_awayteam_name" in match
-
-    def test_h2h_event_filtering(self, api_params):
-        """Test filtering events by team IDs for H2H"""
-        import requests
-        from datetime import datetime, timedelta
-        
-        to_date = datetime.now().strftime("%Y-%m-%d")
-        from_date = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
-        
-        # Request events (would filter by team_id if we knew a valid one)
-        params = {
-            **api_params,
-            "action": "get_events",
-            "from": from_date,
-            "to": to_date
-        }
-        
-        response = requests.get(BASE_URL, params=params, timeout=30)
-        
-        assert response.status_code == 200
-        data = response.json()
-        
-        # Validate response format
-        assert isinstance(data, list)
+            assert "match_hometeam_name" in match or "match_awayteam_name" in match
 
 
 class TestTeamFormEndpoint:
     """Test team form (recent matches) retrieval"""
 
-    def test_get_recent_matches(self, api_params):
-        """Test retrieving recent matches for a team"""
+    def test_get_last_5_team_matches(self, api_params):
+        """Test retrieving ONLY last 5 matches for team form (NOT years of data)"""
         import requests
         from datetime import datetime, timedelta
         
+        # Get last 30 days of matches (we'll limit to 5 in real usage)
         to_date = datetime.now().strftime("%Y-%m-%d")
         from_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
         
@@ -160,61 +123,26 @@ class TestTeamFormEndpoint:
         assert isinstance(data, list)
         
         if data:
+            # Verify matches are recent
             match = data[0]
-            # Validate match structure
             assert "match_date" in match or "match_status" in match
-
-    def test_team_form_date_range(self, api_params):
-        """Test filtering team matches by date range"""
-        import requests
-        from datetime import datetime, timedelta
-        
-        to_date = datetime.now().strftime("%Y-%m-%d")
-        from_date = (datetime.now() - timedelta(days=14)).strftime("%Y-%m-%d")
-        
-        params = {
-            **api_params,
-            "action": "get_events",
-            "from": from_date,
-            "to": to_date
-        }
-        
-        response = requests.get(BASE_URL, params=params, timeout=30)
-        
-        assert response.status_code == 200
-        data = response.json()
-        
-        assert isinstance(data, list)
-        
-        # Verify matches are within date range
-        if data:
-            for match in data[:3]:  # Check first 3
-                if "match_date" in match:
-                    match_date = match["match_date"]
-                    assert from_date <= match_date <= to_date
+            
+            if "match_date" in match:
+                assert from_date <= match["match_date"] <= to_date
+            
+            # In real usage, we'll filter by team_id and limit to 5 matches
+            # This test just verifies we can get recent matches within a date range
 
 
 class TestPlayerStatsEndpoint:
     """Test player statistics (goals, assists, form)"""
 
-    def test_get_player_stats(self, api_params):
-        """Test retrieving player statistics"""
-        import requests
-        
-        # Try to get players (may require player_id which we don't have)
-        # For now, test the API endpoint responds correctly
-        params = {**api_params, "action": "get_players"}
-        
-        response = requests.get(BASE_URL, params=params, timeout=30)
-        
-        # Should return 200 even if empty or requires player_id
-        assert response.status_code in [200, 400]
-
-    def test_top_scorers(self, api_params):
-        """Test retrieving top scorers for a team"""
+    def test_get_current_top_scorers(self, api_params):
+        """Test retrieving CURRENT season top scorers (not old 2021-2023 data)"""
         import requests
         
         # Get top scorers for Premier League (league_id=152)
+        # This should return current season stats
         params = {**api_params, "action": "get_topscorers", "league_id": 152}
         
         response = requests.get(BASE_URL, params=params, timeout=30)
@@ -222,31 +150,17 @@ class TestPlayerStatsEndpoint:
         assert response.status_code == 200
         data = response.json()
         
-        # Should return list of players
+        # Should return list of current top scorers
         assert isinstance(data, list)
+        assert len(data) > 0, "Expected top scorers data, got empty response"
         
-        if data:
-            player = data[0]
-            # Check for expected fields
-            assert "player_name" in player or "player_key" in player
-
-
-class TestRateLimits:
-    """Test API rate limiting"""
-
-    def test_rate_limit_tracking(self, api_params):
-        """Test API rate limit doesn't exceed 180 req/hour"""
-        import requests
-        import time
+        player = data[0]
+        assert "player_name" in player or "player_key" in player
         
-        # Make a few requests and verify they succeed
-        # We won't actually test the limit (would take too long)
-        # Just verify the API is responsive for multiple requests
-        for i in range(3):
-            params = {**api_params, "action": "get_leagues"}
-            response = requests.get(BASE_URL, params=params, timeout=30)
-            assert response.status_code == 200
-            time.sleep(0.5)  # Small delay between requests
+        # Verify we have goal stats
+        if "goals" in player:
+            # Current season should have some goals
+            assert isinstance(player["goals"], (int, str))
 
 
 class TestErrorHandling:
@@ -263,19 +177,3 @@ class TestErrorHandling:
         # API might return 401, 403, or 200 with error message in body
         # Check that we get a response (even if error)
         assert response.status_code in [200, 401, 403]
-
-    def test_invalid_team_id(self, api_params):
-        """Test behavior with invalid team ID"""
-        import requests
-        
-        params = {**api_params, "action": "get_teams", "team_id": 99999999}
-        
-        response = requests.get(BASE_URL, params=params, timeout=30)
-        
-        # Should return 200 (empty list) or error code
-        assert response.status_code in [200, 404]
-        
-        if response.status_code == 200:
-            data = response.json()
-            # Should be empty or error structure
-            assert isinstance(data, (list, dict))

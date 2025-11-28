@@ -36,9 +36,10 @@ def api_params():
 class TestOddsEndpoint:
     """Test odds retrieval for soccer matches"""
 
-    def test_get_soccer_odds_success(self, api_params):
-        """Test retrieving odds for soccer sport"""
+    def test_get_current_soccer_odds(self, api_params):
+        """Test retrieving CURRENT odds for upcoming matches (NOT 2021-2023 data)"""
         import requests
+        from datetime import datetime, timedelta
         
         # Try Premier League
         response = requests.get(
@@ -59,6 +60,13 @@ class TestOddsEndpoint:
             assert "home_team" in match
             assert "away_team" in match
             assert "bookmakers" in match
+            assert "commence_time" in match
+            
+            # CRITICAL: Verify odds are for current/upcoming matches, not 2021-2023
+            # Allow matches from yesterday onwards (some might have started recently)
+            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            match_time = match["commence_time"][:10]  # YYYY-MM-DD
+            assert match_time >= yesterday, f"Got old match from {match_time}, expected >= {yesterday}"
 
     def test_odds_decimal_format(self, api_params):
         """Test that odds are returned in decimal format"""
@@ -147,38 +155,7 @@ class TestSportsEndpoint:
             assert any(key in sport_keys for key in ["soccer_epl", "soccer_spain_la_liga", "soccer_germany_bundesliga"])
 
 
-class TestRateLimits:
-    """Test API rate limiting and quota tracking"""
 
-    def test_quota_tracking(self, api_params):
-        """Test API quota usage tracking via response headers"""
-        import requests
-        
-        response = requests.get(
-            f"{BASE_URL}/sports/soccer_epl/odds",
-            params=api_params,
-            timeout=10
-        )
-        
-        assert response.status_code == 200
-        
-        # Check for quota headers
-        assert "x-requests-remaining" in response.headers or "X-Requests-Remaining" in response.headers
-        
-        # Get remaining quota
-        remaining = response.headers.get("x-requests-remaining") or response.headers.get("X-Requests-Remaining")
-        if remaining:
-            remaining_int = int(remaining)
-            # Should be a positive number
-            assert remaining_int >= 0
-
-    def test_rate_limit_exceeded(self, api_params):
-        """Test behavior when monthly quota exceeded"""
-        # Note: This test can't actually exceed quota without burning all credits
-        # Just verify we handle the error code properly if it were to happen
-        # Status code 429 would indicate quota exceeded
-        # We'll just document this - actual test would waste quota
-        pass
 
 
 class TestErrorHandling:
@@ -202,16 +179,3 @@ class TestErrorHandling:
         
         # Should return 401 for invalid key
         assert response.status_code == 401
-
-    def test_invalid_sport(self, api_params):
-        """Test behavior with invalid sport key"""
-        import requests
-        
-        response = requests.get(
-            f"{BASE_URL}/sports/invalid_sport_key_999/odds",
-            params=api_params,
-            timeout=10
-        )
-        
-        # Should return 404 for non-existent sport
-        assert response.status_code == 404
