@@ -1,0 +1,30 @@
+# SoccerSmartBet MVP Configuration
+# =============================================================================
+# Minimal configuration for initial development.
+# Sensitive credentials (API keys, DB passwords) come from .env file at project root.
+#
+# .env File Usage:
+# - For MVP, use a single .env file at the project root
+# - Copy .env.example to .env and fill in your credentials
+# =============================================================================
+
+# Betting Configuration
+# -----------------------------------------------------------------------------
+betting:
+  min_odds_threshold: 1.5    # Minimum odds to consider a game interesting
+  max_daily_games: 3          # Maximum games to select per day
+  stake_per_game: 100         # Simulated stake amount (NIS)
+
+# Database Configuration
+# -----------------------------------------------------------------------------
+# Credentials loaded from environment variables (DB_USER, DB_PASSWORD, etc.)
+database:
+  host: localhost
+  port: 5432
+  name: soccersmartbet
+
+# Model Configuration
+# -----------------------------------------------------------------------------
+# Using gpt-4o-mini for cost efficiency (~$0.15/$0.60 per 1M tokens)
+models:
+  default: gpt-4o-mini
