@@ -68,5 +68,5 @@ If reliable football news MCP servers emerge:
 ---
 
 ## See Also
-- [Team Intelligence Agent](../../../../PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#52-team-intelligence-agent-node) - operates without news data for MVP
+- [Team Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#52-team-intelligence-agent-node) - operates without news data for MVP
 - [Disabled Verticals](../executive_summary.md#-key-concerns) - list of scraping-based features

@@ -45,5 +45,5 @@
 ---
 
 ## See Also
-- [Game Intelligence Agent](../../../../PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#4-game-intelligence-agent-subgraph) - uses fixture data
-- [Smart Game Picker](../../../../PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#32-smart-game-picker-node) - selects from fixtures
+- [Game Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#4-game-intelligence-agent-subgraph) - uses fixture data
+- [Smart Game Picker](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#32-smart-game-picker-node) - selects from fixtures

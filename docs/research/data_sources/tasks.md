@@ -175,7 +175,7 @@ LANGCHAIN_PROJECT=SoccerSmartBet
 
 1. **Complete all registrations** above and test each API
 2. **Verify apifootball.com returns 2024-2025 data** (unlike api-football.com)
-3. **Implementation tasks** will be incorporated into main task breakdown (see [BATCH_PLAN.md](../../../BATCH_PLAN.md))
+3. **Implementation tasks** will be incorporated into main task breakdown (see [BATCH_PLAN.md](../../../status/pre_gambling_flow/BATCH_PLAN.md))
 4. **Tool development** will reference source documentation from [sources/](sources/) directory
 
 ---
@@ -186,4 +186,4 @@ LANGCHAIN_PROJECT=SoccerSmartBet
 - [verticals/](verticals/) - Requirements for each data vertical
 - [sources/](sources/) - Detailed API documentation with code examples
 - [sources/NON_VIABLE_SOURCES.md](sources/NON_VIABLE_SOURCES.md) - Fraudulent sources to avoid
-- [PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md](../../../PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md) - Main task breakdown
+- [PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md](../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md) - Main task breakdown

@@ -353,5 +353,5 @@ The Odds API returns decimal odds by default, which match the Israeli Toto syste
 ## See Also
 
 - [Odds Vertical](../verticals/odds.md) - Requirements and implementation strategy
-- [Task 3.3: Fetch Lines Node](../../../../PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#33-fetch-lines-from-winnercoil-node) - Implementation task (needs update)
+- [Task 3.3: Fetch Lines Node](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#33-fetch-lines-from-winnercoil-node) - Implementation task (needs update)
 - [Official API Docs](https://the-odds-api.com/liveapi/guides/v4/)

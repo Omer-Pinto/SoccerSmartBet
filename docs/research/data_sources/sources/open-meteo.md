@@ -312,5 +312,5 @@ INSERT INTO stadiums (name, city, country, latitude, longitude) VALUES
 ## See Also
 
 - [Weather Vertical](../verticals/weather.md) - Why weather matters for betting
-- [Game Intelligence Agent](../../../../PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#42-game-intelligence-agent-node) - Uses weather for risk assessment
+- [Game Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#42-game-intelligence-agent-node) - Uses weather for risk assessment
 - [Official API Docs](https://open-meteo.com/en/docs)

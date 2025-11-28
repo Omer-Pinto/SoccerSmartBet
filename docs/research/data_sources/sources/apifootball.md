@@ -389,6 +389,6 @@ if __name__ == "__main__":
 
 - [Injuries/Suspensions Vertical](../verticals/injuries_suspensions.md) - Use case for player injury data
 - [H2H Vertical](../verticals/h2h.md) - Use case for H2H statistics
-- [Team Intelligence Agent](../../../../PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#52-team-intelligence-agent-node) - Uses injury data
-- [Game Intelligence Agent](../../../../PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#42-game-intelligence-agent-node) - Uses H2H data
+- [Team Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#52-team-intelligence-agent-node) - Uses injury data
+- [Game Intelligence Agent](../../../../status/pre_gambling_flow/PRE_GAMBLING_OPTIMIZED_FLOW_TASKS.md#42-game-intelligence-agent-node) - Uses H2H data
 - [Official API Docs](https://apifootball.com/documentation/)
