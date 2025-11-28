@@ -1,0 +1,136 @@
+version: '3.8'
+
+# ============================================================================
+# SoccerSmartBet Docker Compose - Database Environments
+# ============================================================================
+# Purpose: Provides isolated PostgreSQL instances for staging and production
+# Staging: Port 5432 (development/testing)
+# Production: Port 5433 (production deployment)
+#
+# Usage:
+#   cd deployment
+#   docker-compose up -d postgres-staging
+# ============================================================================
+
+services:
+  # ==========================================================================
+  # STAGING DATABASE
+  # ==========================================================================
+  postgres-staging:
+    image: postgres:16-alpine
+    container_name: soccersmartbet-staging
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    
+    environment:
+      POSTGRES_DB: ${POSTGRES_STAGING_DB:-soccersmartbet_staging}
+      POSTGRES_USER: ${POSTGRES_STAGING_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_STAGING_PASSWORD:?POSTGRES_STAGING_PASSWORD is required}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    
+    ports:
+      - "${STAGING_PORT:-5432}:5432"
+    
+    volumes:
+      # Persistent data storage
+      - staging_data:/var/lib/postgresql/data
+      
+      # Initialization scripts (run on first startup)
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    
+    networks:
+      - staging-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_STAGING_USER:-postgres} -d ${POSTGRES_STAGING_DB:-soccersmartbet_staging}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Optional: Resource limits for local development
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+
+  # ==========================================================================
+  # PRODUCTION DATABASE
+  # ==========================================================================
+  postgres-production:
+    image: postgres:16-alpine
+    container_name: soccersmartbet-production
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    
+    environment:
+      POSTGRES_DB: ${POSTGRES_PROD_DB:-soccersmartbet_prod}
+      POSTGRES_USER: ${POSTGRES_PROD_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PROD_PASSWORD:?POSTGRES_PROD_PASSWORD is required}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    
+    ports:
+      - "${PROD_PORT:-5433}:5432"
+    
+    volumes:
+      # Persistent data storage
+      - prod_data:/var/lib/postgresql/data
+      
+      # Initialization scripts (run on first startup)
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    
+    networks:
+      - prod-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_PROD_USER:-postgres} -d ${POSTGRES_PROD_DB:-soccersmartbet_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Optional: Resource limits for production
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '4'
+    #       memory: 4G
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+networks:
+  staging-network:
+    name: soccersmartbet-staging
+    driver: bridge
+  
+  prod-network:
+    name: soccersmartbet-prod
+    driver: bridge
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+volumes:
+  staging_data:
+    name: soccersmartbet-staging-data
+    driver: local
+  
+  prod_data:
+    name: soccersmartbet-prod-data
+    driver: local
