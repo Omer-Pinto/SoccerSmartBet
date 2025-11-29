@@ -336,3 +336,44 @@ Co-authored-by: factory-droid[bot] <...>
 - Check pyproject.toml syntax if modifying
 - Ensure .env.example has no secrets
 
+### 9.6 Git User Attribution for Droids
+
+**CRITICAL: All droids MUST use git config overrides when committing.**
+
+Every `git commit` command MUST be preceded by `-c` options to set proper user attribution:
+
+**Required commit syntax:**
+```bash
+git -c user.name="omer-pinto-ai-agent" \
+    -c user.email="moshon776@gmail.com" \
+    commit -m "Your commit message" \
+    --trailer "Co-authored-by: Omer Pinto <omerp2006@gmail.com>"
+```
+
+**Why this is required:**
+- Separates AI agent commits from human commits in git history
+- Maintains proper attribution and audit trail
+- Enables GitHub to track contributions correctly
+- Co-authorship preserves transparency of human-AI collaboration
+
+**Examples:**
+
+✅ **Correct:**
+```bash
+git -c user.name="omer-pinto-ai-agent" \
+    -c user.email="moshon776@gmail.com" \
+    commit -m "[Task 1.5] Implement new feature" \
+    --trailer "Co-authored-by: Omer Pinto <omerp2006@gmail.com>"
+```
+
+❌ **Wrong:**
+```bash
+git commit -m "Implement new feature"  # Uses wrong user from global config
+```
+
+**Notes:**
+- The `-c` flag temporarily overrides git config for that single command
+- Co-authored-by trailer must be included on all droid commits
+- This applies to ALL droids, not just the main agent
+- Human commits use standard git workflow (no overrides needed)
+
