@@ -32,6 +32,18 @@
 
 ---
 
+---
+
+## Batch 4: Core Architecture
+
+| Task | Status | PR | Notes |
+|------|--------|-----|-------|
+| 1.3 State Definition | 🟡 IN PROGRESS | - | state.py - Phase enum, GameContext, PreGamblingState |
+| 2.3 Structured Outputs | 🟡 IN PROGRESS | - | structured_outputs.py - LLM output schemas only |
+| 2.4 Prompts | 🟡 IN PROGRESS | - | prompts.py - 3 agent system messages |
+
+---
+
 ## Pending Batches
 
-**Batch 4+:** Not started
+**Batch 5+:** Not started

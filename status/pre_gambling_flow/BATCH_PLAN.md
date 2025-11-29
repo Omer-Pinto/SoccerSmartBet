@@ -55,9 +55,9 @@
 
 | Task | Droid | Description | Depends On |
 |------|-------|-------------|------------|
-| 1.3 | LangGraphArchitectDroid | State class, base Pydantic models | 1.1, 1.2 |
-| 2.3 | LangGraphArchitectDroid | Structured outputs (GameReport, TeamReport, etc.) | 1.1, 1.2 |
-| 2.4 | LangGraphArchitectDroid | Prompts for Smart Picker, Intelligence Agents | 1.2 |
+| 1.3 | LangGraphArchitectDroid | State definition (Phase enum, GameContext, PreGamblingState with reducers) | 1.1, 1.2 |
+| 2.3 | LangGraphArchitectDroid | LLM output schemas only (SelectedGames, GameReport, TeamReport) | 1.1, 1.2 |
+| 2.4 | LangGraphArchitectDroid | System prompts for 3 agents (Smart Picker, Game/Team Intelligence) | 1.2 |
 
 **Deliverables:**
 - 1.3 → `src/pre_gambling_flow/state.py`
