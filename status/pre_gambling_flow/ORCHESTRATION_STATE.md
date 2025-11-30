@@ -38,9 +38,9 @@
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
-| 1.3 State Definition | 🟡 IN PROGRESS | - | state.py - Phase enum, GameContext, PreGamblingState |
-| 2.3 Structured Outputs | 🟡 IN PROGRESS | - | structured_outputs.py - LLM output schemas only |
-| 2.4 Prompts | 🟡 IN PROGRESS | - | prompts.py - 3 agent system messages |
+| 1.3 State Definition | ✅ COMPLETE | #13 | state.py - Phase enum, GameContext, PreGamblingState |
+| 2.3 Structured Outputs | ✅ COMPLETE | #14 | structured_outputs.py - LLM output schemas only |
+| 2.4 Prompts | ✅ COMPLETE | #15 | prompts.py - 3 agent system messages |
 
 ---
 

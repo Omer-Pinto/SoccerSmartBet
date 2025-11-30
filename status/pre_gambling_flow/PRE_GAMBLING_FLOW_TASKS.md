@@ -29,7 +29,7 @@
 - [x] Create config file (YAML/JSON) for: min odds threshold, max daily games, API keys, cron schedule, DB connections (staging/prod), LangSmith keys, model selection (default: gpt-4o-mini), and feature flags. ✅ **COMPLETE** - Minimal MVP config.yaml (29 lines) with betting params, DB config, model selection. Database credentials in .env at project root.
 
 ### 1.3 State Definition
-- [ ] Define TypedDict state class (PreGamblingState) with LangGraph reducers following StocksMarketRecommender pattern. Include Phase enum, GameContext TypedDict, and custom reducers. State for coordination only - game/team data goes to DB. **See DETAILED_TASK_BREAKDOWN.md for specifications.**
+- [x] Define TypedDict state class (PreGamblingState) with LangGraph reducers following StocksMarketRecommender pattern. Include Phase enum, GameContext TypedDict, and custom reducers. State for coordination only - game/team data goes to DB. **See DETAILED_TASK_BREAKDOWN.md for specifications.** ✅ **COMPLETE** - PR #13
 
 ### 1.4 Docker Compose for Database Environments
 - [x] Create docker-compose.yml with two PostgreSQL containers (staging on port 5432, production on port 5433), volumes for persistence, and initialization scripts. ✅ **COMPLETE** - Docker Compose setup in deployment/ folder with staging (5432) and production (5433) PostgreSQL 16 containers, persistent volumes, health checks, and schema auto-initialization.
@@ -45,10 +45,10 @@
 - [ ] Implement `pre_gambling_flow/state.py` with fields: messages, selected_game_ids, filtered_game_ids, phase enum. **Critical:** Game/team data goes **directly to DB** from parallel subgraphs (not accumulated in state). State is for coordination only: tracking which games are being processed, flow phase, and message history. Simple list reducer for messages, simple add reducer for game_ids.
 
 ### 2.3 Structured Outputs (LLM Outputs Only)
-- [ ] Create `pre_gambling_flow/structured_outputs.py` with Pydantic models for LLM outputs ONLY: SelectedGames, GameReport, TeamReport. Match enabled data sources from docs/research/data_sources/executive_summary.md. **See DETAILED_TASK_BREAKDOWN.md for field specifications.**
+- [x] Create `pre_gambling_flow/structured_outputs.py` with Pydantic models for LLM outputs ONLY: SelectedGames, GameReport, TeamReport. Match enabled data sources from docs/research/data_sources/executive_summary.md. **See DETAILED_TASK_BREAKDOWN.md for field specifications.** ✅ **COMPLETE** - PR #14
 
 ### 2.4 Prompts Repository
-- [ ] Implement `pre_gambling_flow/prompts.py` containing system messages for Smart Game Picker, Game Intelligence Agent, Team Intelligence Agent. Emphasize sophisticated AI analysis over raw stats dumping. **See DETAILED_TASK_BREAKDOWN.md for prompt requirements and agent goals.**
+- [x] Implement `pre_gambling_flow/prompts.py` containing system messages for Smart Game Picker, Game Intelligence Agent, Team Intelligence Agent. Emphasize sophisticated AI analysis over raw stats dumping. **See DETAILED_TASK_BREAKDOWN.md for prompt requirements and agent goals.** ✅ **COMPLETE** - PR #15
 
 ### 2.5 Tools Setup
 - [ ] Implement `pre_gambling_flow/tools_setup.py` centralizing all data fetching tools: fetch_h2h(), fetch_venue(), fetch_weather(), fetch_form(), fetch_injuries(), fetch_suspensions(), fetch_news(), search_team_news(). Use existing MCPs where they exist (e.g., MCP browser), Python requests for APIs, Python functions wrapped as LangGraph tools for custom logic. MCPs are for external/sandboxed usage, not our internal tools.
