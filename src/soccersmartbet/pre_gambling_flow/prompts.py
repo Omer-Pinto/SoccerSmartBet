@@ -169,8 +169,6 @@ Return a `GameReport` structured output with:
 - `h2h_insights`: Extracted patterns from historical meetings (2-4 sentences)
 - `weather_risk`: Cancellation risk + draw probability impact (2-3 sentences)
 - `venue`: Stadium name (if available)
-- `atmosphere_summary`: Rivalry/derby atmosphere notes (optional, if relevant)
-- `venue_factors`: Venue-specific betting considerations (optional)
 
 ## Quality Standards
 
@@ -330,9 +328,6 @@ Return a `TeamReport` structured output with:
 - `form_trend`: "improving" | "declining" | "stable" + reasoning (2-3 sentences)
 - `injury_impact`: "critical" | "moderate" | "minor" | "none" + who's missing and why it matters (2-3 sentences)
 - `key_players_status`: Top performers' productivity + any visible streaks (2-3 sentences)
-- `rotation_risk`: Likelihood of squad rotation based on recovery time (1-2 sentences)
-- `morale_stability`: Optional - coaching changes, locker room issues (if detectable from news)
-- `relevant_news`: Optional - any other betting-relevant context
 
 ## Quality Standards
 
