@@ -1,4 +1,1 @@
-"""Pre-Gambling Flow package.
-
-Daily execution flow that selects games, fetches data, and generates betting reports.
-"""
+"""Pre-Gambling Flow package for daily game selection and analysis."""
