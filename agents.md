@@ -292,8 +292,6 @@ Keep code modular so these can be swapped later.
 - Addresses comments #2551043155, #2553097325
 - Move from config/langsmith/.env to project root
 - Update tests and documentation
-
-Co-authored-by: factory-droid[bot] <...>
 \`\`\`
 
 ### 9.4 What NOT to Do (Lessons Learned)
@@ -346,15 +344,13 @@ Every `git commit` command MUST be preceded by `-c` options to set proper user a
 ```bash
 git -c user.name="omer-pinto-ai-agent" \
     -c user.email="moshon776@gmail.com" \
-    commit -m "Your commit message" \
-    --trailer "Co-authored-by: Omer Pinto <omerp2006@gmail.com>"
+    commit -m "Your commit message"
 ```
 
 **Why this is required:**
 - Separates AI agent commits from human commits in git history
 - Maintains proper attribution and audit trail
 - Enables GitHub to track contributions correctly
-- Co-authorship preserves transparency of human-AI collaboration
 
 **Examples:**
 
@@ -362,8 +358,7 @@ git -c user.name="omer-pinto-ai-agent" \
 ```bash
 git -c user.name="omer-pinto-ai-agent" \
     -c user.email="moshon776@gmail.com" \
-    commit -m "[Task 1.5] Implement new feature" \
-    --trailer "Co-authored-by: Omer Pinto <omerp2006@gmail.com>"
+    commit -m "[Task 1.5] Implement new feature"
 ```
 
 ❌ **Wrong:**
@@ -373,7 +368,6 @@ git commit -m "Implement new feature"  # Uses wrong user from global config
 
 **Notes:**
 - The `-c` flag temporarily overrides git config for that single command
-- Co-authored-by trailer must be included on all droid commits
 - This applies to ALL droids, not just the main agent
 - Human commits use standard git workflow (no overrides needed)
 
