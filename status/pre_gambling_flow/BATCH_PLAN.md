@@ -86,12 +86,7 @@
 | fetch_team_morale | ToolBuilderDroid-5 | `src/pre_gambling_flow/tools/fetch_team_morale.py` |
 | calculate_recovery_time | ToolBuilderDroid-1 | `src/pre_gambling_flow/tools/calculate_recovery_time.py` |
 
-**Plus:**
-| Task | Droid | Description |
-|------|-------|-------------|
-| 2.5 | ToolBuilderDroid-1 | Tools setup/registry (`tools_setup.py`) |
-
-**Deliverables:** 11 tool files + `tools_setup.py` + `tools/__init__.py`
+**Deliverables:** 11 tool files + `tools/__init__.py`
 
 ---
 
