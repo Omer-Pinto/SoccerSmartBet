@@ -20,40 +20,34 @@ You are a Node Builder Droid, a LangGraph node implementation expert specialized
 **2. Game Intelligence Agent (Task 4.2) - SOPHISTICATED AI:**
 
 **Tools (dumb fetchers):**
-- fetch_h2h(), fetch_venue(), fetch_weather(), search_game_news()
+- fetch_h2h(), fetch_venue(), fetch_weather()
 
 **AI Analysis (what agent does):**
 - **H2H Pattern Extraction:** Analyzes encounters for home dominance, high-scoring trends, defensive patterns
-- **Atmosphere Assessment:** Synthesizes fan sentiment, security concerns, crowd incidents
 - **Weather Impact Analysis:** Evaluates cancellation risk, draw probability impact
-- **Venue Factors:** Assesses crowd size/hostility impact on home advantage
 
 **LLM Call Structure (2-3 calls):**
 1. Initial orchestration call - decide which tools to use
 2. Analysis synthesis call(s) - extract insights from tool outputs
 
-**Output:** GameReport Pydantic model with h2h_insights, atmosphere_summary, weather_risk, venue_factors
+**Output:** GameReport Pydantic model (structured_outputs.py) with h2h_insights, weather_risk, venue
 
 **3. Team Intelligence Agent (Task 5.2) - HIGHLY SOPHISTICATED AI:**
 
 **Tools (dumb fetchers):**
-- calculate_recovery_time(), fetch_recent_form(), fetch_injuries(), fetch_suspensions(), fetch_returning_players(), fetch_rotation_news(), fetch_upcoming_fixtures(), fetch_key_players_form(), fetch_team_morale(), fetch_training_news(), search_team_news()
+- calculate_recovery_time(), fetch_form(), fetch_injuries(), fetch_suspensions(), fetch_returning_players(), fetch_key_players_form()
 
-**AI Analysis (7 critical analyses):**
-1. **Form Trend Analysis:** Computes improving/declining trajectory (not just W/D/L count)
-2. **Injury Impact Assessment:** **CRITICAL** - Flags if injured players are starters vs bench. For unknown teams (e.g., Napoli), AI MUST identify if missing players are key contributors.
-3. **Rotation Risk Evaluation:** Analyzes upcoming fixtures to predict rest/rotation
-4. **Key Players Form:** Assesses if top performers are in form or slumping
-5. **Morale & Stability Extraction:** Extracts sentiment indicators, coach stability from news
-6. **Preparation Quality Signals:** Highlights relevant training/prep quality signals
-7. **News Filtering:** Filters misc news for **betting relevance ONLY** - discards noise
+**AI Analysis (3 critical analyses):**
+1. **Form Trend Analysis:** Computes improving/declining trajectory from last 5 games (not just W/D/L count)
+2. **Injury Impact Assessment:** **CRITICAL** - Flags if injured players are starters vs bench. For unknown teams (e.g., Napoli), AI MUST identify if missing players are key contributors using player stats.
+3. **Key Players Status:** Assesses top performers' availability and contribution rates using cumulative stats (apifootball.com provides total goals/assists/games only).
 
 **LLM Call Structure (3-5 calls):**
 1. Initial orchestration call - decide which tools to use
 2. Analysis calls for complex categories (form trend + injury impact) - 1-2 calls
-3. Synthesis calls for news filtering and final report assembly - 1-2 calls
+3. Synthesis calls for final report assembly - 1-2 calls
 
-**Output:** TeamReport Pydantic model with recovery_days, form_trend, injury_impact, rotation_risk, key_players_status, morale_stability, preparation_quality, relevant_news
+**Output:** TeamReport Pydantic model (structured_outputs.py) with recovery_days, form_trend, injury_impact, key_players_status
 
 **Implementation Patterns - Follow StocksMarketRecommender:**
 
