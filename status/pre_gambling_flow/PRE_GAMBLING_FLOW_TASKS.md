@@ -47,14 +47,25 @@
 ### 2.4 Prompts Repository
 - [x] Implement `pre_gambling_flow/prompts.py` containing system messages for Smart Game Picker, Game Intelligence Agent, Team Intelligence Agent. Emphasize sophisticated AI analysis over raw stats dumping. **See DETAILED_TASK_BREAKDOWN.md for prompt requirements and agent goals.** ✅ **COMPLETE** - PR #15
 
-### 2.5 Tools Setup
-- [ ] Implement `pre_gambling_flow/tools_setup.py` centralizing all data fetching tools: fetch_h2h(), fetch_venue(), fetch_weather(), fetch_form(), fetch_injuries(), fetch_suspensions(), fetch_news(), search_team_news(). Use existing MCPs where they exist (e.g., MCP browser), Python requests for APIs, Python functions wrapped as LangGraph tools for custom logic. MCPs are for external/sandboxed usage, not our internal tools.
+### 2.5 Tools Implementation
+- [ ] Implement 9 data fetching tools as Python functions wrapped as LangGraph tools. Tools are "dumb fetchers" returning raw data without AI analysis. Agents (Game Intelligence, Team Intelligence) will use these tools and perform sophisticated analysis.
 
-  **Note:** If LangGraphWrappers doesn't support flexible tool binding for these custom tools, we have two options:
-  1. Extend LangGraphWrappers with "bring-your-own-tools-and-mcps" mode, OR
-  2. Use raw LangGraph/LangChain for tool-using agent nodes while keeping GraphWrapper for flow orchestration
-  
-  Will flag immediately if we hit this limitation during implementation.
+**Tools to implement:**
+
+**Game Intelligence Tools (3):**
+- `fetch_h2h()` - Recent head-to-head results between teams
+- `fetch_venue()` - Venue name, capacity, expected attendance
+- `fetch_weather()` - Weather conditions (temperature, rain, wind)
+
+**Team Intelligence Tools (6):**
+- `calculate_recovery_time()` - Days since team's last match (pure Python utility)
+- `fetch_form()` - Last 5 games results (W/D/L, goals)
+- `fetch_injuries()` - Current injury list with player names, severity
+- `fetch_suspensions()` - Suspended player names, duration
+- `fetch_returning_players()` - Players back from injury/suspension
+- `fetch_key_players_form()` - Top 3-5 players' recent stats (goals, assists)
+
+Tools will be bound directly to agent NodeWrappers via LangGraph's tool-calling mechanism. No separate tools_setup.py file needed.
 
 ---
 
@@ -95,19 +106,15 @@
   - fetch_h2h() - Recent head-to-head results (raw data)
   - fetch_venue() - Venue name, capacity, expected attendance
   - fetch_weather() - Weather conditions (temperature, rain, wind)
-  - search_game_news() - Raw news articles about atmosphere, fans, security
   
   **AI Analysis** (what the agent actually does):
   - **H2H Pattern Extraction:** Analyzes recent encounters to identify home dominance, high-scoring trends, defensive patterns
-  - **Atmosphere Assessment:** Synthesizes fan sentiment, stadium atmosphere news, security concerns, crowd-related incidents into betting-relevant summary
   - **Weather Impact Analysis:** Evaluates cancellation risk and draw probability impact based on conditions
-  - **Venue Factors:** Assesses crowd size/hostility impact on home advantage
   
-  **Output:** GameReport Pydantic model with:
+  **Output:** GameReport Pydantic model (from structured_outputs.py):
   - h2h_insights: str (patterns extracted by AI)
-  - atmosphere_summary: str (synthesized by AI)
   - weather_risk: str (AI assessment)
-  - venue_factors: str (AI analysis)
+  - venue: str (simple venue name from fixtures API)
   
   Agent makes **2-3 LLM calls:** initial tool orchestration call, then analysis synthesis call(s).
 
@@ -123,40 +130,27 @@
   
   **Tools** (dumb fetchers):
   - calculate_recovery_time() - Days since team's last match (pure Python utility)
-  - fetch_recent_form() - Last 5 games results (raw W/D/L, goals)
+  - fetch_form() - Last 5 games results (raw W/D/L, goals)
   - fetch_injuries() - Current injury list with player names, severity
   - fetch_suspensions() - Suspended player names, duration
   - fetch_returning_players() - Players back from injury/suspension
-  - fetch_rotation_news() - Coach statements, rotation policy news
-  - fetch_upcoming_fixtures() - Next 2-3 games (dates, opponents)
-  - fetch_key_players_form() - Top 3-5 players' recent stats (goals, assists, GA)
-  - fetch_team_morale() - News on morale, coach pressure, controversies
-  - fetch_training_news() - Training reports, press conferences
-  - search_team_news() - Catch-all for other news (transfers, protests, ownership)
+  - fetch_key_players_form() - Top 3-5 players' recent stats (goals, assists)
   
   **AI Analysis** (what the agent actually does):
   1. **Form Trend Analysis:** Computes improving/declining trajectory from last 5 games (not just W/D/L count)
-  2. **Injury Impact Assessment:** **Critical** - Flags whether injured players are starters vs bench warmers. For teams user doesn't know (e.g., Napoli), AI must identify if missing players are key contributors.
-  3. **Rotation Risk Evaluation:** Analyzes upcoming fixtures to predict rest/rotation for current game
-  4. **Key Players Form:** Assesses whether top performers are in good form or slumping
-  5. **Morale & Stability Extraction:** Extracts sentiment indicators and coach stability from news
-  6. **Preparation Quality Signals:** Highlights relevant training/prep quality signals from news
-  7. **News Filtering:** Filters miscellaneous news (transfers, protests, ownership) for **betting relevance only** - discards irrelevant noise
+  2. **Injury Impact Assessment:** **Critical** - Flags whether injured players are starters vs bench warmers. For teams user doesn't know (e.g., Napoli), AI must identify if missing players are key contributors using player stats (match_played, goals, type).
+  3. **Key Players Status:** Assesses top performers' availability and contribution rates using cumulative stats (apifootball.com provides total goals/assists/games only, no recent form window).
   
-  **Output:** TeamReport Pydantic model with:
+  **Output:** TeamReport Pydantic model (from structured_outputs.py):
   - recovery_days: int (from calculate_recovery_time tool)
   - form_trend: str (AI-computed: "improving", "declining", "stable" + reasoning)
   - injury_impact: str (AI assessment: "critical starters missing" vs "minor depth issues")
-  - rotation_risk: str (AI prediction)
-  - key_players_status: str (AI summary)
-  - morale_stability: str (AI-extracted sentiment)
-  - preparation_quality: str (AI-highlighted signals)
-  - relevant_news: str (AI-filtered betting-relevant only)
+  - key_players_status: str (AI summary of top performers' availability and form)
   
   Agent makes **3-5 LLM calls:**
   - 1 initial orchestration call (decide which tools to use)
   - 1-2 analysis calls for complex categories (form trend + injury impact)
-  - 1-2 synthesis calls for news filtering and final report assembly
+  - 1-2 synthesis calls for final report assembly
 
 ---
 
