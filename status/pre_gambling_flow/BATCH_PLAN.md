@@ -81,17 +81,10 @@
 | fetch_injuries | ToolBuilderDroid-3 | `src/pre_gambling_flow/tools/fetch_injuries.py` |
 | fetch_suspensions | ToolBuilderDroid-3 | `src/pre_gambling_flow/tools/fetch_suspensions.py` |
 | fetch_returning_players | ToolBuilderDroid-4 | `src/pre_gambling_flow/tools/fetch_returning_players.py` |
-| fetch_rotation_news | ToolBuilderDroid-4 | `src/pre_gambling_flow/tools/fetch_rotation_news.py` |
-| fetch_key_players_form | ToolBuilderDroid-5 | `src/pre_gambling_flow/tools/fetch_key_players_form.py` |
-| fetch_team_morale | ToolBuilderDroid-5 | `src/pre_gambling_flow/tools/fetch_team_morale.py` |
+| fetch_key_players_form | ToolBuilderDroid-4 | `src/pre_gambling_flow/tools/fetch_key_players_form.py` |
 | calculate_recovery_time | ToolBuilderDroid-1 | `src/pre_gambling_flow/tools/calculate_recovery_time.py` |
 
-**Plus:**
-| Task | Droid | Description |
-|------|-------|-------------|
-| 2.5 | ToolBuilderDroid-1 | Tools setup/registry (`tools_setup.py`) |
-
-**Deliverables:** 11 tool files + `tools_setup.py` + `tools/__init__.py`
+**Deliverables:** 9 tool files + `tools/__init__.py`
 
 ---
 

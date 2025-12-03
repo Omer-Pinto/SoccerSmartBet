@@ -41,9 +41,6 @@
 ### 2.1 Pre-Gambling Flow GraphManager
 - [ ] Create `pre_gambling_flow/graph_manager.py` wiring all nodes, edges, and parallel subgraphs using GraphWrapper. Expose `setup()`, `run_graph()`, `cleanup()` methods.
 
-### 2.2 State Definition
-- [ ] Implement `pre_gambling_flow/state.py` with fields: messages, selected_game_ids, filtered_game_ids, phase enum. **Critical:** Game/team data goes **directly to DB** from parallel subgraphs (not accumulated in state). State is for coordination only: tracking which games are being processed, flow phase, and message history. Simple list reducer for messages, simple add reducer for game_ids.
-
 ### 2.3 Structured Outputs (LLM Outputs Only)
 - [x] Create `pre_gambling_flow/structured_outputs.py` with Pydantic models for LLM outputs ONLY: SelectedGames, GameReport, TeamReport. Match enabled data sources from docs/research/data_sources/executive_summary.md. **See DETAILED_TASK_BREAKDOWN.md for field specifications.** ✅ **COMPLETE** - PR #14
 
