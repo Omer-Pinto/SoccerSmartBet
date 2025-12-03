@@ -86,8 +86,6 @@
 
 **Deliverables:** 9 tool files + `tools/__init__.py`
 
-**Note:** Tools aligned with structured_outputs.py (PR #14). Excluded tools: fetch_rotation_news (rotation_risk disabled), fetch_team_morale (morale_stability disabled).
-
 ---
 
 ## Batch 6: Main Flow Nodes
