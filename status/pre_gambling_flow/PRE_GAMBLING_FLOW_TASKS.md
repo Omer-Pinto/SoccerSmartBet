@@ -1,6 +1,6 @@
 # Pre-Gambling Flow - Optimized Task Breakdown
 
-> **Changes from original:** Consolidated 16 fetcher nodes into 2 smart agents with tool access (Game Intelligence Agent + Team Intelligence Agent). Kept parallelism, sophisticated game picker, winner.co.il odds source. Estimated ~20-30 LLM calls total using gpt-4o-mini.
+> **Changes from original:** Consolidated 16 fetcher nodes into 2 smart agents with tool access (Game Intelligence Agent + Team Intelligence Agent). Kept parallelism, sophisticated game picker, The Odds API as odds source. Estimated ~20-30 LLM calls total using gpt-4o-mini.
 
 ---
 
@@ -69,8 +69,8 @@
 ### 3.2 Smart Game Picker Node (🤖 AI Agent)
 - [ ] Create `NodeWrapper` with AI agent that analyzes today's fixtures and selects **interesting games** based on rivalry, importance, playoff implications, derby status, league prestige. Not a simple odds filter. Outputs SelectedGames structured model with justifications.
 
-### 3.3 Fetch Lines from winner.co.il Node (🐍 Code/Scraping)
-- [ ] Implement fetcher for betting lines (n1, n2, n3) from **winner.co.il**. Use MCP browser or scraping as needed. Apply minimum odds threshold filter. Outputs FilteredGame list (min 3 games).
+### 3.3 Fetch Lines from The Odds API Node (🐍 Code/API Integration)
+- [ ] Implement fetcher for betting lines (n1, n2, n3) from **The Odds API**. Apply minimum odds threshold filter. Outputs FilteredGame list (min 3 games).
 
 ### 3.4 Persist Unfiltered Games Node (🗄️ DB Operation)
 - [ ] Create `PythonNodeWrapper` executing DB insert for all games considered (even if filtered out). Stores snapshot for historical analysis.
@@ -172,7 +172,7 @@
 - [ ] Define fallback behavior when tools fail: continue with partial reports flagging data quality. Implement retry logic and logging for debugging.
 
 ### 6.3 End-to-End Flow Testing
-- [ ] Create integration test simulating full Pre-Gambling Flow with mock data sources. Verify: game selection → winner.co.il odds → parallel fetching → report generation → DB persistence → trigger.
+- [ ] Create integration test simulating full Pre-Gambling Flow with mock data sources. Verify: game selection → The Odds API odds → parallel fetching → report generation → DB persistence → trigger.
 
 ### 6.4 Tool Integration Testing
 - [ ] Verify all tools work correctly: existing MCPs (browser), Python API clients, Python utility functions wrapped as LangGraph tools. **No custom MCP development** - MCPs are for external consumers, we use Python tools internally.
@@ -199,7 +199,7 @@
 
 4. **Parallelism:** Full parallel execution of subgraphs via LangGraph. Essential for performance and learning complex orchestration.
 
-5. **Odds Source:** winner.co.il (Israeli Toto) as primary/only odds source. Scraping acceptable if no API available.
+5. **Odds Source:** The Odds API as primary/only odds source. Free tier with 500 credits/month provides decimal odds matching Israeli Toto format.
 
 6. **Game Selection:** Sophisticated AI picker based on rivalry/importance/context, NOT simple odds threshold filter.
 
