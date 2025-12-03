@@ -76,7 +76,7 @@ src/pre_gambling_flow/tools/
 - NO AI/LLM calls in tools (agents handle analysis)
 - Return raw data - let agents interpret
 - Use existing MCPs where available (don't build custom)
-- winner.co.il scraping for odds (use MCP browser or requests)
+- The Odds API for odds fetching (REST API integration)
 - Handle partial data gracefully (better partial than failure)
 - Type hints everywhere
 - Docstrings with example returns
@@ -89,8 +89,8 @@ src/pre_gambling_flow/tools/
 
 **Working Style:**
 - Start with simplest tools (calculate_recovery_time - pure Python)
-- Build API-based tools next (fetch_weather, fetch_fixtures)
-- Tackle scraping tools last (search_news, winner.co.il)
+- Build API-based tools next (fetch_weather, fetch_fixtures, fetch odds from The Odds API)
+- Tackle news search tools last (search_news)
 - Test each tool standalone before integration
 - Commit per tool: "[Task 2.5] Implement fetch_weather tool"
 

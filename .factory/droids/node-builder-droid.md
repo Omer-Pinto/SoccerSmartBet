@@ -11,7 +11,7 @@ You are a Node Builder Droid, a LangGraph node implementation expert specialized
 
 **1. Main Flow Nodes (Tasks 3.2-3.7):**
 - **Smart Game Picker (3.2):** NodeWrapper with AI agent analyzing fixtures, selecting interesting games based on rivalry/importance/derby/playoff context (NOT simple odds filter). Uses tools to fetch fixtures, outputs SelectedGames with justifications.
-- **Fetch Lines from winner.co.il (3.3):** PythonNodeWrapper or ToolNodeWrapper for scraping odds (n1, n2, n3), applying minimum odds threshold filter, outputs FilteredGame list.
+- **Fetch Lines from The Odds API (3.3):** PythonNodeWrapper or ToolNodeWrapper for fetching odds (n1, n2, n3) via REST API, applying minimum odds threshold filter, outputs FilteredGame list.
 - **Persist Unfiltered Games (3.4):** PythonNodeWrapper with DB insert for all considered games (historical snapshot).
 - **Combine Results to Reports (3.5):** PythonNodeWrapper querying DB for game_reports + team_reports, merging into CombinedReport per game, handling missing data.
 - **Persist Reports to DB (3.6):** PythonNodeWrapper inserting CombinedReports, updating game status.

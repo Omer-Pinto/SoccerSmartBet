@@ -103,7 +103,7 @@
 |------|-------|-------------|------------|
 | 3.1 | InfraDroid | Pre-Gambling Trigger (APScheduler cron) | Config (1.2) |
 | 3.2 | NodeBuilderDroid | Smart Game Picker Node | Tools, Schemas |
-| 3.3 | NodeBuilderDroid | Fetch Lines from winner.co.il | Tools, Schemas |
+| 3.3 | NodeBuilderDroid | Fetch Lines from The Odds API | Tools, Schemas |
 | 3.4 | NodeBuilderDroid | Persist Unfiltered Games | DB schema (1.1) |
 | 3.5 | NodeBuilderDroid | Combine Results to Reports | DB schema, Schemas |
 | 3.6 | NodeBuilderDroid | Persist Reports to DB | DB schema (1.1) |
