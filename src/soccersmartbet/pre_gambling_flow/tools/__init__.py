@@ -7,8 +7,10 @@ These tools are bound to LangGraph agents (Game Intelligence, Team Intelligence)
 
 from .fetch_venue import fetch_venue
 from .fetch_weather import fetch_weather
+from .fetch_form import fetch_form
 
 __all__ = [
     "fetch_venue",
     "fetch_weather",
+    "fetch_form",
 ]
