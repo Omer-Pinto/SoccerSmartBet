@@ -44,6 +44,22 @@
 
 ---
 
+## Batch 5: Tools Implementation
+
+| Task | Status | PR | Notes |
+|------|--------|-----|-------|
+| 2.5.1 fetch_h2h | ⏳ PENDING | - | Game Intelligence Tool |
+| 2.5.2 fetch_venue | ⏳ PENDING | - | Game Intelligence Tool |
+| 2.5.3 fetch_weather | ⏳ PENDING | - | Game Intelligence Tool |
+| 2.5.4 fetch_form | ⏳ PENDING | - | Team Intelligence Tool |
+| 2.5.5 fetch_injuries | ⏳ PENDING | - | Team Intelligence Tool |
+| 2.5.6 fetch_suspensions | ⏳ PENDING | - | Team Intelligence Tool |
+| 2.5.7 fetch_returning_players | ⏳ PENDING | - | Team Intelligence Tool |
+| 2.5.8 fetch_key_players_form | ⏳ PENDING | - | Team Intelligence Tool |
+| 2.5.9 calculate_recovery_time | ⏳ PENDING | - | Team Intelligence Tool (pure Python) |
+
+---
+
 ## Pending Batches
 
-**Batch 5+:** Not started
+**Batch 6+:** Not started
