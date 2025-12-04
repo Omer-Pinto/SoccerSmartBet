@@ -368,8 +368,28 @@ gh pr view <PR#> --json commits --jq '.commits[-1].oid'
            comment_id=comment.id,
            body=f"✅ Fixed. {description}. Commit: {commit_sha}"
        )
-7. NOT: post_general_summary_comment()  # DON'T DO THIS
+7. resolve_all_comment_threads()  # Mark threads as resolved
+8. NOT: post_general_summary_comment()  # DON'T DO THIS
 \`\`\`
+
+**Reply format - CRITICAL:**
+- Keep replies **BRIEF**: 1-2 lines maximum
+- Format: `"✅ Fixed. [what changed]. Commit: [sha]"`
+- Example: `"✅ Fixed. Changed signature to accept match_id. Commit: 8236560"`
+- **DO NOT** write paragraphs, tables, or verbose summaries
+- **DO NOT** post general PR comments - only reply to specific line comment threads
+
+**Resolving threads - CRITICAL:**
+Before declaring work complete, droids MUST resolve all line-specific comment threads:
+```bash
+# Get thread IDs
+gh api graphql -f query='query { repository(owner: "...", name: "...") { 
+  pullRequest(number: X) { reviewThreads(first: 20) { nodes { id isResolved } } } } }'
+
+# Resolve each thread
+gh api graphql -f query='mutation { 
+  resolveReviewThread(input: {threadId: "PRRT_..."}) { thread { isResolved } } }'
+```
 
 **Testing before pushing:**
 - Run tests locally if possible
