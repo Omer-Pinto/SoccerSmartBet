@@ -240,7 +240,50 @@ Keep code modular so these can be swapped later.
 - Prevents loss of work if others have pulled the branch
 - Makes debugging easier with bisect/blame
 
-### 9.2 Pull Request Comment Protocol
+### 9.2 Code Review Comment Protocol (Initial Review)
+
+**When reviewing code and leaving initial comments:**
+
+1. **ALWAYS use line-specific comments** - NOT general PR comments
+   - Post comments on specific lines of code
+   - Use GitHub API: `gh api /repos/{owner}/{repo}/pulls/{pr_number}/comments`
+   - Required parameters: `commit_id`, `path`, `line`, `body`
+   - Example:
+     ```bash
+     gh api --method POST \
+       -H "Accept: application/vnd.github+json" \
+       /repos/Omer-Pinto/SoccerSmartBet/pulls/22/comments \
+       -f body="Function signature should accept match_id directly" \
+       -f commit_id="abc123..." \
+       -f path="src/tools/fetch_h2h.py" \
+       -F line=19
+     ```
+
+2. **General PR comments ONLY for:**
+   - Overall architecture concerns that apply to entire PR
+   - Approval/rejection decisions
+   - Comments that genuinely don't relate to specific code lines
+
+3. **NEVER use `gh pr review --comment --body`** for code-specific issues
+   - This creates general comments without line context
+   - Reviewers/droids can't see WHAT code you're referring to
+   - Makes it impossible to track which fixes address which comments
+   - Forces reader to search through entire PR to find the issue
+
+**Why line-specific comments are REQUIRED:**
+- Reviewer sees exactly what line needs fixing (no guessing)
+- Can click "View file" to see code context
+- GitHub tracks resolution per-comment
+- No ambiguity about what needs fixing
+- AI agents can reliably fix issues (general comments cause them to guess wrong)
+- Humans drowning in 300-line PRs need to know WHERE the issue is
+
+**Getting commit SHA for line comments:**
+```bash
+gh pr view <PR#> --json commits --jq '.commits[-1].oid'
+```
+
+### 9.3 Pull Request Comment Protocol (Responding to Reviews)
 
 **When responding to PR review comments:**
 
@@ -274,7 +317,7 @@ Keep code modular so these can be swapped later.
         \`\`\`
      4. NOT post a general issue comment summarizing fixes
 
-### 9.3 Code Review Response Workflow
+### 9.4 Code Review Response Workflow
 
 **Standard workflow for addressing PR feedback:**
 
@@ -282,7 +325,7 @@ Keep code modular so these can be swapped later.
 2. **Group related changes** - Make logical commits, not one commit per comment
 3. **Commit with clear messages** - Reference what comments you're addressing
 4. **Push changes** - Regular push, no force
-5. **Reply to each comment thread** - As described in 9.2
+5. **Reply to each comment thread** - As described in 9.3
 6. **Request re-review** - Mark yourself as ready after all addressed
 
 **Example good commit message:**
@@ -294,7 +337,7 @@ Keep code modular so these can be swapped later.
 - Update tests and documentation
 \`\`\`
 
-### 9.4 What NOT to Do (Lessons Learned)
+### 9.5 What NOT to Do (Lessons Learned)
 
 **Real examples of bad practices:**
 - ❌ Amending commits on a shared PR branch (loses history)
@@ -310,7 +353,7 @@ Keep code modular so these can be swapped later.
 - Frustration for both human and AI
 - Messy git history that's hard to understand
 
-### 9.5 Droid-Specific Instructions
+### 9.6 Droid-Specific Instructions
 
 **When a droid is asked to "fix PR comments":**
 
@@ -334,7 +377,7 @@ Keep code modular so these can be swapped later.
 - Check pyproject.toml syntax if modifying
 - Ensure .env.example has no secrets
 
-### 9.6 Git User Attribution for Droids
+### 9.7 Git User Attribution for Droids
 
 **CRITICAL: All droids MUST use git config overrides when committing.**
 
