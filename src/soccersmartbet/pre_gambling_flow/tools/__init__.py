@@ -9,10 +9,12 @@ from .fetch_venue import fetch_venue
 from .fetch_weather import fetch_weather
 from .fetch_form import fetch_form
 from .fetch_injuries import fetch_injuries
+from .calculate_recovery_time import calculate_recovery_time
 
 __all__ = [
     "fetch_venue",
     "fetch_weather",
     "fetch_form",
     "fetch_injuries",
+    "calculate_recovery_time",
 ]
