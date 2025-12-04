@@ -10,6 +10,7 @@ from .fetch_weather import fetch_weather
 from .fetch_form import fetch_form
 from .fetch_injuries import fetch_injuries
 from .calculate_recovery_time import calculate_recovery_time
+from .fetch_key_players_form import fetch_key_players_form
 
 __all__ = [
     "fetch_venue",
@@ -17,4 +18,5 @@ __all__ = [
     "fetch_form",
     "fetch_injuries",
     "calculate_recovery_time",
+    "fetch_key_players_form",
 ]
