@@ -1,14 +1,14 @@
 """
-Pre-Gambling Flow Tools Package.
+Pre-Gambling Flow Tools
 
-This package contains "dumb fetcher" tools used by Pre-Gambling Flow agents
-to retrieve raw data from external APIs. Tools do NOT perform AI analysis -
-they only fetch and return structured data.
-
-Available Tools:
-- fetch_venue: Retrieve venue information for a match
+"Dumb fetcher" tools for gathering raw data without AI analysis.
+These tools are bound to LangGraph agents (Game Intelligence, Team Intelligence).
 """
 
 from .fetch_venue import fetch_venue
+from .fetch_weather import fetch_weather
 
-__all__ = ["fetch_venue"]
+__all__ = [
+    "fetch_venue",
+    "fetch_weather",
+]
