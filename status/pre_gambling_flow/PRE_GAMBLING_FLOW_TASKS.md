@@ -48,7 +48,7 @@
 - [x] Implement `pre_gambling_flow/prompts.py` containing system messages for Smart Game Picker, Game Intelligence Agent, Team Intelligence Agent. Emphasize sophisticated AI analysis over raw stats dumping. **See DETAILED_TASK_BREAKDOWN.md for prompt requirements and agent goals.** ✅ **COMPLETE** - PR #15
 
 ### 2.5 Tools Implementation
-- [x] Implement 8 data fetching tools as Python functions wrapped as LangGraph tools. Tools are "dumb fetchers" returning raw data without AI analysis. Agents (Game Intelligence, Team Intelligence) will use these tools and perform sophisticated analysis. ✅ **COMPLETE** - 8 tools implemented in PRs #21-#28
+- [x] Implement 7 data fetching tools as Python functions wrapped as LangGraph tools. Tools are "dumb fetchers" returning raw data without AI analysis. Agents (Game Intelligence, Team Intelligence) will use these tools and perform sophisticated analysis. ✅ **COMPLETE** - 7 tools implemented in PRs #21-#28
 
 **Tools implemented:**
 
@@ -57,13 +57,15 @@
 - ✅ `fetch_venue()` - Venue name, capacity, expected attendance (PR #21)
 - ✅ `fetch_weather()` - Weather conditions (temperature, rain, wind) (PR #23)
 
-**Team Intelligence Tools (5):**
+**Team Intelligence Tools (4):**
 - ✅ `calculate_recovery_time()` - Days since team's last match (pure Python utility) (PR #27)
 - ✅ `fetch_form()` - Last 5 games results (W/D/L, goals) (PR #24)
 - ✅ `fetch_injuries()` - Current injury list with player names, severity (PR #25)
-- ✅ `fetch_suspensions()` - Returns empty list (API limitation - no suspension tracking) (PR #26)
 - ✅ `fetch_key_players_form()` - Top 3-5 players' recent stats (goals, assists) (PR #28)
-- ❌ ~~`fetch_returning_players()`~~ - **CANCELLED** (PR #29) - API cannot track status changes over time
+
+**Cancelled Tools (API limitations):**
+- ❌ `fetch_suspensions()` - **CANCELLED** (PR #26, removed in PR #32) - Returns empty, API has no suspension data
+- ❌ `fetch_returning_players()` - **CANCELLED** (PR #29) - API cannot track status changes over time
 
 Tools are bound directly to agent NodeWrappers via LangGraph's tool-calling mechanism. No separate tools_setup.py file needed.
 
@@ -132,7 +134,6 @@ Tools are bound directly to agent NodeWrappers via LangGraph's tool-calling mech
   - calculate_recovery_time() - Days since team's last match (pure Python utility)
   - fetch_form() - Last 5 games results (raw W/D/L, goals)
   - fetch_injuries() - Current injury list with player names, severity
-  - fetch_suspensions() - Returns empty (API limitation)
   - fetch_key_players_form() - Top 3-5 players' recent stats (goals, assists)
   
   **AI Analysis** (what the agent actually does):
