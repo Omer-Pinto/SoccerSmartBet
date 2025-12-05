@@ -48,15 +48,17 @@
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
-| 2.5.1 fetch_h2h | ⏳ PENDING | - | Game Intelligence Tool |
-| 2.5.2 fetch_venue | ⏳ PENDING | - | Game Intelligence Tool |
-| 2.5.3 fetch_weather | ⏳ PENDING | - | Game Intelligence Tool |
-| 2.5.4 fetch_form | ⏳ PENDING | - | Team Intelligence Tool |
-| 2.5.5 fetch_injuries | ⏳ PENDING | - | Team Intelligence Tool |
-| 2.5.6 fetch_suspensions | ⏳ PENDING | - | Team Intelligence Tool |
-| 2.5.7 fetch_returning_players | ⏳ PENDING | - | Team Intelligence Tool |
-| 2.5.8 fetch_key_players_form | ⏳ PENDING | - | Team Intelligence Tool |
-| 2.5.9 calculate_recovery_time | ⏳ PENDING | - | Team Intelligence Tool (pure Python) |
+| 2.5.1 fetch_h2h | ✅ COMPLETE | #22 | H2H match history from football-data.org |
+| 2.5.2 fetch_venue | ✅ COMPLETE | #21 | Venue information from football-data.org |
+| 2.5.3 fetch_weather | ✅ COMPLETE | #23 | Weather forecasts from Open-Meteo |
+| 2.5.4 fetch_form | ✅ COMPLETE | #24 | Team recent match results from apifootball.com |
+| 2.5.5 fetch_injuries | ✅ COMPLETE | #25 | Current injury list from apifootball.com |
+| 2.5.6 fetch_suspensions | ✅ COMPLETE | #26 | Returns empty (API limitation - no suspension data) |
+| 2.5.7 fetch_returning_players | ❌ CANCELLED | #29 | API limitation - cannot track status changes over time |
+| 2.5.8 fetch_key_players_form | ✅ COMPLETE | #28 | Top performers' statistics from apifootball.com |
+| 2.5.9 calculate_recovery_time | ✅ COMPLETE | #27 | Pure Python date utility for recovery days |
+
+**Batch 5 Result:** 8 tools implemented, 1 cancelled due to API limitations.
 
 ---
 

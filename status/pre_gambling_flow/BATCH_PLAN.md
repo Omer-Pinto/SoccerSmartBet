@@ -80,11 +80,11 @@
 | 2.5.4 | fetch_form | ToolBuilderDroid-2 | `src/pre_gambling_flow/tools/fetch_form.py` |
 | 2.5.5 | fetch_injuries | ToolBuilderDroid-3 | `src/pre_gambling_flow/tools/fetch_injuries.py` |
 | 2.5.6 | fetch_suspensions | ToolBuilderDroid-3 | `src/pre_gambling_flow/tools/fetch_suspensions.py` |
-| 2.5.7 | fetch_returning_players | ToolBuilderDroid-4 | `src/pre_gambling_flow/tools/fetch_returning_players.py` |
+| ~~2.5.7~~ | ~~fetch_returning_players~~ | ~~ToolBuilderDroid-4~~ | ~~Cancelled: API limitation~~ |
 | 2.5.8 | fetch_key_players_form | ToolBuilderDroid-4 | `src/pre_gambling_flow/tools/fetch_key_players_form.py` |
 | 2.5.9 | calculate_recovery_time | ToolBuilderDroid-1 | `src/pre_gambling_flow/tools/calculate_recovery_time.py` |
 
-**Deliverables:** 9 tool files + `tools/__init__.py`
+**Deliverables:** 8 tool files + `tools/__init__.py` (fetch_returning_players cancelled - API cannot track status changes over time)
 
 ---
 
