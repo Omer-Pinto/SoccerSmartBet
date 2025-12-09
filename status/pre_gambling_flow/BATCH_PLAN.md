@@ -66,25 +66,44 @@
 
 ---
 
-## Batch 5: Tools Implementation
+## Batch 5: Tools Implementation ✅ COMPLETE (PR #33)
 
 **Dependencies:** Need state/schemas (Batch 3) for tool signatures
 
-**Can be split across multiple ToolBuilderDroid instances:**
+**Result:** 8 tools implemented (4 game + 4 team), organized in game/ and team/ folders
 
-| Task | Tool | Droid | File |
-|------|------|-------|------|
-| 2.5.1 | fetch_h2h | ToolBuilderDroid-1 | `src/pre_gambling_flow/tools/fetch_h2h.py` |
-| 2.5.2 | fetch_venue | ToolBuilderDroid-1 | `src/pre_gambling_flow/tools/fetch_venue.py` |
-| 2.5.3 | fetch_weather | ToolBuilderDroid-2 | `src/pre_gambling_flow/tools/fetch_weather.py` |
-| 2.5.4 | fetch_form | ToolBuilderDroid-2 | `src/pre_gambling_flow/tools/fetch_form.py` |
-| 2.5.5 | fetch_injuries | ToolBuilderDroid-3 | `src/pre_gambling_flow/tools/fetch_injuries.py` |
-| ~~2.5.6~~ | ~~fetch_suspensions~~ | ~~ToolBuilderDroid-3~~ | ~~Cancelled: API limitation (returns empty)~~ |
-| ~~2.5.7~~ | ~~fetch_returning_players~~ | ~~ToolBuilderDroid-4~~ | ~~Cancelled: API limitation~~ |
-| 2.5.8 | fetch_key_players_form | ToolBuilderDroid-4 | `src/pre_gambling_flow/tools/fetch_key_players_form.py` |
-| 2.5.9 | calculate_recovery_time | ToolBuilderDroid-1 | `src/pre_gambling_flow/tools/calculate_recovery_time.py` |
+### Game Tools (4)
+| Task | Tool | Source | File |
+|------|------|--------|------|
+| 2.5.1 | fetch_h2h | football-data.org | `src/pre_gambling_flow/tools/game/fetch_h2h.py` |
+| 2.5.2 | fetch_venue | apifootball.com | `src/pre_gambling_flow/tools/game/fetch_venue.py` |
+| 2.5.3 | fetch_weather | Open-Meteo + Nominatim | `src/pre_gambling_flow/tools/game/fetch_weather.py` |
+| 2.5.4 | fetch_odds | The Odds API | `src/pre_gambling_flow/tools/game/fetch_odds.py` |
 
-**Deliverables:** 7 tool files + `tools/__init__.py` (fetch_suspensions and fetch_returning_players cancelled - API limitations)
+### Team Tools (4)
+| Task | Tool | Source | File |
+|------|------|--------|------|
+| 2.5.5 | fetch_form | apifootball.com | `src/pre_gambling_flow/tools/team/fetch_form.py` |
+| 2.5.6 | fetch_injuries | apifootball.com | `src/pre_gambling_flow/tools/team/fetch_injuries.py` |
+| 2.5.7 | fetch_key_players_form | apifootball.com | `src/pre_gambling_flow/tools/team/fetch_key_players_form.py` |
+| 2.5.8 | calculate_recovery_time | apifootball.com | `src/pre_gambling_flow/tools/team/calculate_recovery_time.py` |
+
+### Cancelled Tools (2)
+| Task | Tool | Reason |
+|------|------|--------|
+| ~~2.5.9~~ | ~~fetch_suspensions~~ | API limitation - returns empty data |
+| ~~2.5.10~~ | ~~fetch_returning_players~~ | API limitation - cannot track status changes |
+
+**Deliverables:** 
+- 8 tool files organized in game/ and team/ folders
+- Clean interfaces (no hardcoded league IDs)
+- 9 tests (8 API tests + 1 integration test)
+- Updated documentation with implementation status
+
+**Known Issues (for next batch):**
+- Tools search leagues sequentially (inefficient API usage)
+- No caching layer for team/league lookups
+- Limited to hardcoded league list
 
 ---
 

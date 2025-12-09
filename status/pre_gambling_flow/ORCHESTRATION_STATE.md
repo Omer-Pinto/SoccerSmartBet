@@ -48,17 +48,26 @@
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
-| 2.5.1 fetch_h2h | ✅ COMPLETE | #22 | H2H match history from football-data.org |
-| 2.5.2 fetch_venue | ✅ COMPLETE | #21 | Venue information from football-data.org |
-| 2.5.3 fetch_weather | ✅ COMPLETE | #23 | Weather forecasts from Open-Meteo |
-| 2.5.4 fetch_form | ✅ COMPLETE | #24 | Team recent match results from apifootball.com |
-| 2.5.5 fetch_injuries | ✅ COMPLETE | #25 | Current injury list from apifootball.com |
-| 2.5.6 fetch_suspensions | ❌ CANCELLED | #26 | API limitation - returns empty, removed in PR #32 |
-| 2.5.7 fetch_returning_players | ❌ CANCELLED | #29 | API limitation - cannot track status changes over time |
-| 2.5.8 fetch_key_players_form | ✅ COMPLETE | #28 | Top performers' statistics from apifootball.com |
-| 2.5.9 calculate_recovery_time | ✅ COMPLETE | #27 | Pure Python date utility for recovery days |
+| 2.5.1 fetch_h2h | ✅ COMPLETE | #33 | H2H match history from football-data.org |
+| 2.5.2 fetch_venue | ✅ COMPLETE | #33 | Venue information from apifootball.com |
+| 2.5.3 fetch_weather | ✅ COMPLETE | #33 | Weather forecasts from Open-Meteo + Nominatim geocoding |
+| 2.5.4 fetch_odds | ✅ COMPLETE | #33 | Betting lines (1/X/2 decimal odds) from The Odds API |
+| 2.5.5 fetch_form | ✅ COMPLETE | #33 | Team recent match results from apifootball.com |
+| 2.5.6 fetch_injuries | ✅ COMPLETE | #33 | Current injury list from apifootball.com |
+| 2.5.7 fetch_key_players_form | ✅ COMPLETE | #33 | Top performers' statistics from apifootball.com |
+| 2.5.8 calculate_recovery_time | ✅ COMPLETE | #33 | Pure Python date utility for recovery days |
+| ~~2.5.9 fetch_suspensions~~ | ❌ CANCELLED | #26, #32 | API limitation - returns empty data |
+| ~~2.5.10 fetch_returning_players~~ | ❌ CANCELLED | #29 | API limitation - cannot track status changes |
 
-**Batch 5 Result:** 7 tools implemented, 2 cancelled due to API limitations.
+**Batch 5 Result:** ✅ **8 tools implemented** (4 game + 4 team), 2 cancelled due to API limitations.
+
+**Complete Tool Overhaul (PR #33):**
+- Reorganized to `game/` and `team/` folders
+- Removed all hardcoded league IDs from interfaces
+- Tools search across major leagues internally
+- Weather uses geocoding API (works for ANY city worldwide)
+- 9 tests: 8 API availability tests + 1 integration test (12 tool calls per match)
+- Documentation updated with implementation status
 
 ---
 

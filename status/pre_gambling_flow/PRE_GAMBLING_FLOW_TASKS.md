@@ -47,21 +47,22 @@
 ### 2.4 Prompts Repository
 - [x] Implement `pre_gambling_flow/prompts.py` containing system messages for Smart Game Picker, Game Intelligence Agent, Team Intelligence Agent. Emphasize sophisticated AI analysis over raw stats dumping. **See DETAILED_TASK_BREAKDOWN.md for prompt requirements and agent goals.** ✅ **COMPLETE** - PR #15
 
-### 2.5 Tools Implementation
-- [x] Implement 7 data fetching tools as Python functions wrapped as LangGraph tools. Tools are "dumb fetchers" returning raw data without AI analysis. Agents (Game Intelligence, Team Intelligence) will use these tools and perform sophisticated analysis. ✅ **COMPLETE** - 7 tools implemented in PRs #21-#28
+### 2.5 Tools Implementation ✅ COMPLETE (PR #33)
+- [x] Implement 8 data fetching tools (4 game + 4 team) as Python functions wrapped as LangGraph tools. Tools are "dumb fetchers" returning raw data without AI analysis. Agents (Game Intelligence, Team Intelligence) will use these tools and perform sophisticated analysis. ✅ **COMPLETE** - Complete tool overhaul in PR #33
 
 **Tools implemented:**
 
-**Game Intelligence Tools (3):**
-- ✅ `fetch_h2h()` - Recent head-to-head results between teams (PR #22)
-- ✅ `fetch_venue()` - Venue name, capacity, expected attendance (PR #21)
-- ✅ `fetch_weather()` - Weather conditions (temperature, rain, wind) (PR #23)
+**Game Tools (4):**
+- ✅ `fetch_h2h()` - H2H match history (football-data.org)
+- ✅ `fetch_venue()` - Venue information (apifootball.com)
+- ✅ `fetch_weather()` - Weather forecast with geocoding (Open-Meteo + Nominatim)
+- ✅ `fetch_odds()` - Betting lines 1/X/2 decimal odds (The Odds API)
 
-**Team Intelligence Tools (4):**
-- ✅ `calculate_recovery_time()` - Days since team's last match (pure Python utility) (PR #27)
-- ✅ `fetch_form()` - Last 5 games results (W/D/L, goals) (PR #24)
-- ✅ `fetch_injuries()` - Current injury list with player names, severity (PR #25)
-- ✅ `fetch_key_players_form()` - Top 3-5 players' recent stats (goals, assists) (PR #28)
+**Team Tools (4):**
+- ✅ `fetch_form()` - Recent team form (apifootball.com)
+- ✅ `fetch_injuries()` - Current injury list (apifootball.com)
+- ✅ `fetch_key_players_form()` - Top performers (apifootball.com)
+- ✅ `calculate_recovery_time()` - Days since last match (Python)
 
 **Cancelled Tools (API limitations):**
 - ❌ `fetch_suspensions()` - **CANCELLED** (PR #26, removed in PR #32) - Returns empty, API has no suspension data
