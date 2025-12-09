@@ -15,6 +15,7 @@ from soccersmartbet.pre_gambling_flow.tools.game import (
     fetch_h2h,
     fetch_venue,
     fetch_weather,
+    fetch_odds,
 )
 from soccersmartbet.pre_gambling_flow.tools.team import (
     fetch_form,
@@ -71,14 +72,14 @@ def print_result(tool_name, result, success_key=None):
 
 def test_all_tools(home_team, away_team):
     """
-    Run all 7 tools for a match and report results.
+    Run all 8 tools for a match and report results.
     
     Args:
         home_team: Home team name
         away_team: Away team name
     """
     print_section(f"INTEGRATION TEST: {home_team} vs {away_team}")
-    print(f"Testing all 7 tools with team names only (no league_id)")
+    print(f"Testing all 8 tools with team names only (no league_id)")
     
     results = {
         "passed": [],
@@ -86,11 +87,11 @@ def test_all_tools(home_team, away_team):
         "no_data": []
     }
     
-    # GAME TOOLS (3 tools - called once per match)
+    # GAME TOOLS (4 tools - called once per match)
     print_section("GAME TOOLS")
     
     # 1. H2H
-    print("\n[1/11] fetch_h2h...")
+    print("\n[1/12] fetch_h2h...")
     h2h_result = fetch_h2h(home_team, away_team, limit=5)
     success = print_result("fetch_h2h", h2h_result, success_key="h2h_matches")
     
@@ -109,23 +110,29 @@ def test_all_tools(home_team, away_team):
         print(f"  ⚠️  Using estimated match date: {upcoming_match_date}")
     
     # 2. Venue
-    print(f"\n[2/11] fetch_venue...")
+    print(f"\n[2/12] fetch_venue...")
     venue_result = fetch_venue(home_team, away_team)
     success = print_result("fetch_venue", venue_result)
     (results["passed"] if success else results["failed"]).append("fetch_venue")
     
     # 3. Weather
-    print(f"\n[3/11] fetch_weather...")
+    print(f"\n[3/12] fetch_weather...")
     match_datetime = f"{upcoming_match_date}T15:00:00"
     weather_result = fetch_weather(home_team, away_team, match_datetime)
     success = print_result("fetch_weather", weather_result)
     (results["passed"] if success else results["failed"]).append("fetch_weather")
     
+    # 4. Odds
+    print(f"\n[4/12] fetch_odds...")
+    odds_result = fetch_odds(home_team, away_team)
+    success = print_result("fetch_odds", odds_result)
+    (results["passed"] if success else results["failed"]).append("fetch_odds")
+    
     # TEAM TOOLS - HOME TEAM (4 tools)
     print_section(f"TEAM TOOLS - {home_team}")
     
-    # 4. Form
-    print(f"\n[4/11] fetch_form...")
+    # 5. Form
+    print(f"\n[5/12] fetch_form...")
     form_result = fetch_form(home_team, limit=5)
     success = print_result("fetch_form", form_result, success_key="matches")
     
@@ -137,14 +144,14 @@ def test_all_tools(home_team, away_team):
     else:
         results["failed"].append(f"fetch_form({home_team})")
     
-    # 5. Injuries
-    print(f"\n[5/11] fetch_injuries...")
+    # 6. Injuries
+    print(f"\n[6/12] fetch_injuries...")
     injuries_result = fetch_injuries(home_team)
     success = print_result("fetch_injuries", injuries_result)
     (results["passed"] if success else results["failed"]).append(f"fetch_injuries({home_team})")
     
-    # 6. Key Players
-    print(f"\n[6/11] fetch_key_players_form...")
+    # 7. Key Players
+    print(f"\n[7/12] fetch_key_players_form...")
     key_players_result = fetch_key_players_form(home_team, top_n=5)
     success = print_result("fetch_key_players_form", key_players_result, success_key="top_players")
     
@@ -156,8 +163,8 @@ def test_all_tools(home_team, away_team):
     else:
         results["failed"].append(f"fetch_key_players_form({home_team})")
     
-    # 7. Recovery Time
-    print(f"\n[7/11] calculate_recovery_time...")
+    # 8. Recovery Time
+    print(f"\n[8/12] calculate_recovery_time...")
     recovery_result = calculate_recovery_time(home_team, upcoming_match_date)
     success = print_result("calculate_recovery_time", recovery_result)
     (results["passed"] if success else results["failed"]).append(f"calculate_recovery_time({home_team})")
@@ -165,8 +172,8 @@ def test_all_tools(home_team, away_team):
     # TEAM TOOLS - AWAY TEAM (4 tools)
     print_section(f"TEAM TOOLS - {away_team}")
     
-    # 8. Form
-    print(f"\n[8/11] fetch_form...")
+    # 9. Form
+    print(f"\n[9/12] fetch_form...")
     away_form = fetch_form(away_team, limit=5)
     success = print_result("fetch_form", away_form, success_key="matches")
     if success:
@@ -177,14 +184,14 @@ def test_all_tools(home_team, away_team):
     else:
         results["failed"].append(f"fetch_form({away_team})")
     
-    # 9. Injuries
-    print(f"\n[9/11] fetch_injuries...")
+    # 10. Injuries
+    print(f"\n[10/12] fetch_injuries...")
     away_injuries = fetch_injuries(away_team)
     success = print_result("fetch_injuries", away_injuries)
     (results["passed"] if success else results["failed"]).append(f"fetch_injuries({away_team})")
     
-    # 10. Key Players
-    print(f"\n[10/11] fetch_key_players_form...")
+    # 11. Key Players
+    print(f"\n[11/12] fetch_key_players_form...")
     away_players = fetch_key_players_form(away_team, top_n=5)
     success = print_result("fetch_key_players_form", away_players, success_key="top_players")
     if success:
@@ -195,8 +202,8 @@ def test_all_tools(home_team, away_team):
     else:
         results["failed"].append(f"fetch_key_players_form({away_team})")
     
-    # 11. Recovery Time
-    print(f"\n[11/11] calculate_recovery_time...")
+    # 12. Recovery Time
+    print(f"\n[12/12] calculate_recovery_time...")
     away_recovery = calculate_recovery_time(away_team, upcoming_match_date)
     success = print_result("calculate_recovery_time", away_recovery)
     (results["passed"] if success else results["failed"]).append(f"calculate_recovery_time({away_team})")

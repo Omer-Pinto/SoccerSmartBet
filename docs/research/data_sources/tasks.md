@@ -1,15 +1,29 @@
-# Data Sources - API Registrations
+# Data Sources - API Registrations & Implementation Status
 
-**Purpose:** Checklist for acquiring API keys for Pre-Gambling Flow data sources  
-**Status:** Updated - api-football.com fraud corrected, apifootball.com added
+**Purpose:** Track API key acquisition and tool implementation for Pre-Gambling Flow  
+**Status:** ✅ Batch 5 Complete - 8 tools implemented and tested
+
+---
+
+## Implementation Summary (Batch 5)
+
+**8 Tools Implemented:**
+- ✅ fetch_h2h (football-data.org)
+- ✅ fetch_venue (apifootball.com)
+- ✅ fetch_weather (Open-Meteo + Nominatim)
+- ✅ fetch_odds (The Odds API)
+- ✅ fetch_form (apifootball.com)
+- ✅ fetch_injuries (apifootball.com)
+- ✅ fetch_key_players_form (apifootball.com)
+- ✅ calculate_recovery_time (apifootball.com)
+
+**See:** [executive_summary.md](executive_summary.md) for complete implementation table.
 
 ---
 
 ## Overview
 
-This document lists all free API services that require registration and API key acquisition. Complete these registrations before implementing data fetchers.
-
-**See:** [executive_summary.md](executive_summary.md) for full data stack overview and [sources/](sources/) for detailed API documentation.
+This document lists all free API services that require registration and API key acquisition.
 
 **⚠️ IMPORTANT:** Do NOT confuse **apifootball.com** (legitimate, no hyphen) with **api-football.com** (fraudulent, with hyphen). See [sources/NON_VIABLE_SOURCES.md](sources/NON_VIABLE_SOURCES.md).
 
