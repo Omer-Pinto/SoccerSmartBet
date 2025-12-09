@@ -6,7 +6,41 @@
 
 ---
 
-## 📊 Recommended Data Stack
+## 🛠️ Currently Implemented Tools (Batch 5 - Complete)
+
+**Status:** ✅ 8 tools implemented and tested  
+**Location:** `src/soccersmartbet/pre_gambling_flow/tools/`
+
+| Tool | Type | Vertical | Source | Status |
+|------|------|----------|--------|--------|
+| `fetch_h2h` | Game | H2H History | football-data.org | ✅ Working |
+| `fetch_venue` | Game | Venue Info | apifootball.com | ✅ Working |
+| `fetch_weather` | Game | Weather | Open-Meteo + Nominatim | ✅ Working |
+| `fetch_odds` | Game | Betting Lines | The Odds API | ✅ Working |
+| `fetch_form` | Team | Recent Form | apifootball.com | ✅ Working |
+| `fetch_injuries` | Team | Injuries | apifootball.com | ✅ Working |
+| `fetch_key_players_form` | Team | Player Stats | apifootball.com | ✅ Working |
+| `calculate_recovery_time` | Team | Recovery Days | apifootball.com | ✅ Working |
+
+**Tool Interfaces:**
+- **Game tools** (4): Accept `(home_team, away_team)` - called once per match
+- **Team tools** (4): Accept `(team_name)` - called twice per match (once per team)
+- **Total calls per match:** 12 (4 game + 4 home + 4 away)
+
+**Key Features:**
+- ✅ NO hardcoded league IDs - tools search across all major leagues automatically
+- ✅ Works for Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League
+- ✅ Weather uses geocoding API - works for ANY city worldwide (not just English cities)
+- ✅ Comprehensive integration test - validates all 12 tool calls for user-provided teams
+
+**Not Implemented (Future Batches):**
+- ❌ Team news (requires scraping)
+- ❌ Suspension tracking (API returns empty data)
+- ❌ Returning players (API cannot track status changes)
+
+---
+
+## 📊 Recommended Data Stack (Research Reference)
 
 | Vertical | Source | Status | Ease of Use | Notes |
 |----------|--------|--------|-------------|-------|
