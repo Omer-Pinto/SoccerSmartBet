@@ -243,6 +243,25 @@ def fetch_weather(home_team_name: str, away_team_name: str, match_datetime: str)
         match_date = match_dt.strftime("%Y-%m-%d")
         match_hour = match_dt.strftime("%Y-%m-%dT%H:00")
         
+        # Check if match is too far in the future for Open-Meteo
+        # Open-Meteo only provides forecasts for ~16 days ahead
+        from datetime import datetime as dt
+        days_until_match = (match_dt.replace(tzinfo=None) - dt.now()).days
+        
+        if days_until_match > 16:
+            return {
+                "home_team": home_team_name,
+                "away_team": away_team_name,
+                "venue_city": venue_city,
+                "match_datetime": match_datetime,
+                "temperature_celsius": None,
+                "precipitation_mm": None,
+                "precipitation_probability": None,
+                "wind_speed_kmh": None,
+                "conditions": None,
+                "error": f"Match is {days_until_match} days away - weather forecasts only available for next 16 days"
+            }
+        
         # Call Open-Meteo API
         base_url = "https://api.open-meteo.com/v1/forecast"
         params = {

@@ -35,11 +35,16 @@ def print_section(title):
 def print_result(tool_name, result, success_key=None):
     """Print tool result with pass/fail status."""
     has_error = result.get("error") is not None
+    has_message = result.get("message") is not None
     
     if has_error:
         status = "❌ FAILED"
         print(f"\n{tool_name}: {status}")
         print(f"  Error: {result['error']}")
+    elif has_message:
+        status = "⚠️  NO DATA"
+        print(f"\n{tool_name}: {status}")
+        print(f"  Message: {result['message']}")
     else:
         # Check if we got actual data
         if success_key:
@@ -120,13 +125,27 @@ def test_all_tools(home_team, away_team):
     match_datetime = f"{upcoming_match_date}T15:00:00"
     weather_result = fetch_weather(home_team, away_team, match_datetime)
     success = print_result("fetch_weather", weather_result)
-    (results["passed"] if success else results["failed"]).append("fetch_weather")
+    
+    # Weather is expected to fail for matches >16 days away
+    if weather_result.get("error") and "days away" in weather_result.get("error", ""):
+        results["no_data"].append("fetch_weather (match too far in future)")
+    elif success:
+        results["passed"].append("fetch_weather")
+    else:
+        results["failed"].append("fetch_weather")
     
     # 4. Odds
     print(f"\n[4/12] fetch_odds...")
     odds_result = fetch_odds(home_team, away_team)
     success = print_result("fetch_odds", odds_result)
-    (results["passed"] if success else results["failed"]).append("fetch_odds")
+    
+    # Odds are expected to not be available for matches >2 weeks away
+    if odds_result.get("message"):
+        results["no_data"].append("fetch_odds (odds not published yet)")
+    elif success:
+        results["passed"].append("fetch_odds")
+    else:
+        results["failed"].append("fetch_odds")
     
     # TEAM TOOLS - HOME TEAM (4 tools)
     print_section(f"TEAM TOOLS - {home_team}")

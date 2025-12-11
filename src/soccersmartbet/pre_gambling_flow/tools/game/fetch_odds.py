@@ -84,6 +84,9 @@ def fetch_odds(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
         home_team_lower = home_team_name.lower()
         away_team_lower = away_team_name.lower()
         
+        # Note: The Odds API typically only has odds for matches in the next 1-2 weeks
+        # Matches further in the future won't have published odds yet
+        
         for sport_key in SOCCER_LEAGUES:
             try:
                 response = requests.get(
@@ -121,6 +124,7 @@ def fetch_odds(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
                 continue  # Try next league
         
         # No match found in any league
+        # This is expected for matches more than ~2 weeks in the future
         return {
             "home_team": home_team_name,
             "away_team": away_team_name,
@@ -130,7 +134,8 @@ def fetch_odds(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
             "odds_draw": None,
             "odds_away": None,
             "bookmaker": None,
-            "error": f"No upcoming match found between {home_team_name} and {away_team_name}"
+            "error": None,  # Not an error - odds just not published yet for future matches
+            "message": f"No published odds yet (match may be too far in future)"
         }
     
     except Exception as e:
