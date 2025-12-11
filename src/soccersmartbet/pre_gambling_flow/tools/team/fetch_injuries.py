@@ -158,19 +158,22 @@ def fetch_injuries(team_name: str) -> Dict[str, Any]:
         
         lineup_data = lineup_response.json()
         
-        # Lineup data has separate arrays for home and away teams
-        home_lineup = lineup_data.get("lineup", {}).get("home")
-        away_lineup = lineup_data.get("lineup", {}).get("away")
+        # Lineup is a LIST of player objects, each with idTeam field
+        lineup = lineup_data.get("lineup", [])
         
-        # Determine which lineup is ours (match team_id)
-        our_lineup = None
-        if home_lineup and str(home_lineup.get("idTeam")) == str(team_id):
-            our_lineup = home_lineup
-        elif away_lineup and str(away_lineup.get("idTeam")) == str(team_id):
-            our_lineup = away_lineup
+        if not lineup or len(lineup) == 0:
+            return {
+                "team_name": team_name,
+                "injuries": [],
+                "total_injuries": 0,
+                "source": "lineup_empty",
+                "error": None
+            }
         
-        if not our_lineup:
-            # Lineup doesn't match our team - return empty
+        # Filter to our team's players only
+        our_players = [p for p in lineup if str(p.get("idTeam")) == str(team_id)]
+        
+        if len(our_players) == 0:
             return {
                 "team_name": team_name,
                 "injuries": [],
@@ -179,25 +182,26 @@ def fetch_injuries(team_name: str) -> Dict[str, Any]:
                 "error": None
             }
         
-        # Extract injured players from lineup
-        # TheSportsDB may have "strInjured" or similar fields
-        # This is exploratory - structure may vary
+        # Extract injured players
+        # NOTE: TheSportsDB lineup API typically shows ONLY players who are playing/on bench
+        # Injured players are usually NOT in the lineup at all
+        # So we'll likely return empty injuries unless lineup has explicit injury flags
         injured = []
-        players = our_lineup.get("players", [])
         
-        for player in players:
+        for player in our_players:
             # Check various possible injury indicators
+            # (These fields may not exist - this is exploratory)
             is_injured = (
                 player.get("strInjured") == "Yes" or
                 player.get("strStatus") == "Injured" or
-                player.get("intPosition") == "0"  # Position 0 sometimes means out
+                player.get("strSubstitute") == "Injured"  # Alternative field
             )
             
             if is_injured:
                 injured.append({
                     "player_name": player.get("strPlayer", "Unknown"),
-                    "player_type": "Unknown",  # Not available in lineup API
-                    "injury_type": player.get("strInjuryType", "Not specified"),
+                    "player_type": player.get("strPosition", "Unknown"),
+                    "injury_type": "Not specified",  # Not available in lineup
                     "matches_played": None  # Not available in TheSportsDB lineup
                 })
         
