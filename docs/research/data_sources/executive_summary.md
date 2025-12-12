@@ -36,8 +36,12 @@
 
 **Tool Changes (Batch 6):**
 - ✅ **Added:** `fetch_league_position` - Team's league position, points, W/D/L record (TheSportsDB)
+  - ⚠️ **Limitation:** Free tier only returns top 5 teams per league
 - ❌ **Removed:** `fetch_key_players_form` - No free API available for player goals/assists stats
-- ✅ **Migrated:** `fetch_venue` → TheSportsDB `/lookupteam.php`
+- ✅ **Migrated:** `fetch_venue` → TheSportsDB `/searchteams.php` (fixed lookupteam bug)
+- ✅ **Migrated:** `fetch_weather` → Uses `fetch_venue` for city, then Open-Meteo (no APIfootball dependency)
+- ✅ **Migrated:** `fetch_form` → football-data.org (was still using APIfootball)
+- ✅ **Migrated:** `calculate_recovery_time` → Uses `fetch_form` (was still using APIfootball)
 - ⚠️ **Migrated:** `fetch_injuries` → TheSportsDB `/eventsnext` + `/lookuplineup` (match-specific, may return empty if no upcoming matches)
 
 **Not Implemented (By Design):**
@@ -59,7 +63,7 @@
 | **Venue Info** | **TheSportsDB** | ✅ Active | 100 req/min | Migrated in Batch 6 |
 | **Injuries** | **TheSportsDB** | ⚠️ Limited | 100 req/min | Match-specific only (lineup-based) |
 | **Team Form** | football-data.org | ✅ Active | 10 req/min | Last 5-10 matches |
-| **League Position** | **TheSportsDB** | ✅ **NEW** | 100 req/min | Position, points, W/D/L, form |
+| **League Position** | **TheSportsDB** | ⚠️ **NEW** | 100 req/min | **Free tier: Top 5 teams only** |
 | **Recovery Time** | Derived | ✅ Active | N/A | Calculated from match dates |
 | **Player Stats** | N/A | ❌ **Removed** | N/A | No free API available |
 | **Team News** | N/A | 🔴 Disabled | N/A | Scraping too fragile |
