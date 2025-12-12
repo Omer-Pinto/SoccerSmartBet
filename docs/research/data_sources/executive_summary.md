@@ -6,21 +6,22 @@
 
 ---
 
-## 🛠️ Currently Implemented Tools (Batch 5 - Complete)
+## 🛠️ Currently Implemented Tools (Batch 6 - TheSportsDB Migration)
 
-**Status:** ✅ 8 tools implemented and tested  
+**Status:** ✅ 8 tools implemented (migrated from APIfootball.com to TheSportsDB)  
+**Date Updated:** 2025-12-11  
 **Location:** `src/soccersmartbet/pre_gambling_flow/tools/`
 
 | Tool | Type | Vertical | Source | Status |
 |------|------|----------|--------|--------|
 | `fetch_h2h` | Game | H2H History | football-data.org | ✅ Working |
-| `fetch_venue` | Game | Venue Info | apifootball.com | ✅ Working |
+| `fetch_venue` | Game | Venue Info | **TheSportsDB** | ✅ Migrated |
 | `fetch_weather` | Game | Weather | Open-Meteo + Nominatim | ✅ Working |
 | `fetch_odds` | Game | Betting Lines | The Odds API | ✅ Working |
-| `fetch_form` | Team | Recent Form | apifootball.com | ✅ Working |
-| `fetch_injuries` | Team | Injuries | apifootball.com | ✅ Working |
-| `fetch_key_players_form` | Team | Player Stats | apifootball.com | ✅ Working |
-| `calculate_recovery_time` | Team | Recovery Days | apifootball.com | ✅ Working |
+| `fetch_form` | Team | Recent Form | football-data.org | ✅ Working |
+| `fetch_injuries` | Team | Injuries | **TheSportsDB** | ⚠️ Match-specific |
+| `fetch_league_position` | Team | **League Standing** | **TheSportsDB** | ✅ **NEW!** |
+| `calculate_recovery_time` | Team | Recovery Days | football-data.org | ✅ Working |
 
 **Tool Interfaces:**
 - **Game tools** (4): Accept `(home_team, away_team)` - called once per match
@@ -33,28 +34,40 @@
 - ✅ Weather uses geocoding API - works for ANY city worldwide (not just English cities)
 - ✅ Comprehensive integration test - validates all 12 tool calls for user-provided teams
 
-**Not Implemented (Future Batches):**
-- ❌ Team news (requires scraping)
-- ❌ Suspension tracking (API returns empty data)
-- ❌ Returning players (API cannot track status changes)
+**Tool Changes (Batch 6):**
+- ✅ **Added:** `fetch_league_position` - Team's league position, points, W/D/L record (TheSportsDB)
+  - ⚠️ **Limitation:** Free tier only returns top 5 teams per league
+- ❌ **Removed:** `fetch_key_players_form` - No free API available for player goals/assists stats
+- ✅ **Migrated:** `fetch_venue` → TheSportsDB `/searchteams.php` (fixed lookupteam bug)
+- ✅ **Migrated:** `fetch_weather` → Uses `fetch_venue` for city, then Open-Meteo (no APIfootball dependency)
+- ✅ **Migrated:** `fetch_form` → football-data.org (was still using APIfootball)
+- ✅ **Migrated:** `calculate_recovery_time` → Uses `fetch_form` (was still using APIfootball)
+- ⚠️ **Migrated:** `fetch_injuries` → TheSportsDB `/eventsnext` + `/lookuplineup` (match-specific, may return empty if no upcoming matches)
+
+**Not Implemented (By Design):**
+- ❌ Team news (requires scraping - too fragile)
+- ❌ Player statistics (goals/assists) - No free API available (removed in Batch 6)
+- ❌ Suspension tracking - TheSportsDB doesn't provide this
+- ❌ Returning players - Cannot track status changes with free APIs
 
 ---
 
-## 📊 Recommended Data Stack (Research Reference)
+## 📊 Current Data Stack (As of Batch 6)
 
-| Vertical | Source | Status | Ease of Use | Notes |
-|----------|--------|--------|-------------|-------|
-| **Fixtures** | football-data.org | ✅ Enabled | 🟢 Free API + Key | 12 competitions, 10 req/min |
-| **Odds** | The Odds API | ✅ Enabled | 🟢 Free API + Key | 500 credits/month, decimal format |
-| **Injuries/Suspensions** | apifootball.com | ✅ Enabled | 🟢 Free API + Key | 180 req/hour (6,480/day), player injury tracking |
-| **H2H Stats** | football-data.org | ✅ Enabled | 🟢 Free API + Key | /matches/{id}/head2head endpoint |
-| **H2H Stats (Backup)** | apifootball.com | ✅ Enabled | 🟢 Free API + Key | Event filtering for H2H matches |
-| **Team Form** | apifootball.com | ✅ Enabled | 🟢 Free API + Key | Recent matches per team |
-| **Weather** | Open-Meteo | ✅ Enabled | 🟢 Free, No Key | 10k req/day, no signup needed |
-| **Team News** | Scraping | 🔴 Disabled | 🔴 Scraping | Paid APIs only, scrapers too fragile |
-| **Player Form** | apifootball.com | 🟡 Limited | 🟢 Free API + Key | Basic stats (goals/assists/games played) |
-| **Morale/Coach News** | Scraping | 🔴 Disabled | 🔴 Scraping | No structured APIs available |
-| **Rotation Policy** | Manual/Scraping | 🔴 Disabled | 🔴 Scraping | Coach statements only, unreliable |
+| Vertical | Source | Status | Rate Limit | Notes |
+|----------|--------|--------|------------|-------|
+| **Fixtures** | football-data.org | ✅ Active | 10 req/min | 12 competitions |
+| **Odds** | The Odds API | ✅ Active | 500 credits/month | Decimal format |
+| **H2H Stats** | football-data.org | ✅ Active | 10 req/min | /matches/{id}/head2head |
+| **Weather** | Open-Meteo | ✅ Active | 10k req/day | No API key needed |
+| **Venue Info** | **TheSportsDB** | ✅ Active | 100 req/min | Migrated in Batch 6 |
+| **Injuries** | **TheSportsDB** | ⚠️ Limited | 100 req/min | Match-specific only (lineup-based) |
+| **Team Form** | football-data.org | ✅ Active | 10 req/min | Last 5-10 matches |
+| **League Position** | **TheSportsDB** | ⚠️ **NEW** | 100 req/min | **Free tier: Top 5 teams only** |
+| **Recovery Time** | Derived | ✅ Active | N/A | Calculated from match dates |
+| **Player Stats** | N/A | ❌ **Removed** | N/A | No free API available |
+| **Team News** | N/A | 🔴 Disabled | N/A | Scraping too fragile |
+| **Suspensions** | N/A | 🔴 Disabled | N/A | Not available in free APIs |
 
 **Legend:**
 - ✅ **Enabled**: Ready to implement with free API
@@ -68,20 +81,21 @@
 
 ---
 
-## 🚫 CRITICAL: api-football.com is FRAUDULENT
+## 🚫 CRITICAL: APIfootball.com Trial Expired
 
-**⚠️ DO NOT USE api-football.com (with hyphen)**
+**⚠️ APIfootball.com is NO LONGER USED (trial expired Dec 14, 2025)**
 
-**Initial research error:** Task 0.1 initially recommended api-football.com for injuries, suspensions, and H2H statistics.
+**Previous usage:** Batch 5 used APIfootball.com for venue, injuries, team form, and player stats.
 
-**Discovered fraud:** api-football.com's **free tier only provides 2021-2023 data**, making it completely useless for live betting in 2025.
+**Migration (Batch 6):** All tools migrated to **TheSportsDB** (100% free, no trial):
+- ✅ **TheSportsDB.com** - Primary source for venue, injuries, league position
+- ✅ **football-data.org** - Team form, H2H (already in use)
+- ❌ **Player stats** - Removed (no free API available)
 
-**Corrected sources:**
-- ✅ **apifootball.com** (NO hyphen) - legitimate free API, 180 req/hour
-- ✅ **football-data.org** (already in use) - expanded to H2H
-- ✅ **TheSportsDB.com** (backup) - free tier available
+**Other sources to avoid:**
+- ❌ **api-football.com** (with hyphen) - Free tier only provides 2021-2023 data
 
-See [NON_VIABLE_SOURCES.md](sources/NON_VIABLE_SOURCES.md) for full details on the fraud.
+See [apifootball_alternatives_report.md](../apifootball_alternatives_report.md) for full migration research.
 
 ---
 
@@ -222,29 +236,45 @@ See [NON_VIABLE_SOURCES.md](sources/NON_VIABLE_SOURCES.md) for full details on t
 
 ---
 
-## 📊 Final Data Stack Summary
+## 📊 Final Data Stack Summary (Batch 6)
 
 **Core APIs (FREE, Sustained):**
-1. **football-data.org** - Fixtures, H2H
+1. **football-data.org** - Fixtures, H2H, Team Form
 2. **The Odds API** - Betting lines
-3. **apifootball.com** - Injuries, suspensions, H2H backup, team form
-4. **Open-Meteo** - Weather
+3. **TheSportsDB** - Venue, Injuries (match-specific), League Position
+4. **Open-Meteo** - Weather (no key needed)
 
-**Total API Keys Needed:** 3 (football-data.org, The Odds API, apifootball.com)
+**Total API Keys Needed:** 3 
+- `FOOTBALL_DATA_API_KEY`
+- `ODDS_API_KEY`
+- `THESPORTSDB_API_KEY` (default: "3" for free test key)
 
-**Estimated Daily Requests:**
-- Fixtures: 1 request/day
-- Odds: 3-5 requests/day (filtered games only)
-- Weather: 3-5 requests/day
-- Injuries: 6-10 requests/day (2 per game)
-- H2H: 3-5 requests/day (1 per game)
-- Team Form: 6-10 requests/day (2 per game)
+**Estimated Daily Requests (3-5 games/day):**
+- Fixtures: 1 request/day (football-data.org)
+- Odds: 3-5 requests/day (The Odds API - filtered games only)
+- Weather: 3-5 requests/day (Open-Meteo)
+- Venue: 3-5 requests/day (TheSportsDB)
+- Injuries: 3-5 requests/day (TheSportsDB - 1 per match)
+- League Position: 2-4 requests/day (TheSportsDB - 1 per league, not per team!)
+- H2H: 3-5 requests/day (football-data.org)
+- Team Form: 6-10 requests/day (football-data.org - 2 per game)
 - **Total:** ~25-40 requests/day across all APIs
 
-**Well under all rate limits.**
+**Rate Limit Status:** ✅ Well under all limits
+- football-data.org: 10/min (using ~15/day)
+- The Odds API: 500/month (using ~150/month)
+- TheSportsDB: 100/min (using ~15/day)
+- Open-Meteo: 10k/day (using ~5/day)
 
 ---
 
-**See:** [verticals/](verticals/) for detailed vertical analysis and [sources/](sources/) for API documentation.
+**See:**  
+- [apifootball_alternatives_report.md](../apifootball_alternatives_report.md) - Full migration research (Batch 6)
+- [verticals/](verticals/) - Detailed vertical analysis (Batch 2-5 research)
+- [sources/](sources/) - API documentation for all sources
 
-**⚠️ IMPORTANT:** Do NOT confuse **apifootball.com** (legitimate, no hyphen) with **api-football.com** (fraudulent, with hyphen).
+**⚠️ MIGRATION NOTES:**
+- APIfootball.com trial expired Dec 14, 2025 - **NO LONGER USED**
+- All tools migrated to TheSportsDB (100% free, no trial)
+- Player stats tool **REMOVED** - no free API available
+- League position tool **ADDED** - new feature from TheSportsDB

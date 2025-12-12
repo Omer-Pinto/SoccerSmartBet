@@ -1,7 +1,7 @@
 """
 Integration test: Run ALL tools for a single match.
 
-User provides two team names, test runs all 7 tools and reports results.
+User provides two team names, test runs all 8 tools and reports results.
 """
 
 import sys
@@ -20,7 +20,7 @@ from soccersmartbet.pre_gambling_flow.tools.game import (
 from soccersmartbet.pre_gambling_flow.tools.team import (
     fetch_form,
     fetch_injuries,
-    fetch_key_players_form,
+    fetch_league_position,
     calculate_recovery_time,
 )
 
@@ -35,11 +35,16 @@ def print_section(title):
 def print_result(tool_name, result, success_key=None):
     """Print tool result with pass/fail status."""
     has_error = result.get("error") is not None
+    has_message = result.get("message") is not None
     
     if has_error:
         status = "❌ FAILED"
         print(f"\n{tool_name}: {status}")
         print(f"  Error: {result['error']}")
+    elif has_message:
+        status = "⚠️  NO DATA"
+        print(f"\n{tool_name}: {status}")
+        print(f"  Message: {result['message']}")
     else:
         # Check if we got actual data
         if success_key:
@@ -120,13 +125,27 @@ def test_all_tools(home_team, away_team):
     match_datetime = f"{upcoming_match_date}T15:00:00"
     weather_result = fetch_weather(home_team, away_team, match_datetime)
     success = print_result("fetch_weather", weather_result)
-    (results["passed"] if success else results["failed"]).append("fetch_weather")
+    
+    # Weather is expected to fail for matches >16 days away
+    if weather_result.get("error") and "days away" in weather_result.get("error", ""):
+        results["no_data"].append("fetch_weather (match too far in future)")
+    elif success:
+        results["passed"].append("fetch_weather")
+    else:
+        results["failed"].append("fetch_weather")
     
     # 4. Odds
     print(f"\n[4/12] fetch_odds...")
     odds_result = fetch_odds(home_team, away_team)
     success = print_result("fetch_odds", odds_result)
-    (results["passed"] if success else results["failed"]).append("fetch_odds")
+    
+    # Odds are expected to not be available for matches >2 weeks away
+    if odds_result.get("message"):
+        results["no_data"].append("fetch_odds (odds not published yet)")
+    elif success:
+        results["passed"].append("fetch_odds")
+    else:
+        results["failed"].append("fetch_odds")
     
     # TEAM TOOLS - HOME TEAM (4 tools)
     print_section(f"TEAM TOOLS - {home_team}")
@@ -150,18 +169,11 @@ def test_all_tools(home_team, away_team):
     success = print_result("fetch_injuries", injuries_result)
     (results["passed"] if success else results["failed"]).append(f"fetch_injuries({home_team})")
     
-    # 7. Key Players
-    print(f"\n[7/12] fetch_key_players_form...")
-    key_players_result = fetch_key_players_form(home_team, top_n=5)
-    success = print_result("fetch_key_players_form", key_players_result, success_key="top_players")
-    
-    if success:
-        if key_players_result.get("total_players", 0) > 0:
-            results["passed"].append(f"fetch_key_players_form({home_team})")
-        else:
-            results["no_data"].append(f"fetch_key_players_form({home_team})")
-    else:
-        results["failed"].append(f"fetch_key_players_form({home_team})")
+    # 7. League Position
+    print(f"\n[7/12] fetch_league_position...")
+    league_pos_result = fetch_league_position(home_team)
+    success = print_result("fetch_league_position", league_pos_result)
+    (results["passed"] if success else results["failed"]).append(f"fetch_league_position({home_team})")
     
     # 8. Recovery Time
     print(f"\n[8/12] calculate_recovery_time...")
@@ -190,17 +202,11 @@ def test_all_tools(home_team, away_team):
     success = print_result("fetch_injuries", away_injuries)
     (results["passed"] if success else results["failed"]).append(f"fetch_injuries({away_team})")
     
-    # 11. Key Players
-    print(f"\n[11/12] fetch_key_players_form...")
-    away_players = fetch_key_players_form(away_team, top_n=5)
-    success = print_result("fetch_key_players_form", away_players, success_key="top_players")
-    if success:
-        if away_players.get("total_players", 0) > 0:
-            results["passed"].append(f"fetch_key_players_form({away_team})")
-        else:
-            results["no_data"].append(f"fetch_key_players_form({away_team})")
-    else:
-        results["failed"].append(f"fetch_key_players_form({away_team})")
+    # 11. League Position
+    print(f"\n[11/12] fetch_league_position...")
+    away_league_pos = fetch_league_position(away_team)
+    success = print_result("fetch_league_position", away_league_pos)
+    (results["passed"] if success else results["failed"]).append(f"fetch_league_position({away_team})")
     
     # 12. Recovery Time
     print(f"\n[12/12] calculate_recovery_time...")
