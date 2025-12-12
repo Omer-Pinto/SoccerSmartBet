@@ -187,7 +187,7 @@ def fetch_league_position(team_name: str) -> Dict[str, Any]:
                 return None
         
         return {
-            "team_name": team_row.get("strTeam", actual_team_name),
+            "team_name": team_name,  # Return the parameter, not API result
             "league_name": league_name,
             "position": safe_int(team_row.get("intRank")),
             "played": safe_int(team_row.get("intPlayed")),

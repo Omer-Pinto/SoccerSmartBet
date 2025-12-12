@@ -128,7 +128,7 @@ def fetch_venue(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
         team_data = teams[0]
         
         return {
-            "home_team": team_data.get("strTeam", home_team_name),
+            "home_team": home_team_name,  # Return the parameter, not API result
             "away_team": away_team_name,
             "venue_name": team_data.get("strStadium"),
             "venue_city": team_data.get("strLocation"),
