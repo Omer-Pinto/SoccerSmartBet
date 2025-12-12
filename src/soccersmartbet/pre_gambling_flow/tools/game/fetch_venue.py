@@ -20,15 +20,15 @@ BASE_URL = f"https://www.thesportsdb.com/api/v1/json/{THESPORTSDB_API_KEY}"
 TIMEOUT = 10
 
 
-def _search_team(team_name: str) -> Optional[str]:
+def _search_team(team_name: str) -> Optional[Dict[str, Any]]:
     """
-    Search for team by name and return team ID.
+    Search for team by name and return team data.
     
     Args:
         team_name: Team name to search for
     
     Returns:
-        Team ID string or None if not found
+        Team dict with venue data or None if not found
     """
     try:
         response = requests.get(
@@ -46,8 +46,8 @@ def _search_team(team_name: str) -> Optional[str]:
         if not teams or len(teams) == 0:
             return None
         
-        # Return first match (TheSportsDB search is quite accurate)
-        return teams[0].get("idTeam")
+        # Return first match (search result contains all venue data we need)
+        return teams[0]
     
     except Exception:
         return None
@@ -76,10 +76,10 @@ def fetch_venue(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
         }
     """
     try:
-        # Step 1: Search for home team
-        team_id = _search_team(home_team_name)
+        # Search for home team (search result contains all venue data)
+        team_data = _search_team(home_team_name)
         
-        if not team_id:
+        if not team_data:
             return {
                 "home_team": home_team_name,
                 "away_team": away_team_name,
@@ -90,42 +90,6 @@ def fetch_venue(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
                 "venue_surface": None,
                 "error": f"Team '{home_team_name}' not found"
             }
-        
-        # Step 2: Get full team data with venue
-        response = requests.get(
-            f"{BASE_URL}/lookupteam.php",
-            params={"id": team_id},
-            timeout=TIMEOUT
-        )
-        
-        if response.status_code != 200:
-            return {
-                "home_team": home_team_name,
-                "away_team": away_team_name,
-                "venue_name": None,
-                "venue_city": None,
-                "venue_capacity": None,
-                "venue_address": None,
-                "venue_surface": None,
-                "error": f"API error: {response.status_code}"
-            }
-        
-        data = response.json()
-        teams = data.get("teams")
-        
-        if not teams or len(teams) == 0:
-            return {
-                "home_team": home_team_name,
-                "away_team": away_team_name,
-                "venue_name": None,
-                "venue_city": None,
-                "venue_capacity": None,
-                "venue_address": None,
-                "venue_surface": None,
-                "error": f"Team data not found for '{home_team_name}'"
-            }
-        
-        team_data = teams[0]
         
         return {
             "home_team": home_team_name,  # Return the parameter, not API result
