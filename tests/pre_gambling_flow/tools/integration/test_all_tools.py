@@ -84,7 +84,7 @@ def test_all_tools(home_team, away_team):
         away_team: Away team name
     """
     print_section(f"INTEGRATION TEST: {home_team} vs {away_team}")
-    print(f"Testing all 8 tools with team names only (no league_id)")
+    print(f"Testing 8 unique tools (12 total calls: 4 game tools + 4 team tools × 2 teams)")
     
     results = {
         "passed": [],
