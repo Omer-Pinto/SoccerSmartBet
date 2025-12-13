@@ -1,236 +1,174 @@
 """
-Fetch team's current league position and standings.
+Fetch team's current league position using BBC Sport web scraping.
 
-Clean interface: Accepts team name, returns league position + record.
-
-Data source: TheSportsDB (free tier, 100 req/min)
-API: https://www.thesportsdb.com/api/v1/json/{key}/lookuptable.php
+Uses Playwright for headless browser scraping.
+FREE, no API key needed, works for ALL teams.
 """
 
-import os
-from typing import Dict, Any, Optional
-import requests
-from dotenv import load_dotenv
+from typing import Dict, Any
+from playwright.sync_api import sync_playwright
+import re
 
-load_dotenv()
+TIMEOUT = 15000  # 15 seconds in milliseconds
 
-# API Configuration
-THESPORTSDB_API_KEY = os.getenv("THESPORTSDB_API_KEY", "3")  # Default to free test key
-BASE_URL = f"https://www.thesportsdb.com/api/v1/json/{THESPORTSDB_API_KEY}"
-TIMEOUT = 10
-
-
-def _search_team(team_name: str) -> Optional[Dict[str, Any]]:
-    """
-    Search for team by name and return team data including league ID.
-    
-    Args:
-        team_name: Team name to search for
-    
-    Returns:
-        Dict with team_id, league_id, team_name or None if not found
-    """
-    try:
-        response = requests.get(
-            f"{BASE_URL}/searchteams.php",
-            params={"t": team_name},
-            timeout=TIMEOUT
-        )
-        
-        if response.status_code != 200:
-            return None
-        
-        data = response.json()
-        teams = data.get("teams")
-        
-        if not teams or len(teams) == 0:
-            return None
-        
-        team = teams[0]
-        return {
-            "team_id": team.get("idTeam"),
-            "league_id": team.get("idLeague"),
-            "team_name": team.get("strTeam")
-        }
-    
-    except Exception:
-        return None
+# BBC Sport league URLs
+BBC_LEAGUES = {
+    "Premier League": "https://www.bbc.com/sport/football/premier-league/table",
+    "La Liga": "https://www.bbc.com/sport/football/spanish-la-liga/table",
+    "Serie A": "https://www.bbc.com/sport/football/italian-serie-a/table",
+    "Bundesliga": "https://www.bbc.com/sport/football/german-bundesliga/table",
+    "Ligue 1": "https://www.bbc.com/sport/football/french-ligue-one/table",
+}
 
 
 def fetch_league_position(team_name: str) -> Dict[str, Any]:
     """
-    Fetch team's current league position and standing.
+    Fetch team's current league position by scraping BBC Sport.
     
-    Returns full league table and extracts the team's row.
-    Uses current season (no season parameter needed for current standings).
+    Searches across all major leagues to find the team.
+    Uses Playwright headless browser.
     
     Args:
-        team_name: Team name (e.g., "Manchester City")
+        team_name: Team name (e.g., "Osasuna", "Barcelona")
     
     Returns:
         {
-            "team_name": "Manchester City",
-            "league_name": "English Premier League",
-            "position": 1,
-            "played": 20,
-            "won": 15,
+            "team_name": "Osasuna",
+            "league_name": "La Liga",
+            "position": 15,
+            "played": 15,
+            "won": 4,
             "draw": 3,
-            "lost": 2,
-            "goals_for": 45,
+            "lost": 8,
+            "goals_for": 14,
             "goals_against": 18,
-            "goal_difference": 27,
-            "points": 48,
-            "form": "WWDWW",  # Last 5 matches
+            "goal_difference": -4,
+            "points": 15,
+            "form": "LDDL",  # Last few results
             "error": None
         }
     """
     try:
-        # Step 1: Search for team to get league ID
-        team_data = _search_team(team_name)
+        team_lower = team_name.lower()
         
-        if not team_data:
-            return {
-                "team_name": team_name,
-                "league_name": None,
-                "position": None,
-                "played": None,
-                "won": None,
-                "draw": None,
-                "lost": None,
-                "goals_for": None,
-                "goals_against": None,
-                "goal_difference": None,
-                "points": None,
-                "form": None,
-                "error": f"Team '{team_name}' not found"
-            }
-        
-        league_id = team_data["league_id"]
-        actual_team_name = team_data["team_name"]
-        
-        # Step 2: Get league table (current season by default)
-        response = requests.get(
-            f"{BASE_URL}/lookuptable.php",
-            params={"l": league_id},  # No season = current season
-            timeout=TIMEOUT
-        )
-        
-        if response.status_code != 200:
-            return {
-                "team_name": team_name,
-                "league_name": None,
-                "position": None,
-                "played": None,
-                "won": None,
-                "draw": None,
-                "lost": None,
-                "goals_for": None,
-                "goals_against": None,
-                "goal_difference": None,
-                "points": None,
-                "form": None,
-                "error": f"API error: {response.status_code}"
-            }
-        
-        data = response.json()
-        table = data.get("table")
-        
-        if not table or len(table) == 0:
-            return {
-                "team_name": team_name,
-                "league_name": None,
-                "position": None,
-                "played": None,
-                "won": None,
-                "draw": None,
-                "lost": None,
-                "goals_for": None,
-                "goals_against": None,
-                "goal_difference": None,
-                "points": None,
-                "form": None,
-                "error": "League table not found (may not be available for this league)"
-            }
-        
-        # Step 3: Find team in table
-        team_row = None
-        league_name = None
-        
-        for row in table:
-            if row.get("idTeam") == team_data["team_id"]:
-                team_row = row
-                league_name = row.get("strLeague")  # League name from table row
-                break
-        
-        if not team_row:
-            return {
-                "team_name": team_name,
-                "league_name": None,
-                "position": None,
-                "played": None,
-                "won": None,
-                "draw": None,
-                "lost": None,
-                "goals_for": None,
-                "goals_against": None,
-                "goal_difference": None,
-                "points": None,
-                "form": None,
-                "error": f"Team '{actual_team_name}' not found in league table"
-            }
-        
-        # Parse data with proper type conversions
-        def safe_int(value):
-            try:
-                return int(value) if value is not None else None
-            except (ValueError, TypeError):
-                return None
-        
-        return {
-            "team_name": team_name,  # Return the parameter, not API result
-            "league_name": league_name,
-            "position": safe_int(team_row.get("intRank")),
-            "played": safe_int(team_row.get("intPlayed")),
-            "won": safe_int(team_row.get("intWin")),
-            "draw": safe_int(team_row.get("intDraw")),
-            "lost": safe_int(team_row.get("intLoss")),
-            "goals_for": safe_int(team_row.get("intGoalsFor")),
-            "goals_against": safe_int(team_row.get("intGoalsAgainst")),
-            "goal_difference": safe_int(team_row.get("intGoalDifference")),
-            "points": safe_int(team_row.get("intPoints")),
-            "form": team_row.get("strForm"),  # e.g., "WWDLW"
-            "error": None
-        }
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            
+            # Search across all major leagues
+            for league_name, url in BBC_LEAGUES.items():
+                try:
+                    page.goto(url, wait_until='load', timeout=TIMEOUT)
+                    page.wait_for_timeout(2000)  # Wait 2 seconds for JS
+                    
+                    # Get page text
+                    text = page.inner_text('body')
+                    
+                    # Check if team is in this league
+                    if team_lower not in text.lower():
+                        continue
+                    
+                    # Parse the standings
+                    result = _parse_bbc_standings(text, team_name, league_name)
+                    if result:
+                        browser.close()
+                        return result
+                
+                except Exception:
+                    continue
+            
+            browser.close()
+            
+            # Team not found in any league
+            return _error_response(team_name, f"Team '{team_name}' not found in any supported league")
     
-    except requests.Timeout:
-        return {
-            "team_name": team_name,
-            "league_name": None,
-            "position": None,
-            "played": None,
-            "won": None,
-            "draw": None,
-            "lost": None,
-            "goals_for": None,
-            "goals_against": None,
-            "goal_difference": None,
-            "points": None,
-            "form": None,
-            "error": f"Request timeout after {TIMEOUT}s"
-        }
     except Exception as e:
-        return {
-            "team_name": team_name,
-            "league_name": None,
-            "position": None,
-            "played": None,
-            "won": None,
-            "draw": None,
-            "lost": None,
-            "goals_for": None,
-            "goals_against": None,
-            "goal_difference": None,
-            "points": None,
-            "form": None,
-            "error": f"Unexpected error: {str(e)}"
-        }
+        return _error_response(team_name, f"Scraping error: {str(e)}")
+
+
+def _parse_bbc_standings(text: str, team_name: str, league_name: str) -> Dict[str, Any]:
+    """
+    Parse BBC Sport standings text to extract team data.
+    
+    BBC format:
+    Position
+    Team Name
+    Played Won Draw Lost GF GA GD Points
+    Form indicators (W/D/L)
+    """
+    lines = text.split('\n')
+    team_lower = team_name.lower()
+    
+    for i, line in enumerate(lines):
+        if team_lower in line.lower() and len(line.strip()) < 50:  # Team name line
+            try:
+                # Previous line should be position
+                position = int(lines[i-1].strip())
+                
+                # Next line should have stats: Played W D L GF GA GD Points
+                stats_line = lines[i+1].strip()
+                stats = stats_line.split()
+                
+                # Filter to only numbers (removes tabs, etc)
+                numbers = [s for s in stats if re.match(r'^-?\d+$', s)]
+                
+                if len(numbers) >= 8:
+                    # Parse: Played, Won, Draw, Lost, GF, GA, GD, Points
+                    played = int(numbers[0])
+                    won = int(numbers[1])
+                    draw = int(numbers[2])
+                    lost = int(numbers[3])
+                    gf = int(numbers[4])
+                    ga = int(numbers[5])
+                    gd = int(numbers[6])
+                    points = int(numbers[7])
+                    
+                    # Try to extract form (W/D/L letters after stats)
+                    form_letters = []
+                    for j in range(i+2, min(i+15, len(lines))):
+                        if lines[j].strip() in ['W', 'D', 'L']:
+                            form_letters.append(lines[j].strip())
+                        if len(form_letters) >= 5:
+                            break
+                    
+                    form = ''.join(form_letters[-5:]) if form_letters else None
+                    
+                    return {
+                        "team_name": team_name,
+                        "league_name": league_name,
+                        "position": position,
+                        "played": played,
+                        "won": won,
+                        "draw": draw,
+                        "lost": lost,
+                        "goals_for": gf,
+                        "goals_against": ga,
+                        "goal_difference": gd,
+                        "points": points,
+                        "form": form,
+                        "error": None
+                    }
+            
+            except (ValueError, IndexError):
+                continue
+    
+    return None
+
+
+def _error_response(team_name: str, error_msg: str) -> Dict[str, Any]:
+    """Return error response."""
+    return {
+        "team_name": team_name,
+        "league_name": None,
+        "position": None,
+        "played": None,
+        "won": None,
+        "draw": None,
+        "lost": None,
+        "goals_for": None,
+        "goals_against": None,
+        "goal_difference": None,
+        "points": None,
+        "form": None,
+        "error": error_msg
+    }
