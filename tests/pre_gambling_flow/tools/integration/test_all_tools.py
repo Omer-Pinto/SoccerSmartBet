@@ -24,6 +24,7 @@ from soccersmartbet.pre_gambling_flow.tools.team import (
     fetch_league_position,
     calculate_recovery_time,
 )
+from soccersmartbet.pre_gambling_flow.tools.fotmob_client import get_fotmob_client
 
 
 def print_section(title):
@@ -113,9 +114,22 @@ def test_all_tools(home_team, away_team):
     success = print_result("fetch_venue", venue_result)
     (results["passed"] if success else results["failed"]).append("fetch_venue")
 
-    # 3. Weather
+    # 3. Weather - get actual match time from FotMob
     print("\n[3/12] fetch_weather...")
-    match_datetime = f"{upcoming_match_date}T15:00:00"
+    match_datetime = f"{upcoming_match_date}T15:00:00"  # Default fallback
+    try:
+        client = get_fotmob_client()
+        team_info = client.find_team(home_team)
+        if team_info:
+            team_data = client.get_team_data(team_info["id"])
+            if team_data:
+                utc_time = team_data.get("overview", {}).get("nextMatch", {}).get("status", {}).get("utcTime")
+                if utc_time:
+                    # Format: "2025-12-14T20:00:00.000Z" -> "2025-12-14T20:00:00"
+                    match_datetime = utc_time.replace(".000Z", "").replace("Z", "")
+                    print(f"  Using actual match time: {match_datetime}")
+    except Exception as e:
+        print(f"  ⚠️  Could not get match time from FotMob: {e}")
     weather_result = fetch_weather(home_team, away_team, match_datetime)
     success = print_result("fetch_weather", weather_result)
     (results["passed"] if success else results["failed"]).append("fetch_weather")
