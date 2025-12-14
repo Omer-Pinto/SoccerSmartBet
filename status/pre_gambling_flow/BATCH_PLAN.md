@@ -66,27 +66,49 @@
 
 ---
 
-## Batch 5: Tools Implementation ✅ COMPLETE (PR #33)
+## Batch 5: Tools Implementation ✅ COMPLETE (PR #33) - SUPERSEDED BY BATCH 6
 
 **Dependencies:** Need state/schemas (Batch 3) for tool signatures
 
 **Result:** 8 tools implemented (4 game + 4 team), organized in game/ and team/ folders
 
+**⚠️ NOTE:** Batch 5 tools used apifootball.com which has since EXPIRED. See Batch 6 for current implementation.
+
+---
+
+## Batch 6: FotMob API Migration ✅ COMPLETE
+
+**Dependencies:** Batch 5 tools (now replaced)
+**Reason:** apifootball.com trial expired, football-data.org had 429 rate limit errors
+
+**Result:** All 8 tools migrated to FotMob API (no rate limits, no API key required)
+
 ### Game Tools (4)
 | Task | Tool | Source | File |
 |------|------|--------|------|
 | 2.5.1 | fetch_h2h | football-data.org | `src/pre_gambling_flow/tools/game/fetch_h2h.py` |
-| 2.5.2 | fetch_venue | apifootball.com | `src/pre_gambling_flow/tools/game/fetch_venue.py` |
-| 2.5.3 | fetch_weather | Open-Meteo + Nominatim | `src/pre_gambling_flow/tools/game/fetch_weather.py` |
+| 2.5.2 | fetch_venue | FotMob (mobfot) | `src/pre_gambling_flow/tools/game/fetch_venue.py` |
+| 2.5.3 | fetch_weather | FotMob + Open-Meteo | `src/pre_gambling_flow/tools/game/fetch_weather.py` |
 | 2.5.4 | fetch_odds | The Odds API | `src/pre_gambling_flow/tools/game/fetch_odds.py` |
 
 ### Team Tools (4)
 | Task | Tool | Source | File |
 |------|------|--------|------|
-| 2.5.5 | fetch_form | apifootball.com | `src/pre_gambling_flow/tools/team/fetch_form.py` |
-| 2.5.6 | fetch_injuries | apifootball.com | `src/pre_gambling_flow/tools/team/fetch_injuries.py` |
-| 2.5.7 | fetch_key_players_form | apifootball.com | `src/pre_gambling_flow/tools/team/fetch_key_players_form.py` |
-| 2.5.8 | calculate_recovery_time | apifootball.com | `src/pre_gambling_flow/tools/team/calculate_recovery_time.py` |
+| 2.5.5 | fetch_form | FotMob (mobfot) | `src/pre_gambling_flow/tools/team/fetch_form.py` |
+| 2.5.6 | fetch_injuries | FotMob (mobfot) | `src/pre_gambling_flow/tools/team/fetch_injuries.py` |
+| 2.5.7 | fetch_league_position | FotMob (mobfot) | `src/pre_gambling_flow/tools/team/fetch_league_position.py` |
+| 2.5.8 | calculate_recovery_time | FotMob (mobfot) | `src/pre_gambling_flow/tools/team/calculate_recovery_time.py` |
+
+### New Architecture
+- `fotmob_client.py` - Client wrapper with team name → FotMob ID resolution
+- Supports 9 major leagues: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Europa League, Eredivisie, Primeira Liga
+- In-memory caching for league data
+- Name normalization (handles accents, FC/CF prefixes)
+
+### Replaced Tools
+| Old Tool | New Tool | Reason |
+|----------|----------|--------|
+| fetch_key_players_form | fetch_league_position | No free API for player stats; league position more reliable |
 
 ### Cancelled Tools (2)
 | Task | Tool | Reason |
@@ -94,22 +116,17 @@
 | ~~2.5.9~~ | ~~fetch_suspensions~~ | API limitation - returns empty data |
 | ~~2.5.10~~ | ~~fetch_returning_players~~ | API limitation - cannot track status changes |
 
-**Deliverables:** 
-- 8 tool files organized in game/ and team/ folders
-- Clean interfaces (no hardcoded league IDs)
-- 9 tests (8 API tests + 1 integration test)
-- Updated documentation with implementation status
-
-**Known Issues (for next batch):**
-- Tools search leagues sequentially (inefficient API usage)
-- No caching layer for team/league lookups
-- Limited to hardcoded league list
+**Deliverables:**
+- 8 tool files + fotmob_client.py
+- Clean interfaces (accept team NAMES, not API-specific IDs)
+- Integration test: 12 tool calls per match (all passing)
+- Updated documentation with FotMob as primary source
 
 ---
 
-## Batch 6: Main Flow Nodes
+## Batch 7: Main Flow Nodes
 
-**Dependencies:** Need tools (Batch 4) and schemas (Batch 3)
+**Dependencies:** Need tools (Batch 6) and schemas (Batch 4)
 
 | Task | Droid | Description | Depends On |
 |------|-------|-------------|------------|
@@ -125,9 +142,9 @@
 
 ---
 
-## Batch 7: Subgraphs
+## Batch 8: Subgraphs
 
-**Dependencies:** Need tools (Batch 4) and schemas (Batch 3)
+**Dependencies:** Need tools (Batch 6) and schemas (Batch 4)
 
 | Task | Droid | Description | Depends On |
 |------|-------|-------------|------------|
@@ -142,9 +159,9 @@
 
 ---
 
-## Batch 8: Main Graph Manager
+## Batch 9: Main Graph Manager
 
-**Dependencies:** All nodes + subgraphs (Batch 5 + 6)
+**Dependencies:** All nodes + subgraphs (Batch 7 + 8)
 
 | Task | Droid | Description | Depends On |
 |------|-------|-------------|------------|
@@ -154,9 +171,9 @@
 
 ---
 
-## Batch 9: Integration & Testing
+## Batch 10: Integration & Testing
 
-**Dependencies:** Complete system (Batch 7)
+**Dependencies:** Complete system (Batch 9)
 
 | Task | Droid | Description |
 |------|-------|-------------|
@@ -169,9 +186,9 @@
 
 ---
 
-## Batch 10: Deployment
+## Batch 11: Deployment
 
-**Dependencies:** Working tested system (Batch 8)
+**Dependencies:** Working tested system (Batch 10)
 
 | Task | Droid | Description |
 |------|-------|-------------|
@@ -185,8 +202,12 @@
 ## Summary
 
 - **Total Tasks:** 29
-- **Total Batches:** 10
-- **Critical Path:** Batch 1 → Batch 2 (user) → Batch 3 → Batch 4 → Batch 5 → Batch 6/7 → Batch 8 → Batch 9 → Batch 10
+- **Total Batches:** 11
+- **Critical Path:** Batch 1 → Batch 2 (user) → Batch 3 → Batch 4 → Batch 5 → Batch 6 (FotMob migration) → Batch 7-11
+
+**Completed Batches:**
+- ✅ Batch 1-5: Research, API setup, schema, architecture, initial tools
+- ✅ Batch 6: FotMob API migration (all tools working, no rate limits)
 
 ---
 

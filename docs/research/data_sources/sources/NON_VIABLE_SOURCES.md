@@ -40,7 +40,90 @@ Only after deeper investigation was it discovered that the **free tier is limite
 | H2H Statistics | api-football.com | **football-data.org** (already in use) + **apifootball.com** |
 | Team Form | api-football.com | **apifootball.com** + **football-data.org** |
 
-**Note:** **apifootball.com** (no hyphen) is a completely different, legitimate service.
+**Note:** **apifootball.com** (no hyphen) was recommended as replacement, but has since EXPIRED (see below).
+
+---
+
+## ❌ apifootball.com (TRIAL EXPIRED)
+
+**Website:** https://apifootball.com
+**Status:** 🚫 **TRIAL EXPIRED - DO NOT USE**
+**Reason:** Free trial period has ended, no longer usable
+
+### What Went Wrong
+
+apifootball.com was recommended in Batch 5 as a legitimate replacement for api-football.com. It worked well during development with:
+- 180 requests/hour FREE tier
+- Current 2024-2025 data
+- Injuries, team form, venue data
+
+**The Problem:**
+The "free tier" was actually a **trial period** that has now EXPIRED. The API no longer returns data without a paid subscription.
+
+### What We Replaced It With
+
+| Vertical | Original (Expired) | Replacement (Viable) |
+|----------|-------------------|---------------------|
+| Team Form | apifootball.com | **FotMob (mobfot)** - NO rate limits, NO API key |
+| Injuries | apifootball.com | **FotMob (mobfot)** |
+| Venue | apifootball.com | **FotMob (mobfot)** |
+| Recovery Time | apifootball.com | **FotMob (mobfot)** |
+
+---
+
+## ❌ TheSportsDB (LIMITED DATA)
+
+**Website:** https://www.thesportsdb.com
+**Status:** 🚫 **LIMITED FREE TIER - DO NOT USE FOR STANDINGS**
+**Reason:** Free tier only returns TOP 5 teams in league standings
+
+### What Went Wrong
+
+TheSportsDB was considered as a backup source for league standings. However, the free tier has a critical limitation:
+- **Only returns the TOP 5 teams** in any league table
+- Cannot get full 20-team standings
+- Useless for `fetch_league_position` tool (need to know position of ANY team)
+
+### Example Problem
+
+```python
+# TheSportsDB free tier response for Premier League standings:
+[
+    {"intRank": 1, "strTeam": "Liverpool"},
+    {"intRank": 2, "strTeam": "Chelsea"},
+    {"intRank": 3, "strTeam": "Arsenal"},
+    {"intRank": 4, "strTeam": "Nottingham Forest"},
+    {"intRank": 5, "strTeam": "Manchester City"}
+]
+# Missing: Teams ranked 6-20 (e.g., Aston Villa, Brighton, Newcastle, etc.)
+```
+
+### What We Use Instead
+
+**FotMob (mobfot)** returns ALL 20 teams in league standings.
+
+---
+
+## ⚠️ football-data.org (RATE LIMITED)
+
+**Website:** https://www.football-data.org
+**Status:** 🟡 **USE WITH CAUTION - RATE LIMITS**
+**Reason:** 10 req/min limit caused 429 errors in Batch 5
+
+### What Went Wrong
+
+football-data.org was used heavily in Batch 5 for multiple tools. However:
+- **10 requests/minute limit** is too low for multi-tool usage
+- **Many 429 (rate limit) errors** during integration testing
+- Especially problematic when running all 12 tools per match
+
+### Current Usage
+
+football-data.org is still used, but **only for H2H endpoint** where rate limits are acceptable:
+- 1 H2H request per match (3-5/day)
+- Well under 10 req/min limit when used alone
+
+All other team-related data moved to **FotMob (mobfot)** which has NO rate limits.
 
 ---
 
@@ -173,15 +256,18 @@ If budget constraints change, Sportmonks could be a solid paid alternative.
 
 | Source | Main Issue | Free Tier? | Replacement |
 |--------|-----------|------------|-------------|
-| **api-football.com** | **2021-2023 data only** | ❌ Fraudulent | **apifootball.com** |
-| Sportmonks | 14-day trial only | ❌ No | apifootball.com |
-| StatPal | No clear free tier | ❌ Unknown | apifootball.com |
-| Enetpulse | Free testing only | ❌ No | apifootball.com |
-| SoccersAPI | 15-day trial only | ❌ No | apifootball.com |
-| SportDevs | No free tier | ❌ No | apifootball.com |
-| injuriesandsuspensions.com | Subscription required | ❌ No | apifootball.com |
+| **api-football.com** | **2021-2023 data only** | ❌ Fraudulent | **FotMob (mobfot)** |
+| **apifootball.com** | **Trial EXPIRED** | ❌ Expired | **FotMob (mobfot)** |
+| **TheSportsDB** | **Top 5 teams only** | ⚠️ Limited | **FotMob (mobfot)** |
+| **football-data.org** | **Rate limits (10/min)** | ⚠️ Limited | H2H only, **FotMob** for rest |
+| Sportmonks | 14-day trial only | ❌ No | FotMob (mobfot) |
+| StatPal | No clear free tier | ❌ Unknown | FotMob (mobfot) |
+| Enetpulse | Free testing only | ❌ No | FotMob (mobfot) |
+| SoccersAPI | 15-day trial only | ❌ No | FotMob (mobfot) |
+| SportDevs | No free tier | ❌ No | FotMob (mobfot) |
+| injuriesandsuspensions.com | Subscription required | ❌ No | FotMob (mobfot) |
 
-**Pattern:** Most "free" football APIs are trial-only or paid-only. **apifootball.com** and **football-data.org** are rare exceptions with sustained free tiers.
+**Pattern:** Most "free" football APIs are trial-only, paid-only, or have severe limitations. **FotMob (mobfot)** is the best option with NO rate limits and NO API key required.
 
 ---
 
@@ -191,7 +277,10 @@ If budget constraints change, Sportmonks could be a solid paid alternative.
 2. **Check date ranges for free data** - api-football.com's 2021-2023 limitation was hidden
 3. **Test API endpoints before committing** - always verify with sample requests
 4. **Read community forums** - official docs often hide limitations
-5. **Prioritize APIs with proven free tiers** - football-data.org has been free for years
+5. **"Free tier" often means "trial period"** - apifootball.com's free tier was actually a trial
+6. **Rate limits matter at scale** - football-data.org's 10 req/min blocked multi-tool usage
+7. **Test standings endpoints thoroughly** - TheSportsDB only returns top 5 teams
+8. **Unofficial APIs can be more reliable** - FotMob (mobfot) has no rate limits despite being unofficial
 
 ---
 
@@ -202,9 +291,9 @@ If budget constraints change, Sportmonks could be a solid paid alternative.
 2. **Must provide critical data unavailable for free** - injuries/H2H/form are now covered by free sources
 3. **Must have clear ROI** - e.g., significantly better data quality or coverage
 
-**Current status:** No paid APIs justified - free sources (apifootball.com, football-data.org, The Odds API, Open-Meteo) cover all critical verticals.
+**Current status:** No paid APIs justified - free sources (FotMob, football-data.org, The Odds API, Open-Meteo) cover all critical verticals.
 
 ---
 
-**Last Updated:** 2025-11-25  
-**Researcher:** Football Research Droid
+**Last Updated:** 2025-12-14
+**Researcher:** Football Research Droid (Batch 6 update)

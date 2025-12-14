@@ -44,33 +44,45 @@
 
 ---
 
-## Batch 5: Tools Implementation
+## Batch 5: Tools Implementation (SUPERSEDED BY BATCH 6)
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
-| 2.5.1 fetch_h2h | ✅ COMPLETE | #33 | H2H match history from football-data.org |
-| 2.5.2 fetch_venue | ✅ COMPLETE | #33 | Venue information from apifootball.com |
-| 2.5.3 fetch_weather | ✅ COMPLETE | #33 | Weather forecasts from Open-Meteo + Nominatim geocoding |
-| 2.5.4 fetch_odds | ✅ COMPLETE | #33 | Betting lines (1/X/2 decimal odds) from The Odds API |
-| 2.5.5 fetch_form | ✅ COMPLETE | #33 | Team recent match results from apifootball.com |
-| 2.5.6 fetch_injuries | ✅ COMPLETE | #33 | Current injury list from apifootball.com |
-| 2.5.7 fetch_key_players_form | ✅ COMPLETE | #33 | Top performers' statistics from apifootball.com |
-| 2.5.8 calculate_recovery_time | ✅ COMPLETE | #33 | Pure Python date utility for recovery days |
+| 2.5.1-2.5.8 | ⚠️ SUPERSEDED | #33 | apifootball.com trial EXPIRED - see Batch 6 |
+
+**⚠️ NOTE:** Batch 5 tools used apifootball.com which has since EXPIRED. See Batch 6 for current implementation.
+
+---
+
+## Batch 6: FotMob API Migration ✅ COMPLETE
+
+| Task | Status | PR | Notes |
+|------|--------|-----|-------|
+| 2.5.1 fetch_h2h | ✅ COMPLETE | - | H2H match history from football-data.org (unchanged) |
+| 2.5.2 fetch_venue | ✅ COMPLETE | - | Venue information from **FotMob (mobfot)** |
+| 2.5.3 fetch_weather | ✅ COMPLETE | - | FotMob for venue city + Open-Meteo for forecast |
+| 2.5.4 fetch_odds | ✅ COMPLETE | - | Betting lines from The Odds API (unchanged) |
+| 2.5.5 fetch_form | ✅ COMPLETE | - | Team recent form from **FotMob (mobfot)** |
+| 2.5.6 fetch_injuries | ✅ COMPLETE | - | Injury list from **FotMob (mobfot)** |
+| 2.5.7 fetch_league_position | ✅ COMPLETE | - | League standings from **FotMob (mobfot)** (NEW - replaces fetch_key_players_form) |
+| 2.5.8 calculate_recovery_time | ✅ COMPLETE | - | Days since last match from **FotMob (mobfot)** |
 | ~~2.5.9 fetch_suspensions~~ | ❌ CANCELLED | #26, #32 | API limitation - returns empty data |
 | ~~2.5.10 fetch_returning_players~~ | ❌ CANCELLED | #29 | API limitation - cannot track status changes |
 
-**Batch 5 Result:** ✅ **8 tools implemented** (4 game + 4 team), 2 cancelled due to API limitations.
+**Batch 6 Result:** ✅ **8 tools working** (4 game + 4 team), all 12 tool calls pass integration test
 
-**Complete Tool Overhaul (PR #33):**
-- Reorganized to `game/` and `team/` folders
-- Removed all hardcoded league IDs from interfaces
-- Tools search across major leagues internally
-- Weather uses geocoding API (works for ANY city worldwide)
-- 9 tests: 8 API availability tests + 1 integration test (12 tool calls per match)
-- Documentation updated with implementation status
+**FotMob Migration Benefits:**
+- NO rate limits (tested 10+ rapid requests)
+- NO API key required
+- Returns ALL 20 teams in standings (TheSportsDB only gave top 5)
+- Team name → FotMob ID resolution via fotmob_client.py
+- Supports 9 major leagues: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Europa League, Eredivisie, Primeira Liga
+
+**Replaced Tool:**
+- `fetch_key_players_form` → `fetch_league_position` (no free API for player stats)
 
 ---
 
 ## Pending Batches
 
-**Batch 6+:** Not started
+**Batch 7+:** Not started
