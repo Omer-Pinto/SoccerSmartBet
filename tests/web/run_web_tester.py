@@ -3,18 +3,20 @@
 Run the SoccerSmartBet Web Tool Tester.
 
 Usage:
-    python run_web_tester.py [--port PORT] [--host HOST]
+    cd <project_root>
+    uv run python tests/web/run_web_tester.py [--port PORT] [--host HOST]
 
 Requirements:
-    uv pip install -e ".[web]"
+    uv sync --extra web
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-# Add src to path for soccersmartbet imports
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Add src to path for imports
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root / "src"))
 
 
 def main():
@@ -42,7 +44,7 @@ def main():
     """)
 
     uvicorn.run(
-        "web_tool_tester.main:app",
+        "web_app.main:app",
         host=args.host,
         port=args.port,
         reload=args.reload,
