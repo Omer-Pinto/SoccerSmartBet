@@ -10,6 +10,17 @@ const fetchBtn = document.getElementById('fetch-btn');
 const resultsSection = document.getElementById('results');
 const errorMessage = document.getElementById('error-message');
 
+/**
+ * Create an element with safe text content (XSS-safe)
+ */
+function createElement(tag, className, textContent, styles = {}) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (textContent !== undefined && textContent !== null) el.textContent = textContent;
+    Object.assign(el.style, styles);
+    return el;
+}
+
 // Event Listeners
 fetchBtn.addEventListener('click', fetchMatchData);
 homeTeamInput.addEventListener('keypress', (e) => e.key === 'Enter' && awayTeamInput.focus());
@@ -202,7 +213,7 @@ function renderH2H(tool) {
 
     if (!tool?.success || !tool.data) {
         h2hSummary.textContent = tool?.error || 'No H2H data available';
-        h2hMatches.innerHTML = '';
+        h2hMatches.textContent = '';
         return;
     }
 
@@ -216,28 +227,30 @@ function renderH2H(tool) {
         else draws++;
     });
 
-    h2hSummary.innerHTML = `
-        <span style="color: var(--win-green)">${homeWins}W</span> -
-        <span style="color: var(--draw-gray)">${draws}D</span> -
-        <span style="color: var(--loss-red)">${awayWins}W</span>
-        <br><small style="color: var(--text-muted)">Last ${h2h_matches?.length || 0} meetings</small>
-    `;
+    // Build summary using DOM (XSS-safe)
+    h2hSummary.textContent = '';
+    h2hSummary.appendChild(createElement('span', null, `${homeWins}W`, { color: 'var(--win-green)' }));
+    h2hSummary.appendChild(document.createTextNode(' - '));
+    h2hSummary.appendChild(createElement('span', null, `${draws}D`, { color: 'var(--draw-gray)' }));
+    h2hSummary.appendChild(document.createTextNode(' - '));
+    h2hSummary.appendChild(createElement('span', null, `${awayWins}W`, { color: 'var(--loss-red)' }));
+    h2hSummary.appendChild(document.createElement('br'));
+    h2hSummary.appendChild(createElement('small', null, `Last ${h2h_matches?.length || 0} meetings`, { color: 'var(--text-muted)' }));
 
-    // Render match list
-    h2hMatches.innerHTML = (h2h_matches || []).slice(0, 5).map(match => {
+    // Render match list using DOM (XSS-safe)
+    h2hMatches.textContent = '';
+    (h2h_matches || []).slice(0, 5).forEach(match => {
         const score = match.score_home !== null ? `${match.score_home} - ${match.score_away}` : 'N/A';
         const winnerColor = match.winner === 'HOME_TEAM' ? 'var(--win-green)' :
             match.winner === 'AWAY_TEAM' ? 'var(--loss-red)' : 'var(--draw-gray)';
 
-        return `
-            <div class="h2h-match">
-                <span class="h2h-date">${formatDate(match.date)}</span>
-                <span class="h2h-teams">${match.home_team} vs ${match.away_team}</span>
-                <span class="h2h-score">${score}</span>
-                <span class="h2h-winner" style="background: ${winnerColor}"></span>
-            </div>
-        `;
-    }).join('');
+        const matchDiv = createElement('div', 'h2h-match');
+        matchDiv.appendChild(createElement('span', 'h2h-date', formatDate(match.date)));
+        matchDiv.appendChild(createElement('span', 'h2h-teams', `${match.home_team} vs ${match.away_team}`));
+        matchDiv.appendChild(createElement('span', 'h2h-score', score));
+        matchDiv.appendChild(createElement('span', 'h2h-winner', null, { background: winnerColor }));
+        h2hMatches.appendChild(matchDiv);
+    });
 }
 
 /**
@@ -248,19 +261,23 @@ function renderForm(side, tool) {
     const formRecord = document.getElementById(`${side}-form-record`);
 
     if (!tool?.success || !tool.data) {
-        formCircles.innerHTML = '<span style="color: var(--text-muted)">No form data</span>';
+        formCircles.textContent = '';
+        formCircles.appendChild(createElement('span', null, 'No form data', { color: 'var(--text-muted)' }));
         formRecord.textContent = tool?.error || '';
         return;
     }
 
     const { matches, record } = tool.data;
 
-    // Render form circles
-    formCircles.innerHTML = (matches || []).slice(0, 5).map(match => {
+    // Render form circles using DOM (XSS-safe)
+    formCircles.textContent = '';
+    (matches || []).slice(0, 5).forEach(match => {
         const resultClass = match.result === 'W' ? 'win' : match.result === 'D' ? 'draw' : 'loss';
         const score = match.goals_for !== null ? `${match.goals_for}-${match.goals_against}` : match.result;
-        return `<div class="form-circle ${resultClass}" title="${match.opponent} (${match.home_away}) ${score}">${match.result}</div>`;
-    }).join('');
+        const circle = createElement('div', `form-circle ${resultClass}`, match.result);
+        circle.title = `${match.opponent} (${match.home_away}) ${score}`;
+        formCircles.appendChild(circle);
+    });
 
     // Render record
     if (record) {
@@ -279,7 +296,7 @@ function renderLeaguePosition(side, tool) {
     if (!tool?.success || !tool.data) {
         positionNum.textContent = '-';
         positionStats.textContent = tool?.error || 'No position data';
-        leagueForm.innerHTML = '';
+        leagueForm.textContent = '';
         return;
     }
 
@@ -288,13 +305,13 @@ function renderLeaguePosition(side, tool) {
     positionNum.textContent = position || '-';
     positionStats.textContent = `${points || 0} pts | ${played || 0}P ${won || 0}W ${draw || 0}D ${lost || 0}L`;
 
-    // Render mini form circles from league data
+    // Render mini form circles from league data using DOM (XSS-safe)
+    leagueForm.textContent = '';
     if (form) {
-        leagueForm.innerHTML = form.split('').map(r => {
-            const cls = r === 'W' ? 'win' : r === 'D' ? 'draw' : 'loss';
+        form.split('').forEach(r => {
             const bg = r === 'W' ? 'var(--win-green)' : r === 'D' ? 'var(--draw-gray)' : 'var(--loss-red)';
-            return `<div class="mini-circle" style="background: ${bg}">${r}</div>`;
-        }).join('');
+            leagueForm.appendChild(createElement('div', 'mini-circle', r, { background: bg }));
+        });
     }
 }
 
@@ -305,26 +322,34 @@ function renderInjuries(side, tool) {
     const injuriesList = document.getElementById(`${side}-injuries`);
 
     if (!tool?.success || !tool.data) {
-        injuriesList.innerHTML = `<span style="color: var(--text-muted)">${tool?.error || 'No injury data'}</span>`;
+        injuriesList.textContent = '';
+        injuriesList.appendChild(createElement('span', null, tool?.error || 'No injury data', { color: 'var(--text-muted)' }));
         return;
     }
 
     const { injuries, total_injuries } = tool.data;
 
     if (!injuries || injuries.length === 0) {
-        injuriesList.innerHTML = '<div class="no-injuries">\u2714 No injuries reported</div>';
+        injuriesList.textContent = '';
+        injuriesList.appendChild(createElement('div', 'no-injuries', '\u2714 No injuries reported'));
         return;
     }
 
-    injuriesList.innerHTML = injuries.slice(0, 5).map(injury => `
-        <div class="injury-item">
-            <span class="injury-player">${injury.player_name}</span>
-            <span class="injury-type">${injury.injury_type || 'Unknown'}</span>
-        </div>
-    `).join('');
+    // Render injuries using DOM (XSS-safe)
+    injuriesList.textContent = '';
+    injuries.slice(0, 5).forEach(injury => {
+        const item = createElement('div', 'injury-item');
+        item.appendChild(createElement('span', 'injury-player', injury.player_name));
+        item.appendChild(createElement('span', 'injury-type', injury.injury_type || 'Unknown'));
+        injuriesList.appendChild(item);
+    });
 
     if (total_injuries > 5) {
-        injuriesList.innerHTML += `<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem;">+${total_injuries - 5} more</div>`;
+        injuriesList.appendChild(createElement('div', null, `+${total_injuries - 5} more`, {
+            textAlign: 'center',
+            color: 'var(--text-muted)',
+            fontSize: '0.8rem'
+        }));
     }
 }
 
@@ -372,19 +397,20 @@ function renderPerformance(data) {
     document.getElementById('tools-success').textContent = `${successCount}/12`;
     document.getElementById('tools-failed').textContent = failedCount;
 
-    // Tool breakdown
+    // Tool breakdown using DOM (XSS-safe)
     const breakdown = document.getElementById('tool-breakdown');
-    breakdown.innerHTML = allTools.map(tool => {
+    breakdown.textContent = '';
+    allTools.forEach(tool => {
         const statusClass = tool.success ? 'success' : 'error';
         const icon = tool.success ? '\u2714' : '\u2718';
-        return `
-            <div class="tool-badge ${statusClass}" title="${tool.error || 'OK'}">
-                <span>${icon}</span>
-                <span>${tool.tool_name}</span>
-                <span class="time">${Math.round(tool.execution_time_ms)}ms</span>
-            </div>
-        `;
-    }).join('');
+
+        const badge = createElement('div', `tool-badge ${statusClass}`);
+        badge.title = tool.error || 'OK';
+        badge.appendChild(createElement('span', null, icon));
+        badge.appendChild(createElement('span', null, tool.tool_name));
+        badge.appendChild(createElement('span', 'time', `${Math.round(tool.execution_time_ms)}ms`));
+        breakdown.appendChild(badge);
+    });
 }
 
 /**
