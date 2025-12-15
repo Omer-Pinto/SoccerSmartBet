@@ -1,197 +1,81 @@
-"""
-Fetch team's recent match form.
+"""Fetch team's recent match form using FotMob API."""
 
-Clean interface: Accepts team name, returns last 5 matches.
-"""
-
-import os
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, Tuple
-import requests
-from dotenv import load_dotenv
-
-load_dotenv()
-
-APIFOOTBALL_API_KEY = os.getenv("APIFOOTBALL_API_KEY")
-BASE_URL = "https://apiv3.apifootball.com"
-TIMEOUT = 15
-
-# Major European leagues
-MAJOR_LEAGUES = [152, 302, 207, 175, 168]  # PL, La Liga, Serie A, Bundesliga, Ligue 1
-
-
-def _find_team_league(team_name: str) -> Tuple[Optional[str], Optional[int], Optional[str]]:
-    """
-    Search for team across all major leagues.
-    
-    Args:
-        team_name: Team name to search for
-    
-    Returns:
-        Tuple of (team_id, league_id, actual_team_name) or (None, None, None) if not found
-    """
-    if not APIFOOTBALL_API_KEY:
-        return (None, None, None)
-    
-    for league_id in MAJOR_LEAGUES:
-        try:
-            response = requests.get(
-                BASE_URL,
-                params={"action": "get_teams", "league_id": league_id, "APIkey": APIFOOTBALL_API_KEY},
-                timeout=TIMEOUT
-            )
-            
-            if response.status_code != 200:
-                continue
-            
-            teams = response.json()
-            for team in teams:
-                if team_name.lower() in team.get("team_name", "").lower():
-                    return (team["team_key"], league_id, team["team_name"])
-        except Exception:
-            continue
-    
-    return (None, None, None)
+from typing import Dict, Any
+from datetime import datetime
+from ..fotmob_client import get_fotmob_client
 
 
 def fetch_form(team_name: str, limit: int = 5) -> Dict[str, Any]:
-    """
-    Fetch team's recent match results.
-    
-    Searches across all major European leagues to find the team.
-    
-    Args:
-        team_name: Team name (e.g., "Manchester City")
-        limit: Number of recent matches (default: 5)
-    
-    Returns:
-        {
-            "team_name": "Manchester City",
-            "matches": [
-                {
-                    "date": "2025-12-02",
-                    "opponent": "Fulham",
-                    "home_away": "HOME" | "AWAY",
-                    "result": "W" | "D" | "L",
-                    "goals_for": 5,
-                    "goals_against": 4,
-                    "competition": "Premier League"
-                },
-                ...
-            ],
-            "record": {"wins": 3, "draws": 1, "losses": 1},
-            "error": None
-        }
-    """
-    if not APIFOOTBALL_API_KEY:
-        return {
-            "team_name": team_name,
-            "matches": [],
-            "record": {"wins": 0, "draws": 0, "losses": 0},
-            "error": "APIFOOTBALL_API_KEY not found"
-        }
-    
+    """Fetch team's recent match results with scores."""
     try:
-        # Step 1: Find team across all major leagues
-        team_id, league_id, actual_name = _find_team_league(team_name)
-        
-        if not team_id:
-            return {
-                "team_name": team_name,
-                "matches": [],
-                "record": {"wins": 0, "draws": 0, "losses": 0},
-                "error": f"Team '{team_name}' not found in any major league"
-            }
-        
-        # Step 2: Get recent matches
-        to_date = datetime.now().strftime("%Y-%m-%d")
-        from_date = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
-        
-        matches_response = requests.get(
-            BASE_URL,
-            params={
-                "action": "get_events",
-                "from": from_date,
-                "to": to_date,
-                "team_id": team_id,
-                "APIkey": APIFOOTBALL_API_KEY
-            },
-            timeout=TIMEOUT
-        )
-        
-        if matches_response.status_code != 200:
-            return {
-                "team_name": team_name,
-                "matches": [],
-                "record": {"wins": 0, "draws": 0, "losses": 0},
-                "error": f"Matches API error: {matches_response.status_code}"
-            }
-        
-        all_matches = matches_response.json()
-        
-        # Filter finished matches only
-        team_matches = []
-        for match in all_matches:
-            if match.get("match_status") != "Finished":
-                continue
-            
-            is_home = match.get("match_hometeam_id") == str(team_id)
-            
+        client = get_fotmob_client()
+        team_info = client.find_team(team_name)
+        if not team_info:
+            return _error(team_name, f"Team '{team_name}' not found")
+
+        team_data = client.get_team_data(team_info["id"])
+        if not team_data:
+            return _error(team_name, f"Could not fetch team data")
+
+        team_form = team_data.get("overview", {}).get("teamForm", [])
+        if not team_form:
+            return _result(team_info.get("name", team_name), [])
+
+        team_id = team_info["id"]
+        matches = []
+        for entry in team_form[:limit]:
+            tooltip = entry.get("tooltipText", {})
+            home_id = tooltip.get("homeTeamId")
+
+            # Determine home/away and extract scores
+            is_home = (home_id == team_id)
             if is_home:
-                opponent = match.get("match_awayteam_name", "Unknown")
-                goals_for = int(match.get("match_hometeam_score", 0))
-                goals_against = int(match.get("match_awayteam_score", 0))
-                home_away = "HOME"
+                opponent = tooltip.get("awayTeam", "Unknown")
+                goals_for = tooltip.get("homeScore")
+                goals_against = tooltip.get("awayScore")
             else:
-                opponent = match.get("match_hometeam_name", "Unknown")
-                goals_for = int(match.get("match_awayteam_score", 0))
-                goals_against = int(match.get("match_hometeam_score", 0))
-                home_away = "AWAY"
-            
-            if goals_for > goals_against:
-                result = "W"
-            elif goals_for < goals_against:
-                result = "L"
-            else:
-                result = "D"
-            
-            team_matches.append({
-                "date": match.get("match_date", ""),
+                opponent = tooltip.get("homeTeam", "Unknown")
+                goals_for = tooltip.get("awayScore")
+                goals_against = tooltip.get("homeScore")
+
+            # Parse date
+            utc_time = entry.get("date", {}).get("utcTime", "")
+            try:
+                match_date = datetime.fromisoformat(utc_time.replace("Z", "+00:00")).strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                match_date = "Unknown"
+
+            matches.append({
+                "date": match_date,
                 "opponent": opponent,
-                "home_away": home_away,
-                "result": result,
+                "home_away": "HOME" if is_home else "AWAY",
+                "result": entry.get("resultString", "?"),
                 "goals_for": goals_for,
                 "goals_against": goals_against,
-                "competition": match.get("league_name", "Unknown")
             })
-        
-        # Sort by date descending
-        team_matches.sort(key=lambda x: x["date"], reverse=True)
-        team_matches = team_matches[:limit]
-        
-        # Calculate record
-        wins = sum(1 for m in team_matches if m["result"] == "W")
-        draws = sum(1 for m in team_matches if m["result"] == "D")
-        losses = sum(1 for m in team_matches if m["result"] == "L")
-        
-        return {
-            "team_name": team_name,
-            "matches": team_matches,
-            "record": {"wins": wins, "draws": draws, "losses": losses},
-            "error": None
-        }
-    
-    except requests.Timeout:
-        return {
-            "team_name": team_name,
-            "matches": [],
-            "record": {"wins": 0, "draws": 0, "losses": 0},
-            "error": f"Request timeout after {TIMEOUT}s"
-        }
+
+        return _result(team_info.get("name", team_name), matches)
+
     except Exception as e:
-        return {
-            "team_name": team_name,
-            "matches": [],
-            "record": {"wins": 0, "draws": 0, "losses": 0},
-            "error": f"Unexpected error: {str(e)}"
-        }
+        return _error(team_name, str(e))
+
+
+def _result(team_name: str, matches: list) -> Dict[str, Any]:
+    wins = sum(1 for m in matches if m["result"] == "W")
+    draws = sum(1 for m in matches if m["result"] == "D")
+    losses = sum(1 for m in matches if m["result"] == "L")
+    return {
+        "team_name": team_name,
+        "matches": matches,
+        "record": {"wins": wins, "draws": draws, "losses": losses},
+        "error": None,
+    }
+
+
+def _error(team_name: str, msg: str) -> Dict[str, Any]:
+    return {
+        "team_name": team_name,
+        "matches": [],
+        "record": {"wins": 0, "draws": 0, "losses": 0},
+        "error": msg,
+    }

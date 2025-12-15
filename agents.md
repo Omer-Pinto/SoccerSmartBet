@@ -434,3 +434,36 @@ git commit -m "Implement new feature"  # Uses wrong user from global config
 - This applies to ALL droids, not just the main agent
 - Human commits use standard git workflow (no overrides needed)
 
+### 9.8 Posting Inline PR Comments (Code Review)
+
+**To post comments on specific lines in "Files Changed" tab:**
+
+```bash
+cat <<'EOF' | gh api repos/{owner}/{repo}/pulls/{pr}/reviews -X POST --input -
+{
+  "commit_id": "HEAD_SHA",
+  "event": "COMMENT",
+  "body": "Summary",
+  "comments": [
+    {"path":"src/file.py","position":LINE_NUM,"body":"Comment text"}
+  ]
+}
+EOF
+```
+
+**Key:** Use `position` (NOT `line`). For new files, `position` = line number.
+
+**To resolve review threads after fixes are verified:**
+
+1. Get thread IDs:
+```bash
+gh api graphql -f query='query { repository(owner: "OWNER", name: "REPO") { pullRequest(number: PR) { reviewThreads(first: 20) { nodes { id isResolved } } } } }'
+```
+
+2. Resolve each thread:
+```bash
+gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "THREAD_ID"}) { thread { isResolved } } }'
+```
+
+**Code review workflow:** Post inline comments → Author fixes → Reviewer verifies → Resolve threads → Approve
+

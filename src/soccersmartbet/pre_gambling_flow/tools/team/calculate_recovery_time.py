@@ -1,69 +1,26 @@
 """
-Calculate days since team's last match (recovery time).
+Calculate days since team's last match (recovery time) using FotMob API.
 
 Clean interface: Accepts team name and upcoming match date.
+NO API KEY REQUIRED - uses unofficial FotMob API.
 """
 
-import os
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, Tuple
-import requests
-from dotenv import load_dotenv
+from datetime import datetime
+from typing import Dict, Any
 
-load_dotenv()
-
-APIFOOTBALL_API_KEY = os.getenv("APIFOOTBALL_API_KEY")
-BASE_URL = "https://apiv3.apifootball.com"
-TIMEOUT = 15
-
-# Major European leagues
-MAJOR_LEAGUES = [152, 302, 207, 175, 168]  # PL, La Liga, Serie A, Bundesliga, Ligue 1
-
-
-def _find_team_league(team_name: str) -> Tuple[Optional[str], Optional[int], Optional[str]]:
-    """
-    Search for team across all major leagues.
-    
-    Args:
-        team_name: Team name to search for
-    
-    Returns:
-        Tuple of (team_id, league_id, actual_team_name) or (None, None, None) if not found
-    """
-    if not APIFOOTBALL_API_KEY:
-        return (None, None, None)
-    
-    for league_id in MAJOR_LEAGUES:
-        try:
-            response = requests.get(
-                BASE_URL,
-                params={"action": "get_teams", "league_id": league_id, "APIkey": APIFOOTBALL_API_KEY},
-                timeout=TIMEOUT
-            )
-            
-            if response.status_code != 200:
-                continue
-            
-            teams = response.json()
-            for team in teams:
-                if team_name.lower() in team.get("team_name", "").lower():
-                    return (team["team_key"], league_id, team["team_name"])
-        except Exception:
-            continue
-    
-    return (None, None, None)
+from ..fotmob_client import get_fotmob_client
 
 
 def calculate_recovery_time(team_name: str, upcoming_match_date: str) -> Dict[str, Any]:
     """
     Calculate days between team's last match and upcoming match.
-    
-    Searches across all major European leagues to find the team.
-    
+
+    Uses FotMob's team overview.lastMatch data for the most recent match.
+
     Args:
-        team_name: Team name (e.g., "Manchester City")
+        team_name: Team name (e.g., "Manchester City", "Deportivo Alavés")
         upcoming_match_date: Date of upcoming match (YYYY-MM-DD)
-    
+
     Returns:
         {
             "team_name": "Manchester City",
@@ -74,80 +31,95 @@ def calculate_recovery_time(team_name: str, upcoming_match_date: str) -> Dict[st
             "error": None
         }
     """
-    if not APIFOOTBALL_API_KEY:
-        return {
-            "team_name": team_name,
-            "last_match_date": None,
-            "upcoming_match_date": upcoming_match_date,
-            "recovery_days": None,
-            "recovery_status": None,
-            "error": "APIFOOTBALL_API_KEY not found"
-        }
-    
     try:
-        # Step 1: Find team across all major leagues
-        team_id, league_id, actual_name = _find_team_league(team_name)
-        
-        if not team_id:
+        client = get_fotmob_client()
+
+        # Find team by name
+        team_info = client.find_team(team_name)
+
+        if not team_info:
             return {
                 "team_name": team_name,
                 "last_match_date": None,
                 "upcoming_match_date": upcoming_match_date,
                 "recovery_days": None,
                 "recovery_status": None,
-                "error": f"Team '{team_name}' not found in any major league"
+                "error": f"Team '{team_name}' not found in any major league",
             }
-        
-        # Step 2: Get recent matches
-        to_date = datetime.now().strftime("%Y-%m-%d")
-        from_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-        
-        matches_response = requests.get(
-            BASE_URL,
-            params={
-                "action": "get_events",
-                "from": from_date,
-                "to": to_date,
-                "team_id": team_id,
-                "APIkey": APIFOOTBALL_API_KEY
-            },
-            timeout=TIMEOUT
-        )
-        
-        if matches_response.status_code != 200:
+
+        # Get team data with lastMatch
+        team_data = client.get_team_data(team_info["id"])
+
+        if not team_data:
             return {
                 "team_name": team_name,
                 "last_match_date": None,
                 "upcoming_match_date": upcoming_match_date,
                 "recovery_days": None,
                 "recovery_status": None,
-                "error": f"Matches API error: {matches_response.status_code}"
+                "error": f"Could not fetch team data for '{team_name}'",
             }
-        
-        matches = matches_response.json()
-        
-        # Find most recent finished match
-        finished_matches = [m for m in matches if m.get("match_status") == "Finished"]
-        
-        if not finished_matches:
+
+        overview = team_data.get("overview", {})
+        last_match = overview.get("lastMatch", {})
+
+        if not last_match:
             return {
-                "team_name": team_name,
+                "team_name": team_info.get("name", team_name),
                 "last_match_date": None,
                 "upcoming_match_date": upcoming_match_date,
                 "recovery_days": None,
                 "recovery_status": None,
-                "error": "No recent finished matches found"
+                "error": "No recent match data found",
             }
-        
-        # Sort by date descending
-        finished_matches.sort(key=lambda x: x.get("match_date", ""), reverse=True)
-        last_match_date = finished_matches[0].get("match_date")
-        
+
+        # Get last match date
+        status = last_match.get("status", {})
+        utc_time = status.get("utcTime", "")
+
+        if not utc_time:
+            return {
+                "team_name": team_info.get("name", team_name),
+                "last_match_date": None,
+                "upcoming_match_date": upcoming_match_date,
+                "recovery_days": None,
+                "recovery_status": None,
+                "error": "Last match date not available",
+            }
+
+        # Parse dates
+        try:
+            last_dt = datetime.fromisoformat(utc_time.replace("Z", "+00:00"))
+            last_match_date = last_dt.strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            return {
+                "team_name": team_info.get("name", team_name),
+                "last_match_date": None,
+                "upcoming_match_date": upcoming_match_date,
+                "recovery_days": None,
+                "recovery_status": None,
+                "error": f"Could not parse last match date: {utc_time}",
+            }
+
+        try:
+            # Handle various date formats
+            upcoming_clean = upcoming_match_date.split("T")[0]  # Remove time if present
+            upcoming_dt = datetime.strptime(upcoming_clean, "%Y-%m-%d")
+        except ValueError:
+            return {
+                "team_name": team_info.get("name", team_name),
+                "last_match_date": last_match_date,
+                "upcoming_match_date": upcoming_match_date,
+                "recovery_days": None,
+                "recovery_status": None,
+                "error": f"Invalid upcoming match date format: {upcoming_match_date}",
+            }
+
         # Calculate recovery days
-        last_date = datetime.strptime(last_match_date, "%Y-%m-%d")
-        upcoming_date = datetime.strptime(upcoming_match_date, "%Y-%m-%d")
-        recovery_days = (upcoming_date - last_date).days
-        
+        # Use date only (ignore time)
+        last_date_only = datetime(last_dt.year, last_dt.month, last_dt.day)
+        recovery_days = (upcoming_dt - last_date_only).days
+
         # Classify recovery status
         if recovery_days < 3:
             recovery_status = "Short"
@@ -155,25 +127,16 @@ def calculate_recovery_time(team_name: str, upcoming_match_date: str) -> Dict[st
             recovery_status = "Normal"
         else:
             recovery_status = "Extended"
-        
+
         return {
-            "team_name": team_name,
+            "team_name": team_info.get("name", team_name),
             "last_match_date": last_match_date,
-            "upcoming_match_date": upcoming_match_date,
+            "upcoming_match_date": upcoming_clean,
             "recovery_days": recovery_days,
             "recovery_status": recovery_status,
-            "error": None
+            "error": None,
         }
-    
-    except requests.Timeout:
-        return {
-            "team_name": team_name,
-            "last_match_date": None,
-            "upcoming_match_date": upcoming_match_date,
-            "recovery_days": None,
-            "recovery_status": None,
-            "error": f"Request timeout after {TIMEOUT}s"
-        }
+
     except Exception as e:
         return {
             "team_name": team_name,
@@ -181,5 +144,5 @@ def calculate_recovery_time(team_name: str, upcoming_match_date: str) -> Dict[st
             "upcoming_match_date": upcoming_match_date,
             "recovery_days": None,
             "recovery_status": None,
-            "error": f"Unexpected error: {str(e)}"
+            "error": f"Unexpected error: {str(e)}",
         }

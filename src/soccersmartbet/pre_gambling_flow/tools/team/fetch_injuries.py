@@ -1,164 +1,84 @@
-"""
-Fetch team's current injuries.
+"""Fetch team's current injuries using FotMob API."""
 
-Clean interface: Accepts team name, returns injured players.
-"""
-
-import os
-from typing import Dict, Any, Optional, Tuple
-import requests
-from dotenv import load_dotenv
-
-load_dotenv()
-
-APIFOOTBALL_API_KEY = os.getenv("APIFOOTBALL_API_KEY")
-BASE_URL = "https://apiv3.apifootball.com"
-TIMEOUT = 10
-
-# Major European leagues
-MAJOR_LEAGUES = [152, 302, 207, 175, 168]  # PL, La Liga, Serie A, Bundesliga, Ligue 1
-
-
-def _find_team_league(team_name: str) -> Tuple[Optional[str], Optional[int], Optional[str]]:
-    """
-    Search for team across all major leagues.
-    
-    Args:
-        team_name: Team name to search for
-    
-    Returns:
-        Tuple of (team_id, league_id, actual_team_name) or (None, None, None) if not found
-    """
-    if not APIFOOTBALL_API_KEY:
-        return (None, None, None)
-    
-    for league_id in MAJOR_LEAGUES:
-        try:
-            response = requests.get(
-                BASE_URL,
-                params={"action": "get_teams", "league_id": league_id, "APIkey": APIFOOTBALL_API_KEY},
-                timeout=TIMEOUT
-            )
-            
-            if response.status_code != 200:
-                continue
-            
-            teams = response.json()
-            for team in teams:
-                if team_name.lower() in team.get("team_name", "").lower():
-                    return (team["team_key"], league_id, team["team_name"])
-        except Exception:
-            continue
-    
-    return (None, None, None)
+from typing import Dict, Any
+from ..fotmob_client import get_fotmob_client
 
 
 def fetch_injuries(team_name: str) -> Dict[str, Any]:
-    """
-    Fetch team's current injury list.
-    
-    Searches across all major European leagues to find the team.
-    
-    Args:
-        team_name: Team name (e.g., "Manchester City")
-    
-    Returns:
-        {
-            "team_name": "Manchester City",
-            "injuries": [
-                {
-                    "player_name": "Mateo Kovacic",
-                    "player_type": "Midfielders",
-                    "injury_type": "Not specified",
-                    "matches_played": "1"
-                },
-                ...
-            ],
-            "total_injuries": 2,
-            "error": None
-        }
-    """
-    if not APIFOOTBALL_API_KEY:
-        return {
-            "team_name": team_name,
-            "injuries": [],
-            "total_injuries": 0,
-            "error": "APIFOOTBALL_API_KEY not found"
-        }
-    
+    """Fetch team's current injury/unavailability list from upcoming match."""
     try:
-        # Find team across all major leagues
-        team_id, league_id, actual_name = _find_team_league(team_name)
-        
-        if not team_id:
-            return {
-                "team_name": team_name,
-                "injuries": [],
-                "total_injuries": 0,
-                "error": f"Team '{team_name}' not found in any major league"
-            }
-        
-        # Get full team data with players
-        response = requests.get(
-            BASE_URL,
-            params={"action": "get_teams", "league_id": league_id, "APIkey": APIFOOTBALL_API_KEY},
-            timeout=TIMEOUT
-        )
-        
-        if response.status_code != 200:
-            return {
-                "team_name": team_name,
-                "injuries": [],
-                "total_injuries": 0,
-                "error": f"API error: {response.status_code}"
-            }
-        
-        teams = response.json()
-        team_data = None
-        
-        for team in teams:
-            if team["team_key"] == team_id:
-                team_data = team
-                break
-        
+        client = get_fotmob_client()
+        team_info = client.find_team(team_name)
+        if not team_info:
+            return _error(team_name, f"Team '{team_name}' not found")
+
+        team_data = client.get_team_data(team_info["id"])
         if not team_data:
-            return {
-                "team_name": team_name,
-                "injuries": [],
-                "total_injuries": 0,
-                "error": f"Team '{team_name}' not found"
+            return _error(team_name, "Could not fetch team data")
+
+        next_match = team_data.get("overview", {}).get("nextMatch", {})
+        match_id = next_match.get("id")
+        if not match_id:
+            return _result(team_info.get("name", team_name), [], "no_upcoming_match")
+
+        match_data = client.get_match_data(match_id)
+        if not match_data:
+            return _result(team_info.get("name", team_name), [], "match_data_unavailable")
+
+        lineup = match_data.get("content", {}).get("lineup", {})
+        if not lineup:
+            return _result(team_info.get("name", team_name), [], "lineup_not_available")
+
+        # Find our team in lineup (home or away)
+        team_id = team_info["id"]
+        home_team = lineup.get("homeTeam", {})
+        away_team = lineup.get("awayTeam", {})
+
+        # Check team IDs first, fallback to name matching
+        if home_team.get("id") == team_id:
+            unavailable = home_team.get("unavailable", [])
+        elif away_team.get("id") == team_id:
+            unavailable = away_team.get("unavailable", [])
+        else:
+            # Fallback to name matching
+            team_normalized = team_info.get("name", "").lower()
+            if team_normalized in home_team.get("name", "").lower():
+                unavailable = home_team.get("unavailable", [])
+            elif team_normalized in away_team.get("name", "").lower():
+                unavailable = away_team.get("unavailable", [])
+            else:
+                return _result(team_info.get("name", team_name), [], "team_not_in_lineup")
+
+        injuries = [
+            {
+                "player_name": p.get("name", "Unknown"),
+                "injury_type": p.get("unavailability", {}).get("type", "unknown"),
+                "expected_return": p.get("unavailability", {}).get("expectedReturn", "Unknown"),
             }
-        
-        players = team_data.get("players", [])
-        injured = []
-        
-        for player in players:
-            if player.get("player_injured") == "Yes":
-                injured.append({
-                    "player_name": player.get("player_name", "Unknown"),
-                    "player_type": player.get("player_type", "Unknown"),
-                    "injury_type": player.get("player_injury_type", "Not specified"),
-                    "matches_played": player.get("player_match_played", "0")
-                })
-        
-        return {
-            "team_name": team_data.get("team_name"),
-            "injuries": injured,
-            "total_injuries": len(injured),
-            "error": None
-        }
-    
-    except requests.Timeout:
-        return {
-            "team_name": team_name,
-            "injuries": [],
-            "total_injuries": 0,
-            "error": f"Request timeout after {TIMEOUT}s"
-        }
+            for p in unavailable
+        ]
+
+        return _result(team_info.get("name", team_name), injuries, "upcoming_match")
+
     except Exception as e:
-        return {
-            "team_name": team_name,
-            "injuries": [],
-            "total_injuries": 0,
-            "error": f"Unexpected error: {str(e)}"
-        }
+        return _error(team_name, str(e))
+
+
+def _result(team_name: str, injuries: list, source: str) -> Dict[str, Any]:
+    return {
+        "team_name": team_name,
+        "injuries": injuries,
+        "total_injuries": len(injuries),
+        "source": source,
+        "error": None,
+    }
+
+
+def _error(team_name: str, msg: str) -> Dict[str, Any]:
+    return {
+        "team_name": team_name,
+        "injuries": [],
+        "total_injuries": 0,
+        "source": "error",
+        "error": msg,
+    }

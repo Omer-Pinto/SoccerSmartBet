@@ -47,26 +47,34 @@
 ### 2.4 Prompts Repository
 - [x] Implement `pre_gambling_flow/prompts.py` containing system messages for Smart Game Picker, Game Intelligence Agent, Team Intelligence Agent. Emphasize sophisticated AI analysis over raw stats dumping. **See DETAILED_TASK_BREAKDOWN.md for prompt requirements and agent goals.** ✅ **COMPLETE** - PR #15
 
-### 2.5 Tools Implementation ✅ COMPLETE (PR #33)
-- [x] Implement 8 data fetching tools (4 game + 4 team) as Python functions wrapped as LangGraph tools. Tools are "dumb fetchers" returning raw data without AI analysis. Agents (Game Intelligence, Team Intelligence) will use these tools and perform sophisticated analysis. ✅ **COMPLETE** - Complete tool overhaul in PR #33
+### 2.5 Tools Implementation ✅ COMPLETE (Batch 6 - FotMob Migration)
+- [x] Implement 8 data fetching tools (4 game + 4 team) as Python functions wrapped as LangGraph tools. Tools are "dumb fetchers" returning raw data without AI analysis. Agents (Game Intelligence, Team Intelligence) will use these tools and perform sophisticated analysis. ✅ **COMPLETE** - Migrated to FotMob API (no rate limits, no API key)
 
 **Tools implemented:**
 
 **Game Tools (4):**
 - ✅ `fetch_h2h()` - H2H match history (football-data.org)
-- ✅ `fetch_venue()` - Venue information (apifootball.com)
-- ✅ `fetch_weather()` - Weather forecast with geocoding (Open-Meteo + Nominatim)
+- ✅ `fetch_venue()` - Venue information (FotMob via mobfot)
+- ✅ `fetch_weather()` - Weather forecast (FotMob + Open-Meteo)
 - ✅ `fetch_odds()` - Betting lines 1/X/2 decimal odds (The Odds API)
 
 **Team Tools (4):**
-- ✅ `fetch_form()` - Recent team form (apifootball.com)
-- ✅ `fetch_injuries()` - Current injury list (apifootball.com)
-- ✅ `fetch_key_players_form()` - Top performers (apifootball.com)
-- ✅ `calculate_recovery_time()` - Days since last match (Python)
+- ✅ `fetch_form()` - Recent team form W/D/L (FotMob via mobfot)
+- ✅ `fetch_injuries()` - Current injury list (FotMob via mobfot)
+- ✅ `fetch_league_position()` - League standings for ALL teams (FotMob via mobfot)
+- ✅ `calculate_recovery_time()` - Days since last match (FotMob via mobfot)
+
+**Replaced Tools:**
+- `fetch_key_players_form` → `fetch_league_position` (no free API provides individual player stats)
 
 **Cancelled Tools (API limitations):**
 - ❌ `fetch_suspensions()` - **CANCELLED** (PR #26, removed in PR #32) - Returns empty, API has no suspension data
 - ❌ `fetch_returning_players()` - **CANCELLED** (PR #29) - API cannot track status changes over time
+
+**Architecture:**
+- `fotmob_client.py` - Client wrapper with team name → FotMob ID resolution
+- Supports 9 leagues: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Europa League, Eredivisie, Primeira Liga
+- Tools accept team NAMES (not API-specific IDs)
 
 Tools are bound directly to agent NodeWrappers via LangGraph's tool-calling mechanism. No separate tools_setup.py file needed.
 
@@ -130,24 +138,24 @@ Tools are bound directly to agent NodeWrappers via LangGraph's tool-calling mech
 
 ### 5.2 Team Intelligence Agent Node
 - [ ] Implement `NodeWrapper` with AI agent (following StocksMarketRecommender pattern) equipped with tools:
-  
-  **Tools** (dumb fetchers):
-  - calculate_recovery_time() - Days since team's last match (pure Python utility)
-  - fetch_form() - Last 5 games results (raw W/D/L, goals)
-  - fetch_injuries() - Current injury list with player names, severity
-  - fetch_key_players_form() - Top 3-5 players' recent stats (goals, assists)
-  
+
+  **Tools** (dumb fetchers via FotMob):
+  - calculate_recovery_time() - Days since team's last match
+  - fetch_form() - Last 5 games results (W/D/L with scores)
+  - fetch_injuries() - Current injury list with player names
+  - fetch_league_position() - Team's position, points, form in league standings
+
   **AI Analysis** (what the agent actually does):
   1. **Form Trend Analysis:** Computes improving/declining trajectory from last 5 games (not just W/D/L count)
-  2. **Injury Impact Assessment:** **Critical** - Flags whether injured players are starters vs bench warmers. For teams user doesn't know (e.g., Napoli), AI must identify if missing players are key contributors using player stats (match_played, goals, type).
-  3. **Key Players Status:** Assesses top performers' availability and contribution rates using cumulative stats (apifootball.com provides total goals/assists/games only, no recent form window).
-  
+  2. **Injury Impact Assessment:** **Critical** - Flags whether injured players are starters vs bench warmers. For teams user doesn't know (e.g., Napoli), AI must use context clues from injury data.
+  3. **League Context:** Uses league position to assess team quality, motivation (title race, relegation battle, mid-table comfort).
+
   **Output:** TeamReport Pydantic model (from structured_outputs.py):
   - recovery_days: int (from calculate_recovery_time tool)
   - form_trend: str (AI-computed: "improving", "declining", "stable" + reasoning)
   - injury_impact: str (AI assessment: "critical starters missing" vs "minor depth issues")
-  - key_players_status: str (AI summary of top performers' availability and form)
-  
+  - league_context: str (AI summary of team's league position and implications)
+
   Agent makes **3-5 LLM calls:**
   - 1 initial orchestration call (decide which tools to use)
   - 1-2 analysis calls for complex categories (form trend + injury impact)
@@ -168,6 +176,9 @@ Tools are bound directly to agent NodeWrappers via LangGraph's tool-calling mech
 
 ### 6.4 Tool Integration Testing
 - [ ] Verify all tools work correctly: existing MCPs (browser), Python API clients, Python utility functions wrapped as LangGraph tools. **No custom MCP development** - MCPs are for external consumers, we use Python tools internally.
+
+### 6.5 Add Structured Logging to Tools
+- [ ] Add logging to all tool exception handlers and key operations. Currently tools catch exceptions but don't log them, making production debugging difficult. Use Python's `logging` module with structured context (tool_name, team_name, error_type).
 
 ---
 

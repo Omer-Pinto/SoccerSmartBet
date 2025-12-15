@@ -34,7 +34,7 @@
 
 ## Batch 3: Schema & Docker
 
-**Dependencies:** 
+**Dependencies:**
 - 1.1 depends on 0.1 (needs data source understanding)
 - 1.4 depends on 1.1 (needs schema)
 
@@ -66,50 +66,31 @@
 
 ---
 
-## Batch 5: Tools Implementation ✅ COMPLETE (PR #33)
+## Batch 5: Tools Implementation ✅ COMPLETE
 
 **Dependencies:** Need state/schemas (Batch 3) for tool signatures
 
 **Result:** 8 tools implemented (4 game + 4 team), organized in game/ and team/ folders
 
-### Game Tools (4)
-| Task | Tool | Source | File |
-|------|------|--------|------|
-| 2.5.1 | fetch_h2h | football-data.org | `src/pre_gambling_flow/tools/game/fetch_h2h.py` |
-| 2.5.2 | fetch_venue | apifootball.com | `src/pre_gambling_flow/tools/game/fetch_venue.py` |
-| 2.5.3 | fetch_weather | Open-Meteo + Nominatim | `src/pre_gambling_flow/tools/game/fetch_weather.py` |
-| 2.5.4 | fetch_odds | The Odds API | `src/pre_gambling_flow/tools/game/fetch_odds.py` |
+### Current Sources (after FotMob migration)
+| Tool | Source |
+|------|--------|
+| fetch_h2h | football-data.org |
+| fetch_venue | FotMob (mobfot) |
+| fetch_weather | FotMob + Open-Meteo |
+| fetch_odds | The Odds API |
+| fetch_form | FotMob (mobfot) |
+| fetch_injuries | FotMob (mobfot) |
+| fetch_league_position | FotMob (mobfot) |
+| calculate_recovery_time | FotMob (mobfot) |
 
-### Team Tools (4)
-| Task | Tool | Source | File |
-|------|------|--------|------|
-| 2.5.5 | fetch_form | apifootball.com | `src/pre_gambling_flow/tools/team/fetch_form.py` |
-| 2.5.6 | fetch_injuries | apifootball.com | `src/pre_gambling_flow/tools/team/fetch_injuries.py` |
-| 2.5.7 | fetch_key_players_form | apifootball.com | `src/pre_gambling_flow/tools/team/fetch_key_players_form.py` |
-| 2.5.8 | calculate_recovery_time | apifootball.com | `src/pre_gambling_flow/tools/team/calculate_recovery_time.py` |
-
-### Cancelled Tools (2)
-| Task | Tool | Reason |
-|------|------|--------|
-| ~~2.5.9~~ | ~~fetch_suspensions~~ | API limitation - returns empty data |
-| ~~2.5.10~~ | ~~fetch_returning_players~~ | API limitation - cannot track status changes |
-
-**Deliverables:** 
-- 8 tool files organized in game/ and team/ folders
-- Clean interfaces (no hardcoded league IDs)
-- 9 tests (8 API tests + 1 integration test)
-- Updated documentation with implementation status
-
-**Known Issues (for next batch):**
-- Tools search leagues sequentially (inefficient API usage)
-- No caching layer for team/league lookups
-- Limited to hardcoded league list
+**Note:** Originally used apifootball.com (trial expired). Migrated to FotMob - no rate limits, no API key.
 
 ---
 
 ## Batch 6: Main Flow Nodes
 
-**Dependencies:** Need tools (Batch 4) and schemas (Batch 3)
+**Dependencies:** Need tools (Batch 5) and schemas (Batch 4)
 
 | Task | Droid | Description | Depends On |
 |------|-------|-------------|------------|
@@ -127,7 +108,7 @@
 
 ## Batch 7: Subgraphs
 
-**Dependencies:** Need tools (Batch 4) and schemas (Batch 3)
+**Dependencies:** Need tools (Batch 5) and schemas (Batch 4)
 
 | Task | Droid | Description | Depends On |
 |------|-------|-------------|------------|
@@ -144,7 +125,7 @@
 
 ## Batch 8: Main Graph Manager
 
-**Dependencies:** All nodes + subgraphs (Batch 5 + 6)
+**Dependencies:** All nodes + subgraphs (Batch 6 + 7)
 
 | Task | Droid | Description | Depends On |
 |------|-------|-------------|------------|
@@ -156,7 +137,7 @@
 
 ## Batch 9: Integration & Testing
 
-**Dependencies:** Complete system (Batch 7)
+**Dependencies:** Complete system (Batch 8)
 
 | Task | Droid | Description |
 |------|-------|-------------|
@@ -164,6 +145,7 @@
 | 6.2 | NodeBuilderDroid | Error handling & partial data strategy |
 | 6.3 | NodeBuilderDroid | End-to-end flow testing |
 | 6.4 | ToolBuilderDroid | Tool integration testing |
+| 6.5 | ToolBuilderDroid | Add structured logging to tools |
 
 **Deliverables:** `tests/` directory with integration tests
 
@@ -171,7 +153,7 @@
 
 ## Batch 10: Deployment
 
-**Dependencies:** Working tested system (Batch 8)
+**Dependencies:** Working tested system (Batch 9)
 
 | Task | Droid | Description |
 |------|-------|-------------|
@@ -184,9 +166,8 @@
 
 ## Summary
 
-- **Total Tasks:** 29
+- **Total Tasks:** 30
 - **Total Batches:** 10
 - **Critical Path:** Batch 1 → Batch 2 (user) → Batch 3 → Batch 4 → Batch 5 → Batch 6/7 → Batch 8 → Batch 9 → Batch 10
 
 ---
-
