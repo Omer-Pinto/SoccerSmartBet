@@ -7,7 +7,7 @@ from typing import Any
 
 # Load .env file BEFORE importing tools (they read API keys on import)
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv()
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
