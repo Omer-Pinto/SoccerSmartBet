@@ -453,3 +453,17 @@ EOF
 
 **Key:** Use `position` (NOT `line`). For new files, `position` = line number.
 
+**To resolve review threads after fixes are verified:**
+
+1. Get thread IDs:
+```bash
+gh api graphql -f query='query { repository(owner: "OWNER", name: "REPO") { pullRequest(number: PR) { reviewThreads(first: 20) { nodes { id isResolved } } } } }'
+```
+
+2. Resolve each thread:
+```bash
+gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "THREAD_ID"}) { thread { isResolved } } }'
+```
+
+**Code review workflow:** Post inline comments → Author fixes → Reviewer verifies → Resolve threads → Approve
+
