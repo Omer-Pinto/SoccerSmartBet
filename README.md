@@ -147,10 +147,4 @@ This project follows patterns from:
 
 ## License
 
-TBD
-
----
-
-<p align="center">
-  <i>Built with LangGraph and AI-powered analysis</i>
-</p>
+MIT
