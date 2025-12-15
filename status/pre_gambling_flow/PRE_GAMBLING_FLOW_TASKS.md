@@ -177,6 +177,9 @@ Tools are bound directly to agent NodeWrappers via LangGraph's tool-calling mech
 ### 6.4 Tool Integration Testing
 - [ ] Verify all tools work correctly: existing MCPs (browser), Python API clients, Python utility functions wrapped as LangGraph tools. **No custom MCP development** - MCPs are for external consumers, we use Python tools internally.
 
+### 6.5 Add Structured Logging to Tools
+- [ ] Add logging to all tool exception handlers and key operations. Currently tools catch exceptions but don't log them, making production debugging difficult. Use Python's `logging` module with structured context (tool_name, team_name, error_type).
+
 ---
 
 ## 7. Deployment & Monitoring

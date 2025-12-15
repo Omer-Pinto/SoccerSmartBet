@@ -145,6 +145,7 @@
 | 6.2 | NodeBuilderDroid | Error handling & partial data strategy |
 | 6.3 | NodeBuilderDroid | End-to-end flow testing |
 | 6.4 | ToolBuilderDroid | Tool integration testing |
+| 6.5 | ToolBuilderDroid | Add structured logging to tools |
 
 **Deliverables:** `tests/` directory with integration tests
 
@@ -165,7 +166,7 @@
 
 ## Summary
 
-- **Total Tasks:** 29
+- **Total Tasks:** 30
 - **Total Batches:** 10
 - **Critical Path:** Batch 1 → Batch 2 (user) → Batch 3 → Batch 4 → Batch 5 → Batch 6/7 → Batch 8 → Batch 9 → Batch 10
 
