@@ -61,6 +61,22 @@
 
 ---
 
+## Batch 6: Main Flow Nodes
+
+| Task | Status | PR | Notes |
+|------|--------|-----|-------|
+| 3.1 Pre-Gambling Trigger | 🚀 IN PROGRESS | - | InfraDroid - APScheduler cron |
+| 3.2 Smart Game Picker Node | 🚀 IN PROGRESS | - | NodeBuilderDroid - AI agent for game selection |
+| 3.3 Fetch Lines from The Odds API | 🚀 IN PROGRESS | - | NodeBuilderDroid - betting lines fetcher |
+| 3.4 Persist Unfiltered Games | 🚀 IN PROGRESS | - | NodeBuilderDroid - DB insert for all games |
+| 3.5 Combine Results to Reports | 🚀 IN PROGRESS | - | NodeBuilderDroid - merge game/team reports |
+| 3.6 Persist Reports to DB | 🚀 IN PROGRESS | - | NodeBuilderDroid - save combined reports |
+| 3.7 Send Gambling Trigger | 🚀 IN PROGRESS | - | NodeBuilderDroid - trigger next flow |
+
+**Batch Goal:** Implement all 7 main flow nodes for the Pre-Gambling Flow
+
+---
+
 ## Pending Batches
 
-**Batch 6+:** Not started
+**Batch 7+:** Not started
