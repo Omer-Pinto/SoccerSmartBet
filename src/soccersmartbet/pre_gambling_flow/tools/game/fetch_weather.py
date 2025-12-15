@@ -197,13 +197,13 @@ def fetch_weather(home_team_name: str, away_team_name: str, match_datetime: str)
         precip_prob = precipitation_probs[hour_index] if hour_index < len(precipitation_probs) else 0
         wind_speed = wind_speeds[hour_index]
 
-        # Determine conditions
-        if precipitation >= 5.0:
+        # Determine conditions (check snow first - before rain checks)
+        if temperature < 0 and precipitation > 0:
+            conditions = "Snow"
+        elif precipitation >= 5.0:
             conditions = "Heavy Rain"
         elif precipitation >= 0.5:
             conditions = "Rain"
-        elif temperature < 0 and precipitation > 0:
-            conditions = "Snow"
         else:
             conditions = "Clear"
 

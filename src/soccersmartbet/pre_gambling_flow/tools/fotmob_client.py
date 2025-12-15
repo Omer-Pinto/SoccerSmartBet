@@ -49,7 +49,7 @@ class FotMobClient:
             _league_cache[league_id] = teams
             _cache_time[league_id] = now
             return teams
-        except:
+        except Exception:
             return {}
 
     def find_team(self, team_name: str) -> Optional[Dict[str, Any]]:
@@ -74,13 +74,13 @@ class FotMobClient:
     def get_team_data(self, team_id: int) -> Optional[Dict[str, Any]]:
         try:
             return self._client.get_team(team_id)
-        except:
+        except Exception:
             return None
 
     def get_match_data(self, match_id: int) -> Optional[Dict[str, Any]]:
         try:
             return self._client.get_match_details(match_id)
-        except:
+        except Exception:
             return None
 
     def get_league_standings(self, league_id: int) -> List[Dict[str, Any]]:
