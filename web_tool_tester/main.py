@@ -2,13 +2,17 @@
 
 import asyncio
 from datetime import datetime
+from pathlib import Path
 from typing import Any
+
+# Load .env file BEFORE importing tools (they read API keys on import)
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
 from pydantic import BaseModel
 
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_h2h import fetch_h2h
