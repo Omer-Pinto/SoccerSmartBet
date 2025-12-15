@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoccerSmartBet - Tool Tester</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="pitch-background">
+        <div class="pitch-line center-line"></div>
+        <div class="pitch-circle"></div>
+    </div>
+
+    <div class="container">
+        <header class="header">
+            <h1 class="title">
+                <span class="ball-icon">&#9917;</span>
+                SoccerSmartBet
+                <span class="subtitle">Tool Tester</span>
+            </h1>
+        </header>
+
+        <section class="search-section">
+            <div class="search-card">
+                <div class="team-inputs">
+                    <div class="team-input-group home">
+                        <label>HOME TEAM</label>
+                        <input type="text" id="home-team" placeholder="e.g., Manchester City" autocomplete="off">
+                        <div class="team-marker">H</div>
+                    </div>
+                    <div class="vs-badge">VS</div>
+                    <div class="team-input-group away">
+                        <label>AWAY TEAM</label>
+                        <input type="text" id="away-team" placeholder="e.g., Tottenham" autocomplete="off">
+                        <div class="team-marker">A</div>
+                    </div>
+                </div>
+                <button id="fetch-btn" class="fetch-button">
+                    <span class="btn-text">ANALYZE MATCH</span>
+                    <span class="btn-loader"></span>
+                </button>
+            </div>
+        </section>
+
+        <section id="results" class="results-section hidden">
+            <!-- Match Header -->
+            <div class="match-header">
+                <div class="team-badge home">
+                    <div class="team-crest" id="home-crest">H</div>
+                    <span class="team-name" id="header-home-team">Home Team</span>
+                </div>
+                <div class="match-info">
+                    <span class="match-date" id="match-date">-</span>
+                    <span class="league-badge" id="league-name">-</span>
+                </div>
+                <div class="team-badge away">
+                    <div class="team-crest" id="away-crest">A</div>
+                    <span class="team-name" id="header-away-team">Away Team</span>
+                </div>
+            </div>
+
+            <!-- Odds Section -->
+            <div class="section-card odds-section">
+                <h2 class="section-title">
+                    <span class="icon">&#128176;</span>
+                    Betting Odds
+                </h2>
+                <div class="odds-container" id="odds-container">
+                    <div class="odd-card home-win">
+                        <span class="odd-label">1</span>
+                        <span class="odd-value" id="odds-home">-</span>
+                        <span class="odd-desc">Home Win</span>
+                    </div>
+                    <div class="odd-card draw">
+                        <span class="odd-label">X</span>
+                        <span class="odd-value" id="odds-draw">-</span>
+                        <span class="odd-desc">Draw</span>
+                    </div>
+                    <div class="odd-card away-win">
+                        <span class="odd-label">2</span>
+                        <span class="odd-value" id="odds-away">-</span>
+                        <span class="odd-desc">Away Win</span>
+                    </div>
+                </div>
+                <div class="odds-meta">
+                    <span id="odds-bookmaker">-</span>
+                </div>
+            </div>
+
+            <!-- Team Comparison -->
+            <div class="comparison-grid">
+                <!-- Home Team Column -->
+                <div class="team-column home">
+                    <div class="column-header">
+                        <span class="team-tag">HOME</span>
+                        <span class="team-title" id="col-home-team">-</span>
+                    </div>
+
+                    <!-- Form -->
+                    <div class="stat-card form-card">
+                        <h3 class="stat-title">Recent Form</h3>
+                        <div class="form-circles" id="home-form-circles"></div>
+                        <div class="form-record" id="home-form-record">-</div>
+                    </div>
+
+                    <!-- League Position -->
+                    <div class="stat-card position-card">
+                        <h3 class="stat-title">League Position</h3>
+                        <div class="position-display">
+                            <span class="position-number" id="home-position">-</span>
+                            <span class="position-suffix">th</span>
+                        </div>
+                        <div class="position-stats" id="home-position-stats">-</div>
+                        <div class="position-form" id="home-league-form"></div>
+                    </div>
+
+                    <!-- Injuries -->
+                    <div class="stat-card injuries-card">
+                        <h3 class="stat-title">
+                            <span class="injury-icon">&#129657;</span>
+                            Injuries
+                        </h3>
+                        <div class="injuries-list" id="home-injuries">-</div>
+                    </div>
+
+                    <!-- Recovery -->
+                    <div class="stat-card recovery-card">
+                        <h3 class="stat-title">Recovery Time</h3>
+                        <div class="recovery-display">
+                            <span class="recovery-days" id="home-recovery-days">-</span>
+                            <span class="recovery-label">days</span>
+                        </div>
+                        <div class="recovery-status" id="home-recovery-status">-</div>
+                    </div>
+                </div>
+
+                <!-- Center Column - Shared Data -->
+                <div class="center-column">
+                    <!-- H2H -->
+                    <div class="stat-card h2h-card">
+                        <h3 class="stat-title">Head to Head</h3>
+                        <div class="h2h-summary" id="h2h-summary">-</div>
+                        <div class="h2h-matches" id="h2h-matches"></div>
+                    </div>
+
+                    <!-- Venue -->
+                    <div class="stat-card venue-card">
+                        <h3 class="stat-title">
+                            <span class="venue-icon">&#127967;</span>
+                            Venue
+                        </h3>
+                        <div class="venue-name" id="venue-name">-</div>
+                        <div class="venue-city" id="venue-city">-</div>
+                        <div class="venue-capacity" id="venue-capacity">-</div>
+                    </div>
+
+                    <!-- Weather -->
+                    <div class="stat-card weather-card">
+                        <h3 class="stat-title">Match Day Weather</h3>
+                        <div class="weather-display">
+                            <div class="weather-icon" id="weather-icon">&#9728;</div>
+                            <div class="weather-temp" id="weather-temp">-</div>
+                        </div>
+                        <div class="weather-details">
+                            <span id="weather-conditions">-</span>
+                            <span id="weather-wind">-</span>
+                            <span id="weather-rain">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Away Team Column -->
+                <div class="team-column away">
+                    <div class="column-header">
+                        <span class="team-tag">AWAY</span>
+                        <span class="team-title" id="col-away-team">-</span>
+                    </div>
+
+                    <!-- Form -->
+                    <div class="stat-card form-card">
+                        <h3 class="stat-title">Recent Form</h3>
+                        <div class="form-circles" id="away-form-circles"></div>
+                        <div class="form-record" id="away-form-record">-</div>
+                    </div>
+
+                    <!-- League Position -->
+                    <div class="stat-card position-card">
+                        <h3 class="stat-title">League Position</h3>
+                        <div class="position-display">
+                            <span class="position-number" id="away-position">-</span>
+                            <span class="position-suffix">th</span>
+                        </div>
+                        <div class="position-stats" id="away-position-stats">-</div>
+                        <div class="position-form" id="away-league-form"></div>
+                    </div>
+
+                    <!-- Injuries -->
+                    <div class="stat-card injuries-card">
+                        <h3 class="stat-title">
+                            <span class="injury-icon">&#129657;</span>
+                            Injuries
+                        </h3>
+                        <div class="injuries-list" id="away-injuries">-</div>
+                    </div>
+
+                    <!-- Recovery -->
+                    <div class="stat-card recovery-card">
+                        <h3 class="stat-title">Recovery Time</h3>
+                        <div class="recovery-display">
+                            <span class="recovery-days" id="away-recovery-days">-</span>
+                            <span class="recovery-label">days</span>
+                        </div>
+                        <div class="recovery-status" id="away-recovery-status">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Stats -->
+            <div class="section-card performance-section">
+                <h2 class="section-title">
+                    <span class="icon">&#9201;</span>
+                    API Performance
+                </h2>
+                <div class="performance-stats">
+                    <div class="perf-stat">
+                        <span class="perf-value" id="total-time">-</span>
+                        <span class="perf-label">Total Time</span>
+                    </div>
+                    <div class="perf-stat">
+                        <span class="perf-value" id="tools-success">-</span>
+                        <span class="perf-label">Tools OK</span>
+                    </div>
+                    <div class="perf-stat">
+                        <span class="perf-value" id="tools-failed">-</span>
+                        <span class="perf-label">Tools Failed</span>
+                    </div>
+                </div>
+                <div class="tool-breakdown" id="tool-breakdown"></div>
+            </div>
+        </section>
+
+        <!-- Error Message -->
+        <div id="error-message" class="error-card hidden">
+            <span class="error-icon">&#9888;</span>
+            <span class="error-text"></span>
+        </div>
+
+        <footer class="footer">
+            <p>SoccerSmartBet Tool Tester v1.0</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
