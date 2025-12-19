@@ -2,14 +2,29 @@
 
 This module is pure-Python (no DB writes) so it can be wired into the Pre-Gambling
 flow state later.
+
+LangGraphWrappers compatibility:
+- Provide an async node action (`fetch_odds_node_action`) that follows the
+  wrapper pattern: typed state in -> partial state dict out.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
 
 from soccersmartbet.pre_gambling_flow.structured_outputs import SelectedGame
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_odds import fetch_odds
+
+
+class FetchOddsNodeInputState(TypedDict, total=False):
+    selected_games: list[SelectedGame]
+    min_odds_threshold: float
+    max_daily_games: int
+
+
+class FetchOddsNodeOutputState(TypedDict, total=False):
+    filtered_games_with_odds: list[dict[str, Any]]
+    filtered_games_included_indexes: list[int]
 
 
 def _coerce_decimal_odds(value: Any) -> float | None:
@@ -108,3 +123,31 @@ def fetch_and_filter_odds(
         included_indexes.append(index)
 
     return filtered_games, included_indexes
+
+
+async def fetch_odds_node_action(state: FetchOddsNodeInputState) -> FetchOddsNodeOutputState:
+    """LangGraph node action: fetch odds and filter selected games.
+
+    Expected state keys:
+    - selected_games: list[SelectedGame]
+    - min_odds_threshold: float
+    - max_daily_games: int
+
+    Returns:
+    - filtered_games_with_odds
+    - filtered_games_included_indexes
+    """
+    selected_games = state.get("selected_games") or []
+    min_odds_threshold = float(state.get("min_odds_threshold", 0.0))
+    max_daily_games = int(state.get("max_daily_games", 0))
+
+    filtered_games, included_indexes = fetch_and_filter_odds(
+        selected_games,
+        min_odds_threshold=min_odds_threshold,
+        max_daily_games=max_daily_games,
+    )
+
+    return {
+        "filtered_games_with_odds": filtered_games,
+        "filtered_games_included_indexes": included_indexes,
+    }

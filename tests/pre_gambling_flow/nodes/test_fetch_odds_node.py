@@ -12,7 +12,7 @@ SRC_PATH = REPO_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from soccersmartbet.pre_gambling_flow.nodes.fetch_odds_node import fetch_and_filter_odds
+from soccersmartbet.pre_gambling_flow.nodes.fetch_odds_node import fetch_and_filter_odds, fetch_odds_node_action
 from soccersmartbet.pre_gambling_flow.structured_outputs import SelectedGame
 
 
@@ -131,3 +131,35 @@ def test_fetch_and_filter_odds_excludes_games_below_threshold(monkeypatch: pytes
     assert included_indexes == [1]
     assert len(filtered) == 1
     assert filtered[0]["home_team"] == "C"
+
+
+def test_fetch_odds_node_action_shapes_output(monkeypatch: pytest.MonkeyPatch):
+    games = [_sg("A", "B"), _sg("C", "D"), _sg("E", "F")]
+
+    def fake_fetch_odds(home_team_name: str, away_team_name: str):
+        return {
+            "odds_home": 2.10,
+            "odds_draw": 3.10,
+            "odds_away": 3.60,
+            "error": None,
+        }
+
+    monkeypatch.setattr(
+        "soccersmartbet.pre_gambling_flow.nodes.fetch_odds_node.fetch_odds",
+        fake_fetch_odds,
+    )
+
+    import asyncio
+
+    out = asyncio.run(
+        fetch_odds_node_action(
+            {
+                "selected_games": games,
+                "min_odds_threshold": 3.0,
+                "max_daily_games": 2,
+            }
+        )
+    )
+
+    assert out["filtered_games_included_indexes"] == [0, 1]
+    assert len(out["filtered_games_with_odds"]) == 2
