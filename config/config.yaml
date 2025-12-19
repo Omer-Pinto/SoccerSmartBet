@@ -28,3 +28,11 @@ database:
 # Using gpt-4o-mini for cost efficiency (~$0.15/$0.60 per 1M tokens)
 models:
   default: gpt-4o-mini
+
+# Scheduler Configuration
+# -----------------------------------------------------------------------------
+scheduler:
+  enabled: true
+  timezone: UTC
+  daily_time: "14:00"     # 24h format (HH:MM)
+
