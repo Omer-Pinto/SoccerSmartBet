@@ -8,6 +8,7 @@ function, and then start/shutdown it explicitly.
 from __future__ import annotations
 
 from collections.abc import Callable
+import os
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -16,13 +17,18 @@ import yaml
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+CONFIG_ENV_VAR = "SOCCERSMARTBET_CONFIG_PATH"
+
+# Default aligned to repo layout (main branch): <repo>/config/config.yaml
+# Worktrees follow the same layout, so this remains correct as long as the
+# package lives under <repo>/src/.
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[3] / "config" / "config.yaml"
 DEFAULT_TIMEZONE = "UTC"
 DEFAULT_DAILY_TIME = "14:00"
 DEFAULT_JOB_ID = "pre_gambling_daily"
 
 
-def load_config(path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+def load_config(path: str | Path | None = None) -> dict[str, Any]:
     """Load YAML configuration from `config/config.yaml`.
 
     Args:
@@ -35,6 +41,10 @@ def load_config(path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
         FileNotFoundError: If the config file does not exist.
         ValueError: If the parsed YAML is not a mapping.
     """
+    if path is None:
+        env_path = os.getenv(CONFIG_ENV_VAR)
+        path = env_path if env_path else DEFAULT_CONFIG_PATH
+
     config_path = Path(path)
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     if raw is None:
@@ -87,11 +97,26 @@ def build_scheduler(
     if not isinstance(scheduler_config, dict):
         raise ValueError(f"scheduler config must be a mapping, got: {type(scheduler_config).__name__}")
 
-    enabled = bool(scheduler_config.get("enabled", True))
+    enabled_value = scheduler_config.get("enabled", True)
+    if isinstance(enabled_value, bool):
+        enabled = enabled_value
+    elif isinstance(enabled_value, int) and enabled_value in (0, 1):
+        enabled = bool(enabled_value)
+    else:
+        raise ValueError(
+            "scheduler.enabled must be a boolean (or 0/1). "
+            f"Got: {enabled_value!r} ({type(enabled_value).__name__})"
+        )
     timezone_name = str(scheduler_config.get("timezone", DEFAULT_TIMEZONE) or DEFAULT_TIMEZONE)
     daily_time = scheduler_config.get("daily_time", DEFAULT_DAILY_TIME)
 
-    tzinfo = ZoneInfo(timezone_name)
+    try:
+        tzinfo = ZoneInfo(timezone_name)
+    except Exception as exc:
+        raise ValueError(
+            f"Invalid scheduler.timezone: {timezone_name!r}. "
+            f"Set it to a valid IANA timezone (e.g. 'UTC')."
+        ) from exc
     scheduler = BackgroundScheduler(timezone=tzinfo)
 
     if enabled:
