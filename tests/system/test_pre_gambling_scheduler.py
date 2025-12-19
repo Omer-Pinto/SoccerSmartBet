@@ -5,9 +5,10 @@ from pathlib import Path
 
 # Ensure tests import THIS worktree's `src/` package (src-layout) even if another
 # editable install exists elsewhere on the machine.
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = PROJECT_ROOT / "src"
-sys.path.insert(0, str(SRC_DIR))
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
 from apscheduler.triggers.cron import CronTrigger
 
