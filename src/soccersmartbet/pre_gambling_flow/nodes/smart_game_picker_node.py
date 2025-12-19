@@ -103,10 +103,14 @@ def fetch_candidate_fixtures(
         timeout=TIMEOUT_S,
     )
 
-    if response.status_code != 200:
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        detail = getattr(response, "text", "")
+        detail_str = f"; body={detail[:500]!r}" if detail else ""
         raise RuntimeError(
-            f"football-data.org fixtures API error: {response.status_code}"
-        )
+            f"football-data.org fixtures API error: {response.status_code}{detail_str}"
+        ) from exc
 
     payload = response.json() or {}
     matches = payload.get("matches") or []
@@ -189,7 +193,7 @@ def _heuristic_select(
 
         if len(selected) >= 3 and len(leagues_selected) >= 3:
             # Early exit once we have the minimum slate and diversity.
-            continue
+            break
 
     # Pass 2: fill remaining slots regardless of league.
     if len(selected) < max_games:
