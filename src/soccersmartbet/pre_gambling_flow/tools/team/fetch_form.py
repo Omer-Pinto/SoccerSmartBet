@@ -15,7 +15,7 @@ def fetch_form(team_name: str, limit: int = 5) -> Dict[str, Any]:
 
         team_data = client.get_team_data(team_info["id"])
         if not team_data:
-            return _error(team_name, f"Could not fetch team data")
+            return _error(team_name, "Could not fetch team data")
 
         team_form = team_data.get("overview", {}).get("teamForm", [])
         if not team_form:

@@ -17,6 +17,8 @@ load_dotenv()
 # API Configuration
 FOOTBALL_DATA_API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
 BASE_URL = "https://api.football-data.org/v4"
+# 30s because football-data.org free tier is notably slow; typical response
+# time is 12-15s, so 10s (used elsewhere) causes spurious timeouts here.
 TIMEOUT = 30
 
 

@@ -238,19 +238,15 @@ Your goal is to produce **betting-relevant assessments**, especially for teams t
    - Returns: date, opponent, score, result (W/D/L), competition
    - Use for trend analysis, not just W/D/L count
 
-3. `fetch_injuries(team_name)` - Injured players from apifootball.com
-   - Returns: player name, position, `player_injured` status
-   - Also includes: `player_match_played`, `player_goals`, `player_type` (to assess importance)
+3. `fetch_injuries(team_name)` - Injured players from FotMob squad data
+   - Returns: player name, position_group, injury_type, expected_return
    - **CRITICAL**: You must determine if injured players are starters vs. bench warmers
 
-4. `fetch_suspensions(team_name)` - Suspended players (if API supports)
-   - Returns: player name, suspension reason, games remaining
-   - Treat suspensions like injuries for analysis
+4. `fetch_league_position(team_name)` - Current league standing
+   - Returns: position, points, wins, draws, losses
 
-5. `fetch_key_players_form(team_name, limit=10)` - Top players' stats
-   - Returns: player name, total goals, total assists, games played
-   - **Limitation**: apifootball.com only provides TOTAL season stats, not recent form
-   - Calculate productivity ratios (goals per game, assists per game)
+5. `fetch_team_news(team_name)` - Latest team news and updates
+   - Returns: news items relevant to upcoming match
 
 ## Analysis Requirements
 
@@ -278,10 +274,10 @@ Your goal is to produce **betting-relevant assessments**, especially for teams t
 Many users won't know if "Marco Rossi" or "Giovanni Bianchi" are important players for Napoli or Bologna. YOU must tell them.
 
 **How to assess importance:**
-1. Check `player_match_played` - starter plays 25+ games/season, bench warmer <10
-2. Check `player_goals` or `player_assists` - high numbers = key contributor
-3. Check `player_type` - "striker", "midfielder", "defender", "goalkeeper" (infer role)
-4. Cross-reference with `fetch_key_players_form()` - are they in the top 10 performers?
+1. Check `position_group` - keeper/defender/midfielder/attacker (infer role)
+2. Check `injury_type` - long-term injuries have greater impact than knocks
+3. Check `expected_return` - imminent return vs. extended absence
+4. Use context and soccer knowledge to judge whether the position is a likely starter
 
 **Output classification:**
 - "Critical starters missing" - Top scorer injured, or 3+ regular starters out
@@ -290,27 +286,27 @@ Many users won't know if "Marco Rossi" or "Giovanni Bianchi" are important playe
 - "No significant injuries" - Full squad available
 
 **Example insights:**
-- ✅ "Critical impact - Top scorer (15 goals in 28 games) and starting CB (26 starts) both injured. Attack blunted, defensive organization at risk."
-- ✅ "Minor impact - 2 injuries but both are fringe players (<5 starts). Starting XI unaffected."
+- ✅ "Critical impact - Attacker and keeper both injured (long-term). Attack loses its focal point; goalkeeper position uncertain."
+- ✅ "Minor impact - 2 injuries, both in the same position group (midfielders), expected return imminent. Starting XI depth reduced but XI intact."
 - ❌ "3 players injured" (doesn't tell user if they matter)
 
 ### 3. Key Players Status
 
 **Limitation acknowledgment:**
-apifootball.com only provides season totals, not recent form. Work with what you have.
+Individual player season stats are not directly available from the current tool set. Derive key player status from the injury list and form results.
 
 **What you CAN do:**
-- Calculate productivity: goals per game, assists per game
-- Identify top performers: "Striker has 0.67 goals/game (18 in 27) = highly productive"
-- Flag dry spells IF visible in recent match results: "Top scorer hasn't scored in last 4 games based on recent results"
+- Infer key-player absence from `fetch_injuries` — missing striker or goalkeeper is high-impact
+- Observe scoring patterns from `fetch_form` results to spot attacking or defensive trends
+- Flag a team as depleted when multiple position groups appear in the injury list
 
 **What you CANNOT do:**
-- Detailed "last 5 games" stats for individual players (not available)
-- Recent hot/cold streaks beyond what's visible in match results
+- Per-player goals/assists totals (no tool provides this)
+- Recent hot/cold streaks for individual players beyond what form results imply
 
 **Example insights:**
-- ✅ "Top scorer productive (0.6 GPG) but scoreless in last 3 matches per recent results. Potential value bet against."
-- ✅ "Key midfielder averaging 0.4 assists/game. Playmaker available and consistent."
+- ✅ "Starting goalkeeper and a central defender both injured (fetch_injuries). Defensive structure likely disrupted."
+- ✅ "Form shows 3 clean sheets in last 5 — defence solid despite one injury absence."
 - ❌ "Players are in good form" (no evidence/data)
 
 ### 4. Recovery Time
@@ -344,19 +340,19 @@ Return a `TeamReport` structured output with:
 - "Some players injured" (who? do they matter?)
 
 ✅ **Good key players status:**
-- "Top scorer (18 goals, 0.67/game) highly productive but scoreless in last 3 per results. Midfielder (12 assists, 0.44/game) consistent playmaker."
+- "No injured attackers; form shows 9 goals in last 5 matches — attack is firing."
+- "Starting keeper injured (long-term), backup unproven at this level. Defensive vulnerability."
 
 ❌ **Poor key players status:**
 - "Good players available" (no data)
 
 ## LLM Call Strategy
 
-Expected LLM calls: 3-5
+Expected LLM calls: 3-4
 1. **Orchestration call**: Decide which tools to call
-2. **Form + injury analysis call**: Process recent results + injury list, cross-reference importance
-3. **Key players analysis call**: Process player stats, calculate ratios
-4. **Synthesis call**: Combine all factors into final TeamReport
-5. **Optional refinement call**: If data is ambiguous, re-analyze
+2. **Form + injury analysis call**: Process recent results + injury list, assess positional impact
+3. **Synthesis call**: Combine all factors into final TeamReport
+4. **Optional refinement call**: If data is ambiguous, re-analyze
 
 ## Decision Framework
 

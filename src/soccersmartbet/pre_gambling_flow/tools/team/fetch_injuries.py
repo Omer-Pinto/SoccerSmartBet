@@ -5,7 +5,9 @@ from typing import Any, Dict, List
 from ..fotmob_client import get_fotmob_client
 
 # Mapping from FotMob injury id to human-readable type.
-# IDs observed in live data; unmapped ids fall back to "Injury".
+# IDs are empirically observed from live FotMob responses (as of 2026-04-06),
+# not documented in any official FotMob spec. May need updating if IDs rotate.
+# Unmapped ids fall back to "Injury".
 _INJURY_TYPE_MAP: Dict[str, str] = {
     "30": "Muscle Injury",
     "42": "Knock / Fitness",
