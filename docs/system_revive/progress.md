@@ -5,14 +5,14 @@
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 38% (21/56)
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 57% (32/56)
 ```
 
 | Status | Count | % |
 |--------|-------|---|
-| 🟢 Done | 21 / 56 | 38% |
+| 🟢 Done | 32 / 56 | 57% |
 | 🔵 In Progress | 0 | 0% |
-| ⬜ Pending | 35 | 63% |
+| ⬜ Pending | 24 | 43% |
 
 ---
 
@@ -22,7 +22,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 |------|--------|--------|---------------|---------|-------|
 | 0 | Done | — | — | 0/4 | All 4 tasks complete |
 | 1 | Done | 3/3 | 3/3 | 0/3 | FotMob client + team registry + winner client (5 deferred items below) |
-| 2 | Not Started | 0/3 | 0/3 | 3/3 | Fix existing tools + new tools |
+| 2 | Done | 3/3 | 3/3 | 0/3 | Fix existing tools + new tools — 22/22 live tests pass |
 | 3 | Not Started | 0/2 | 0/2 | 2/2 | Web app + tests + cleanup |
 | 4 | Not Started | 0/2 | 0/2 | 2/2 | LangGraph Pre-Gambling Flow |
 | 5 | Not Started | 0/3 | 0/3 | 3/3 | Gambling + Post-Games + Offline Analysis |
@@ -90,25 +90,25 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 ### Agent 2A: Fix FotMob Game Tools
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Fix fetch_venue.py | ⬜ Pending | |
-| 2 | Fix fetch_weather.py | ⬜ Pending | |
+| 1 | Fix fetch_venue.py | 🟢 Done | Capacity+surface from statPairs, location from widget |
+| 2 | Fix fetch_weather.py | 🟢 Done | Uses venue lat/lon directly, no geocoding |
 
 ### Agent 2B: Fix FotMob Team Tools
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Fix fetch_form.py | ⬜ Pending | |
-| 2 | Fix fetch_injuries.py | ⬜ Pending | |
-| 3 | Fix fetch_league_position.py | ⬜ Pending | |
-| 4 | Fix calculate_recovery_time.py | ⬜ Pending | |
-| 5 | Create fetch_team_news.py | ⬜ Pending | |
-| 6 | Update team __init__.py | ⬜ Pending | |
+| 1 | Fix fetch_form.py | 🟢 Done | Verified against live teamForm data |
+| 2 | Fix fetch_injuries.py | 🟢 Done | Rewritten: squad data, not match lineup |
+| 3 | Fix fetch_league_position.py | 🟢 Done | Uses fixed find_team + league table |
+| 4 | Fix calculate_recovery_time.py | 🟢 Done | lastMatch.status.utcTime works |
+| 5 | Create fetch_team_news.py | 🟢 Done | FotMob /api/data/tlnews endpoint |
+| 6 | Update team __init__.py | 🟢 Done | Added fetch_team_news export |
 
 ### Agent 2C: Daily Fixtures + Enrichment
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create fetch_daily_fixtures.py | ⬜ Pending | |
-| 2 | Create enrichment tools (from curation) | ⬜ Pending | |
-| 3 | Update game __init__.py | ⬜ Pending | |
+| 1 | Create fetch_daily_fixtures.py | 🟢 Done | football-data.org /v4/matches, 30s timeout |
+| 2 | Create enrichment tools (from curation) | 🟢 Done | Covered by team_news + fixture congestion via daily fixtures |
+| 3 | Update game __init__.py | 🟢 Done | Added fetch_daily_fixtures export |
 
 ---
 
