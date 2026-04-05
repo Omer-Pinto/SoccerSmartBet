@@ -165,8 +165,9 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
 | 1 | Create `fetch_daily_fixtures.py` | Daily fixtures from football-data.org | `GET /v4/matches?dateFrom=X&dateTo=X`. Returns all 12 competitions. |
-| 2 | Create enrichment tools decided in Wave 0 | (TBD from curation) | e.g., `calculate_fixture_congestion.py`, `fetch_suspension_risk.py` |
-| 3 | Update `tools/game/__init__.py` | Export new tools | Add `fetch_daily_fixtures` + any new game tools |
+| 2 | Create `calculate_fixture_congestion.py` (STRETCH) | Fixture density analysis | `GET /v4/teams/{id}/matches?status=SCHEDULED&limit=5`. Detect CL/cup congestion. |
+| 3 | Create `fetch_suspension_risk.py` (STRETCH) | Yellow card accumulation | football-data.org match data. League-specific thresholds. |
+| 4 | Update `tools/game/__init__.py` + `tools/team/__init__.py` | Export new tools | Add all new tools |
 
 ### After Wave 2
 - Run integration test: `uv run python tests/pre_gambling_flow/tools/integration/test_all_tools.py "Barcelona" "Real Madrid"`

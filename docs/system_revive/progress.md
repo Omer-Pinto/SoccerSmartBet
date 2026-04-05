@@ -5,13 +5,13 @@
 ## Summary
 
 ```
-Progress: [🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 5% (3/56)
+Progress: [🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 7% (4/56)
 ```
 
 | Status | Count | % |
 |--------|-------|---|
-| 🟢 Done | 3 / 56 | 5% |
-| 🔵 In Progress | 1 | 2% |
+| 🟢 Done | 4 / 56 | 7% |
+| 🔵 In Progress | 0 | 0% |
 | ⬜ Pending | 52 | 93% |
 
 ---
@@ -20,7 +20,7 @@ Progress: [🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 
 | Wave | Status | Agents | Cherry-picked | Pending | Notes |
 |------|--------|--------|---------------|---------|-------|
-| 0 | In Progress | — | — | 1/4 | Setup done, curation awaiting Omer's decisions |
+| 0 | Done | — | — | 0/4 | All 4 tasks complete |
 | 1 | Not Started | 0/3 | 0/3 | 3/3 | FotMob client + team registry + winner client |
 | 2 | Not Started | 0/3 | 0/3 | 3/3 | Fix existing tools + new tools |
 | 3 | Not Started | 0/2 | 0/2 | 2/2 | Web app + tests + cleanup |
@@ -37,7 +37,7 @@ Progress: [🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 0.1 | Clean dead refs + deps | 🟢 Done | Removed APIFOOTBALL_API_KEY, pinned langgraph>=1.0.0, updated ORCHESTRATION_STATE |
-| 0.2 | Tools curation session | 🔵 In Progress | Awaiting Omer's IN/OUT decisions on 18 verticals |
+| 0.2 | Tools curation session | 🟢 Done | 1-11 IN, 12-13 OUT (Cloudflare), 14-15 STRETCH, 16-18 NO |
 | 0.3 | Schema update (teams table) | 🟢 Done | Added teams table to schema + deployment init |
 | 0.4 | Verify enrichment sources | 🟢 Done | FBref=403, Sofascore=403, FotMob news=works, FotMob topPlayers=empty |
 
