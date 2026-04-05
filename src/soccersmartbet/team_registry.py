@@ -24,10 +24,10 @@ _teams: list[dict] = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
 _index: dict[str, str] = {}
 
 
-def _normalize(name: str) -> str:
+def normalize_team_name(name: str) -> str:
     """Lowercase, strip accents, remove common prefix/suffix tokens.
 
-    Mirrors the normalization in fotmob_client.py but extends accent coverage.
+    Shared normalization used by both team_registry and fotmob_client.
     """
     # Accent folding via Unicode decomposition
     nfkd = unicodedata.normalize("NFKD", name)
@@ -56,18 +56,23 @@ def _build_index() -> dict[str, str]:
     for team in _teams:
         canonical = team["canonical_name"]
         # Index the canonical name itself
-        idx[_normalize(canonical)] = canonical
+        idx[normalize_team_name(canonical)] = canonical
         # Index every alias
         for alias in team.get("aliases") or []:
-            norm = _normalize(alias)
+            norm = normalize_team_name(alias)
             if norm and norm not in idx:
                 idx[norm] = canonical
         # Index short_name
         short = team.get("short_name")
         if short:
-            norm = _normalize(short)
+            norm = normalize_team_name(short)
             if norm and norm not in idx:
                 idx[norm] = canonical
+        # Index Hebrew name (winner.co.il)
+        he_name = team.get("winner_name_he")
+        if he_name:
+            if he_name not in idx:
+                idx[he_name] = canonical
     return idx
 
 
@@ -111,7 +116,7 @@ def resolve_team(name: str) -> Optional[str]:
     Returns:
         Canonical name string, or None if no confident match found.
     """
-    norm = _normalize(name)
+    norm = normalize_team_name(name)
 
     # 1. Exact
     if norm in _index:

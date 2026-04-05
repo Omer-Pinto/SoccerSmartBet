@@ -4,6 +4,7 @@ import hashlib
 import base64
 import json
 import time
+import urllib.parse
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 
@@ -40,17 +41,13 @@ class FotMobClient:
         self._team_cache: Dict[str, Dict[str, Any]] = {}
 
     def _normalize(self, name: str) -> str:
-        n = name.lower().strip()
-        for s in [" fc", " cf", " sc", " afc"]:
-            if n.endswith(s): n = n[:-len(s)]
-        for p in ["fc ", "cf ", "sc ", "afc "]:
-            if n.startswith(p): n = n[len(p):]
-        return n.replace("é", "e").replace("á", "a").replace("ó", "o").replace("ñ", "n").strip()
+        from soccersmartbet.team_registry import normalize_team_name
+        return normalize_team_name(name)
 
     def _request(self, endpoint: str, params: dict = None) -> Optional[dict]:
         url = f"https://www.fotmob.com{endpoint}"
         if params:
-            url += "?" + "&".join(f"{k}={v}" for k, v in params.items())
+            url += "?" + urllib.parse.urlencode(params)
         headers = {
             "x-mas": _generate_xmas_header(url),
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"

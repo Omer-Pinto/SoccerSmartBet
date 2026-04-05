@@ -11,6 +11,8 @@ import json
 from typing import Dict, Any, Optional
 import requests
 
+from soccersmartbet.team_registry import resolve_team, get_source_name_he
+
 # API Configuration
 BASE_URL = "https://api.winner.co.il/api/CouponDataCenter"
 TIMEOUT = 15
@@ -43,29 +45,6 @@ LEAGUE_MAP_HE: Dict[str, str] = {
     "ליגת Winner": "Israeli Premier League",
 }
 
-# Hebrew team name → lowercase English name (for fuzzy matching against caller input)
-TEAM_HE_TO_EN: Dict[str, str] = {
-    "ברצלונה": "barcelona",
-    "ריאל מדריד": "real madrid",
-    "אתלטיקו מדריד": "atletico madrid",
-    "צ'לסי": "chelsea",
-    "ליברפול": "liverpool",
-    "מנצ'סטר סיטי": "manchester city",
-    "מנצ'סטר יונייטד": "manchester united",
-    "ארסנל": "arsenal",
-    "טוטנהאם": "tottenham",
-    "יובנטוס": "juventus",
-    "אינטר מילאן": "inter",
-    "מילאן": "ac milan",
-    "נאפולי": "napoli",
-    "באיירן מינכן": "bayern",
-    "דורטמונד": "dortmund",
-    "פ.ס.ז'": "psg",
-    "מרסיי": "marseille",
-    "מונאקו": "monaco",
-    "רומא": "roma",
-    "לאציו": "lazio",
-}
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +108,7 @@ def _get_mobile_hashes() -> Optional[Dict[str, Any]]:
         return None
 
 
-def _get_mobile_line(hashes: list = None) -> Optional[Dict[str, Any]]:
+def _get_mobile_line(hashes: list | None = None) -> Optional[Dict[str, Any]]:
     """
     Step 2: POST GetCMobileLine.
 
@@ -298,15 +277,13 @@ def _map_league(league_he: str) -> str:
 
 def _he_name_for_english(english_name: str) -> Optional[str]:
     """
-    Return the Hebrew key whose mapped English value substring-matches
-    the given English team name (case-insensitive).
+    Resolve an English team name to its Hebrew equivalent via team_registry.
 
     Example: "Manchester City" → "מנצ'סטר סיטי"
     """
-    english_lower = english_name.lower()
-    for he, en in TEAM_HE_TO_EN.items():
-        if english_lower in en or en in english_lower:
-            return he
+    canonical = resolve_team(english_name)
+    if canonical:
+        return get_source_name_he(canonical)
     return None
 
 
@@ -333,15 +310,16 @@ def _events_match(
     if expected_home_he and expected_away_he:
         return home_he == expected_home_he and away_he == expected_away_he
 
-    # Fallback: substring match on the mapped English values
-    home_en = TEAM_HE_TO_EN.get(home_he, "").lower()
-    away_en = TEAM_HE_TO_EN.get(away_he, "").lower()
-    home_req = home_team_name.lower()
-    away_req = away_team_name.lower()
+    # Fallback: resolve both sides to canonical and compare
+    home_canonical = resolve_team(home_he)
+    away_canonical = resolve_team(away_he)
+    req_home_canonical = resolve_team(home_team_name)
+    req_away_canonical = resolve_team(away_team_name)
 
-    home_matches = home_req in home_en or home_en in home_req
-    away_matches = away_req in away_en or away_en in away_req
-    return home_matches and away_matches
+    if home_canonical and away_canonical and req_home_canonical and req_away_canonical:
+        return home_canonical == req_home_canonical and away_canonical == req_away_canonical
+
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -461,9 +439,9 @@ def fetch_all_winner_odds(league: Optional[str] = None) -> Dict[str, Any]:
         if league_filter and league_filter not in event["league_en"].lower():
             continue
 
-        # Resolve English team names from Hebrew where possible
-        home_en = TEAM_HE_TO_EN.get(event["home_name_he"], event["home_name_he"])
-        away_en = TEAM_HE_TO_EN.get(event["away_name_he"], event["away_name_he"])
+        # Resolve English team names from Hebrew via team_registry
+        home_en = resolve_team(event["home_name_he"]) or event["home_name_he"]
+        away_en = resolve_team(event["away_name_he"]) or event["away_name_he"]
 
         results.append(
             {
