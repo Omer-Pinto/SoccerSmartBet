@@ -6,9 +6,10 @@ Implements the 2-step GetCMobileHashes + GetCMobileLine flow to retrieve
 """
 
 import hashlib
-import uuid
 import json
-from typing import Dict, Any, Optional
+import uuid
+from typing import Any, Dict, Optional
+
 import requests
 
 from soccersmartbet.team_registry import resolve_team, get_source_name_he
@@ -46,11 +47,9 @@ LEAGUE_MAP_HE: Dict[str, str] = {
 }
 
 
-
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-
 
 def _build_headers() -> Dict[str, str]:
     """Build request headers with a fresh requestid per call."""
@@ -296,9 +295,8 @@ def _events_match(
     Return True if an event matches the requested home/away team names.
 
     Matching strategy (in priority order):
-    1. Direct Hebrew lookup via TEAM_HE_TO_EN
-    2. Substring match of the caller's English name against the Hebrew-to-
-       English value strings stored in TEAM_HE_TO_EN
+    1. Direct Hebrew lookup via team_registry
+    2. Canonical name resolution on both sides via resolve_team
     """
     home_he = event["home_name_he"]
     away_he = event["away_name_he"]
@@ -320,6 +318,34 @@ def _events_match(
         return home_canonical == req_home_canonical and away_canonical == req_away_canonical
 
     return False
+
+
+# ---------------------------------------------------------------------------
+# Shared 2-step API flow
+# ---------------------------------------------------------------------------
+
+def _fetch_all_soccer_events() -> tuple[list[Dict[str, Any]], Optional[str]]:
+    """Execute the 2-step winner.co.il mobile API flow and parse soccer events.
+
+    Returns:
+        (events, error) — events is a list of parsed soccer event dicts,
+        error is a string describing the failure or None on success.
+    """
+    hashes_data = _get_mobile_hashes()
+    if hashes_data is None:
+        return [], "Failed to reach winner.co.il GetCMobileHashes endpoint"
+
+    hashes_list = hashes_data.get("Hashes") or []
+    line_data = _get_mobile_line(hashes=hashes_list)
+    if line_data is None:
+        return [], "Failed to reach winner.co.il GetCMobileLine endpoint"
+
+    try:
+        events = _parse_soccer_events(line_data)
+    except Exception as exc:
+        return [], f"Error parsing winner.co.il response: {exc}"
+
+    return events, None
 
 
 # ---------------------------------------------------------------------------
@@ -350,33 +376,9 @@ def fetch_winner_odds(home_team_name: str, away_team_name: str) -> Dict[str, Any
             home_name_he (str | None), away_name_he (str | None),
             error (str | None)
     """
-    # Step 1 — obtain hashes
-    hashes_data = _get_mobile_hashes()
-    if hashes_data is None:
-        return _error_dict(
-            home_team_name,
-            away_team_name,
-            "Failed to reach winner.co.il GetCMobileHashes endpoint",
-        )
-
-    # Step 2 — fetch full line, forwarding hashes from Step 1
-    hashes_list = hashes_data.get("Hashes") or []
-    line_data = _get_mobile_line(hashes=hashes_list)
-    if line_data is None:
-        return _error_dict(
-            home_team_name,
-            away_team_name,
-            "Failed to reach winner.co.il GetCMobileLine endpoint",
-        )
-
-    try:
-        events = _parse_soccer_events(line_data)
-    except Exception as exc:
-        return _error_dict(
-            home_team_name,
-            away_team_name,
-            f"Error parsing winner.co.il response: {exc}",
-        )
+    events, error = _fetch_all_soccer_events()
+    if error:
+        return _error_dict(home_team_name, away_team_name, error)
 
     for event in events:
         if _events_match(event, home_team_name, away_team_name):
@@ -416,21 +418,9 @@ def fetch_all_winner_odds(league: Optional[str] = None) -> Dict[str, Any]:
             error: str | None — set on API failure so callers can distinguish
                    empty results from fetch errors
     """
-    # Step 1 — obtain hashes
-    hashes_data = _get_mobile_hashes()
-    if hashes_data is None:
-        return {"events": [], "error": "Failed to reach winner.co.il GetCMobileHashes endpoint"}
-
-    # Step 2 — fetch full line, forwarding hashes from Step 1
-    hashes_list = hashes_data.get("Hashes") or []
-    line_data = _get_mobile_line(hashes=hashes_list)
-    if line_data is None:
-        return {"events": [], "error": "Failed to reach winner.co.il GetCMobileLine endpoint"}
-
-    try:
-        events = _parse_soccer_events(line_data)
-    except Exception as exc:
-        return {"events": [], "error": f"Error parsing winner.co.il response: {exc}"}
+    events, error = _fetch_all_soccer_events()
+    if error:
+        return {"events": [], "error": error}
 
     results: list[Dict[str, Any]] = []
     league_filter = league.lower() if league else None
@@ -439,7 +429,6 @@ def fetch_all_winner_odds(league: Optional[str] = None) -> Dict[str, Any]:
         if league_filter and league_filter not in event["league_en"].lower():
             continue
 
-        # Resolve English team names from Hebrew via team_registry
         home_en = resolve_team(event["home_name_he"]) or event["home_name_he"]
         away_en = resolve_team(event["away_name_he"]) or event["away_name_he"]
 

@@ -1,14 +1,16 @@
 """FotMob API client with team name resolution."""
 
-import hashlib
 import base64
+import hashlib
 import json
 import time
 import urllib.parse
-from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 import requests
+
+from soccersmartbet.team_registry import normalize_team_name
 
 FOTMOB_LEAGUES = {
     "Premier League": 47, "La Liga": 87, "Serie A": 55, "Bundesliga": 54,
@@ -41,7 +43,6 @@ class FotMobClient:
         self._team_cache: Dict[str, Dict[str, Any]] = {}
 
     def _normalize(self, name: str) -> str:
-        from soccersmartbet.team_registry import normalize_team_name
         return normalize_team_name(name)
 
     def _request(self, endpoint: str, params: dict = None) -> Optional[dict]:
