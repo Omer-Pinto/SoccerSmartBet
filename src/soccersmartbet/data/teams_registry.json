@@ -1,0 +1,292 @@
+[
+  {
+    "canonical_name": "Manchester City",
+    "short_name": "Man City",
+    "aliases": ["Man City", "MCFC", "City", "Manchester City FC"],
+    "football_data_id": 65,
+    "fotmob_id": 8456,
+    "winner_name_he": "מנצ'סטר סיטי",
+    "league": "Premier League",
+    "country": "England"
+  },
+  {
+    "canonical_name": "Arsenal",
+    "short_name": "Arsenal",
+    "aliases": ["Arsenal FC", "The Gunners", "AFC"],
+    "football_data_id": 57,
+    "fotmob_id": 9825,
+    "winner_name_he": "ארסנל",
+    "league": "Premier League",
+    "country": "England"
+  },
+  {
+    "canonical_name": "Liverpool",
+    "short_name": "Liverpool",
+    "aliases": ["Liverpool FC", "The Reds", "LFC"],
+    "football_data_id": 64,
+    "fotmob_id": 8650,
+    "winner_name_he": "ליברפול",
+    "league": "Premier League",
+    "country": "England"
+  },
+  {
+    "canonical_name": "Chelsea",
+    "short_name": "Chelsea",
+    "aliases": ["Chelsea FC", "The Blues", "CFC"],
+    "football_data_id": 61,
+    "fotmob_id": 8455,
+    "winner_name_he": "צ'לסי",
+    "league": "Premier League",
+    "country": "England"
+  },
+  {
+    "canonical_name": "Tottenham Hotspur",
+    "short_name": "Spurs",
+    "aliases": ["Spurs", "Tottenham", "THFC", "Tottenham Hotspur FC"],
+    "football_data_id": 73,
+    "fotmob_id": 8586,
+    "winner_name_he": "טוטנהאם",
+    "league": "Premier League",
+    "country": "England"
+  },
+  {
+    "canonical_name": "Manchester United",
+    "short_name": "Man Utd",
+    "aliases": ["Man Utd", "Man United", "MUFC", "Manchester United FC", "The Red Devils"],
+    "football_data_id": 66,
+    "fotmob_id": 10260,
+    "winner_name_he": "מנצ'סטר יונייטד",
+    "league": "Premier League",
+    "country": "England"
+  },
+  {
+    "canonical_name": "Newcastle United",
+    "short_name": "Newcastle",
+    "aliases": ["Newcastle", "NUFC", "Newcastle United FC", "The Magpies"],
+    "football_data_id": 67,
+    "fotmob_id": 10261,
+    "winner_name_he": "ניוקאסל",
+    "league": "Premier League",
+    "country": "England"
+  },
+  {
+    "canonical_name": "Aston Villa",
+    "short_name": "Villa",
+    "aliases": ["Villa", "AVFC", "Aston Villa FC", "The Villans"],
+    "football_data_id": 58,
+    "fotmob_id": 8697,
+    "winner_name_he": "אסטון וילה",
+    "league": "Premier League",
+    "country": "England"
+  },
+  {
+    "canonical_name": "Brighton & Hove Albion",
+    "short_name": "Brighton",
+    "aliases": ["Brighton", "BHAFC", "Brighton & Hove Albion FC", "The Seagulls"],
+    "football_data_id": 397,
+    "fotmob_id": 10204,
+    "winner_name_he": "ברייטון",
+    "league": "Premier League",
+    "country": "England"
+  },
+  {
+    "canonical_name": "West Ham United",
+    "short_name": "West Ham",
+    "aliases": ["West Ham", "WHUFC", "West Ham United FC", "The Hammers"],
+    "football_data_id": 563,
+    "fotmob_id": 8654,
+    "winner_name_he": "ווסט האם",
+    "league": "Premier League",
+    "country": "England"
+  },
+  {
+    "canonical_name": "FC Barcelona",
+    "short_name": "Barcelona",
+    "aliases": ["Barcelona", "Barca", "Barça", "Barca", "FCB"],
+    "football_data_id": 81,
+    "fotmob_id": 8634,
+    "winner_name_he": "ברצלונה",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Real Madrid",
+    "short_name": "Real Madrid",
+    "aliases": ["Real Madrid CF", "Madrid", "Los Blancos", "Los Merengues"],
+    "football_data_id": 86,
+    "fotmob_id": 8633,
+    "winner_name_he": "ריאל מדריד",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Atletico Madrid",
+    "short_name": "Atletico",
+    "aliases": ["Atletico", "Atlético Madrid", "Atlético de Madrid", "Club Atletico de Madrid", "ATM"],
+    "football_data_id": 78,
+    "fotmob_id": 9906,
+    "winner_name_he": "אטלטיקו מדריד",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Real Sociedad",
+    "short_name": "Sociedad",
+    "aliases": ["Real Sociedad CF", "La Real"],
+    "football_data_id": 92,
+    "fotmob_id": 9864,
+    "winner_name_he": "ריאל סוסיאדד",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Athletic Bilbao",
+    "short_name": "Athletic",
+    "aliases": ["Athletic Club", "Athletic Club Bilbao", "Los Leones"],
+    "football_data_id": 77,
+    "fotmob_id": 9862,
+    "winner_name_he": "אתלטיק בילבאו",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Villarreal",
+    "short_name": "Villarreal",
+    "aliases": ["Villarreal CF", "El Submarino Amarillo", "Yellow Submarine"],
+    "football_data_id": 94,
+    "fotmob_id": 9868,
+    "winner_name_he": "וילארריאל",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Inter Milan",
+    "short_name": "Inter",
+    "aliases": ["Inter", "Internazionale", "FC Internazionale Milano", "Nerazzurri"],
+    "football_data_id": 108,
+    "fotmob_id": 8636,
+    "winner_name_he": "אינטר מילאן",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "AC Milan",
+    "short_name": "Milan",
+    "aliases": ["Milan", "Rossoneri", "ACM"],
+    "football_data_id": 98,
+    "fotmob_id": 8564,
+    "winner_name_he": "אם מילאן",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Juventus",
+    "short_name": "Juventus",
+    "aliases": ["Juve", "Bianconeri", "La Vecchia Signora", "Juventus FC"],
+    "football_data_id": 109,
+    "fotmob_id": null,
+    "winner_name_he": "יובנטוס",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Napoli",
+    "short_name": "Napoli",
+    "aliases": ["SSC Napoli", "Gli Azzurri", "Partenopei"],
+    "football_data_id": 113,
+    "fotmob_id": 9875,
+    "winner_name_he": "נאפולי",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "AS Roma",
+    "short_name": "Roma",
+    "aliases": ["Roma", "Giallorossi", "ASR"],
+    "football_data_id": 100,
+    "fotmob_id": 8637,
+    "winner_name_he": "רומא",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Lazio",
+    "short_name": "Lazio",
+    "aliases": ["SS Lazio", "Biancocelesti"],
+    "football_data_id": 110,
+    "fotmob_id": 8638,
+    "winner_name_he": "לאציו",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Bayern Munich",
+    "short_name": "Bayern",
+    "aliases": ["Bayern", "FC Bayern", "FC Bayern Munich", "FC Bayern Munchen", "Die Bayern", "FCB"],
+    "football_data_id": 5,
+    "fotmob_id": 9823,
+    "winner_name_he": "בייר מינכן",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "Borussia Dortmund",
+    "short_name": "Dortmund",
+    "aliases": ["Dortmund", "BVB", "BVB 09", "Die Borussen"],
+    "football_data_id": 4,
+    "fotmob_id": 9789,
+    "winner_name_he": "בורוסיה דורטמונד",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "RB Leipzig",
+    "short_name": "Leipzig",
+    "aliases": ["Leipzig", "Red Bull Leipzig", "Die Roten Bullen"],
+    "football_data_id": 721,
+    "fotmob_id": null,
+    "winner_name_he": "לייפציג",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "Bayer Leverkusen",
+    "short_name": "Leverkusen",
+    "aliases": ["Leverkusen", "Bayer 04", "Die Werkself", "Bayer 04 Leverkusen"],
+    "football_data_id": 3,
+    "fotmob_id": null,
+    "winner_name_he": "באייר לברקוזן",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "Paris Saint-Germain",
+    "short_name": "PSG",
+    "aliases": ["PSG", "Paris SG", "Paris Saint Germain", "Les Parisiens"],
+    "football_data_id": 524,
+    "fotmob_id": null,
+    "winner_name_he": "פריז סן ז'רמן",
+    "league": "Ligue 1",
+    "country": "France"
+  },
+  {
+    "canonical_name": "AS Monaco",
+    "short_name": "Monaco",
+    "aliases": ["Monaco", "ASM"],
+    "football_data_id": 548,
+    "fotmob_id": null,
+    "winner_name_he": "מונקו",
+    "league": "Ligue 1",
+    "country": "France"
+  },
+  {
+    "canonical_name": "Olympique de Marseille",
+    "short_name": "Marseille",
+    "aliases": ["Marseille", "OM", "L'OM", "Olympique Marseille"],
+    "football_data_id": 516,
+    "fotmob_id": null,
+    "winner_name_he": "מרסיי",
+    "league": "Ligue 1",
+    "country": "France"
+  }
+]
