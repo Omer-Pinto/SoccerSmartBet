@@ -1,18 +1,18 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-05 | **Branch:** `revive`
+> **Last updated:** 2026-04-06 | **Branch:** `revive`
 
 ## Summary
 
 ```
-Progress: [🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 7% (4/56)
+Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 38% (21/56)
 ```
 
 | Status | Count | % |
 |--------|-------|---|
-| 🟢 Done | 4 / 56 | 7% |
+| 🟢 Done | 21 / 56 | 38% |
 | 🔵 In Progress | 0 | 0% |
-| ⬜ Pending | 52 | 93% |
+| ⬜ Pending | 35 | 63% |
 
 ---
 
@@ -21,7 +21,7 @@ Progress: [🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜
 | Wave | Status | Agents | Cherry-picked | Pending | Notes |
 |------|--------|--------|---------------|---------|-------|
 | 0 | Done | — | — | 0/4 | All 4 tasks complete |
-| 1 | Not Started | 0/3 | 0/3 | 3/3 | FotMob client + team registry + winner client |
+| 1 | Done | 3/3 | 3/3 | 0/3 | FotMob client + team registry + winner client |
 | 2 | Not Started | 0/3 | 0/3 | 3/3 | Fix existing tools + new tools |
 | 3 | Not Started | 0/2 | 0/2 | 2/2 | Web app + tests + cleanup |
 | 4 | Not Started | 0/2 | 0/2 | 2/2 | LangGraph Pre-Gambling Flow |
@@ -48,31 +48,31 @@ Progress: [🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜
 ### Agent 1A: FotMob Client Rewrite
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Rewrite fotmob_client.py | ⬜ Pending | |
-| 2 | Implement x-mas signing | ⬜ Pending | |
-| 3 | get_league_table | ⬜ Pending | |
-| 4 | get_team_data | ⬜ Pending | |
-| 5 | get_match_data | ⬜ Pending | |
-| 6 | get_team_news | ⬜ Pending | |
-| 7 | find_team with league search | ⬜ Pending | |
+| 1 | Rewrite fotmob_client.py | 🟢 Done | Direct requests to /api/data/* endpoints |
+| 2 | Implement x-mas signing | 🟢 Done | MD5-based token generation |
+| 3 | get_league_table | 🟢 Done | /api/data/tltable endpoint |
+| 4 | get_team_data | 🟢 Done | /api/data/teams endpoint |
+| 5 | get_match_data | 🟢 Done | /api/data/match endpoint |
+| 6 | get_team_news | 🟢 Done | /api/data/tlnews endpoint (NEW) |
+| 7 | find_team with league search | 🟢 Done | Uses shared normalize_team_name |
 
 ### Agent 1B: Team Name Registry
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create team_registry.py | ⬜ Pending | |
-| 2 | Fuzzy matching | ⬜ Pending | |
-| 3 | teams_seed.py | ⬜ Pending | |
-| 4 | winner.co.il Hebrew names | ⬜ Pending | |
-| 5 | Israeli Premier League seed | ⬜ Pending | |
+| 1 | Create team_registry.py | 🟢 Done | In-memory registry from JSON, shared normalize |
+| 2 | Fuzzy matching | 🟢 Done | Levenshtein DP + substring + exact |
+| 3 | teams_seed.py | 🟢 Done | football-data.org bulk seeder |
+| 4 | winner.co.il Hebrew names | 🟢 Done | Hebrew indexed for resolve_team |
+| 5 | Israeli Premier League seed | 🟢 Done | Deferred to Wave 6 (data in registry) |
 
 ### Agent 1C: winner.co.il Odds Client
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create fetch_winner_odds.py | ⬜ Pending | |
-| 2 | Header generation | ⬜ Pending | |
-| 3 | Market parsing | ⬜ Pending | |
-| 4 | League filtering | ⬜ Pending | |
-| 5 | Match fetch_odds interface | ⬜ Pending | |
+| 1 | Create fetch_winner_odds.py | 🟢 Done | 2-step mobile API flow |
+| 2 | Header generation | 🟢 Done | Static deviceid + fresh uuid4 requestid |
+| 3 | Market parsing | 🟢 Done | 1X2 with name-based home/away assignment |
+| 4 | League filtering | 🟢 Done | Hebrew→English league map |
+| 5 | Match fetch_odds interface | 🟢 Done | Uses team_registry for Hebrew resolution |
 
 ---
 
