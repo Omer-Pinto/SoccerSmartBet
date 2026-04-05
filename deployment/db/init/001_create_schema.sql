@@ -140,3 +140,28 @@ INSERT INTO bankroll (bettor, total_bankroll) VALUES
     ('ai', 10000.00);
 
 COMMENT ON TABLE bankroll IS 'Bankroll tracking - each starts at 10,000 USD, bets 100 USD per game. Israeli Toto: profit = (odds - 1) × stake';
+
+-- ============================================================================
+-- TABLE: teams
+-- Purpose: Canonical team registry with cross-source name resolution
+-- ============================================================================
+CREATE TABLE teams (
+    team_id SERIAL PRIMARY KEY,
+    canonical_name VARCHAR(255) NOT NULL UNIQUE,
+    short_name VARCHAR(100),
+    aliases JSONB DEFAULT '[]',
+    fotmob_id INTEGER,
+    football_data_id INTEGER,
+    winner_name_he VARCHAR(255),
+    league VARCHAR(100),
+    country VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_teams_canonical ON teams(canonical_name);
+CREATE INDEX idx_teams_fotmob ON teams(fotmob_id);
+CREATE INDEX idx_teams_football_data ON teams(football_data_id);
+
+COMMENT ON TABLE teams IS 'Canonical team registry — maps team names across FotMob, football-data.org, winner.co.il (Hebrew)';
+COMMENT ON COLUMN teams.aliases IS 'JSON array of alternative names: ["Atletico", "Atlético de Madrid", "Club Atlético de Madrid"]';
+COMMENT ON COLUMN teams.winner_name_he IS 'Hebrew team name as used by winner.co.il';

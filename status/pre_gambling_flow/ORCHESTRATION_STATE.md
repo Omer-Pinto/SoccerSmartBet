@@ -65,18 +65,18 @@
 
 | Task | Status | PR | Notes |
 |------|--------|-----|-------|
-| 3.1 Pre-Gambling Trigger | 🚀 IN PROGRESS | - | InfraDroid - APScheduler cron |
-| 3.2 Smart Game Picker Node | 🚀 IN PROGRESS | - | NodeBuilderDroid - AI agent for game selection |
-| 3.3 Fetch Lines from The Odds API | 🚀 IN PROGRESS | - | NodeBuilderDroid - betting lines fetcher |
-| 3.4 Persist Unfiltered Games | 🚀 IN PROGRESS | - | NodeBuilderDroid - DB insert for all games |
-| 3.5 Combine Results to Reports | 🚀 IN PROGRESS | - | NodeBuilderDroid - merge game/team reports |
-| 3.6 Persist Reports to DB | 🚀 IN PROGRESS | - | NodeBuilderDroid - save combined reports |
-| 3.7 Send Gambling Trigger | 🚀 IN PROGRESS | - | NodeBuilderDroid - trigger next flow |
+| 3.1 Pre-Gambling Trigger | ⏪ REVERTED | #39→#43 | Merged then reverted |
+| 3.2 Smart Game Picker Node | ⏪ REVERTED | #40→#42 | Merged then reverted |
+| 3.3 Fetch Lines from The Odds API | ❌ NOT STARTED | - | |
+| 3.4 Persist Unfiltered Games | ❌ NOT STARTED | - | |
+| 3.5 Combine Results to Reports | ❌ NOT STARTED | - | |
+| 3.6 Persist Reports to DB | ❌ NOT STARTED | - | |
+| 3.7 Send Gambling Trigger | ❌ NOT STARTED | - | |
 
-**Batch Goal:** Implement all 7 main flow nodes for the Pre-Gambling Flow
+**Batch Status:** REVERTED — PRs #39, #40 merged then reverted via #42, #43. Revival in progress on `revive` branch. See `docs/system_revive/` for new plan.
 
 ---
 
-## Pending Batches
+## Revival (2026-04-05)
 
-**Batch 7+:** Not started
+Work continues on `revive` branch with new wave-based plan. See `docs/system_revive/progress.md` for current status.
