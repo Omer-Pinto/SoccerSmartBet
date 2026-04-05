@@ -1,8 +1,13 @@
 """FotMob API client with team name resolution."""
 
+import hashlib
+import base64
+import json
+import time
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
-from mobfot import MobFot
+
+import requests
 
 FOTMOB_LEAGUES = {
     "Premier League": 47, "La Liga": 87, "Serie A": 55, "Bundesliga": 54,
@@ -15,9 +20,23 @@ _cache_time: Dict[int, datetime] = {}
 CACHE_TTL = timedelta(minutes=60)
 
 
+def _generate_xmas_header(url: str) -> str:
+    """Generate x-mas authentication header for FotMob API requests."""
+    epoch_ms = str(int(time.time() * 1000))
+    body = {
+        "url": url,
+        "code": epoch_ms,
+        "foo": "production:74ac2edaa7d42530fa49330efe1eedcfb21b555d"
+    }
+    body_json = json.dumps(body, separators=(',', ':'))
+    signature = hashlib.md5(body_json.encode()).hexdigest()
+    token = {"body": body, "signature": signature}
+    token_json = json.dumps(token, separators=(',', ':'))
+    return base64.b64encode(token_json.encode()).decode()
+
+
 class FotMobClient:
-    def __init__(self):
-        self._client = MobFot()
+    def __init__(self) -> None:
         self._team_cache: Dict[str, Dict[str, Any]] = {}
 
     def _normalize(self, name: str) -> str:
@@ -28,12 +47,61 @@ class FotMobClient:
             if n.startswith(p): n = n[len(p):]
         return n.replace("é", "e").replace("á", "a").replace("ó", "o").replace("ñ", "n").strip()
 
+    def _request(self, endpoint: str, params: dict = None) -> Optional[dict]:
+        url = f"https://www.fotmob.com{endpoint}"
+        if params:
+            url += "?" + "&".join(f"{k}={v}" for k, v in params.items())
+        headers = {
+            "x-mas": _generate_xmas_header(url),
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code in (401, 403):
+            raise PermissionError(
+                f"FotMob auth failed ({response.status_code}) — x-mas key may be rotated"
+            )
+        response.raise_for_status()
+        return response.json()
+
+    def get_league_table(self, league_id: int) -> Optional[dict]:
+        """Fetch raw league table data from FotMob."""
+        try:
+            return self._request("/api/data/tltable", params={"leagueId": league_id})
+        except Exception:
+            return None
+
+    def get_team_data(self, team_id: int) -> Optional[Dict[str, Any]]:
+        """Fetch team data including venue, form, and match info."""
+        try:
+            return self._request("/api/data/teams", params={"id": team_id})
+        except Exception:
+            return None
+
+    def get_match_data(self, match_id: int) -> Optional[Dict[str, Any]]:
+        """Fetch match details including lineup data."""
+        try:
+            return self._request("/api/data/match", params={"id": match_id})
+        except Exception:
+            return None
+
+    def get_team_news(self, team_id: int) -> Optional[Dict[str, Any]]:
+        """Fetch latest news articles for a team."""
+        try:
+            return self._request(
+                "/api/data/tlnews",
+                params={"id": team_id, "type": "team", "language": "en", "startIndex": 0}
+            )
+        except Exception:
+            return None
+
     def _load_league(self, league_id: int) -> Dict[str, Any]:
         now = datetime.now()
         if league_id in _league_cache and now - _cache_time.get(league_id, datetime.min) < CACHE_TTL:
             return _league_cache[league_id]
         try:
-            data = self._client.get_league(league_id)
+            data = self.get_league_table(league_id)
+            if not data:
+                return {}
             tables = data.get("table", [])
             if not tables:
                 return {}
@@ -71,25 +139,15 @@ class FotMobClient:
                     return result
         return None
 
-    def get_team_data(self, team_id: int) -> Optional[Dict[str, Any]]:
-        try:
-            return self._client.get_team(team_id)
-        except Exception:
-            return None
-
-    def get_match_data(self, match_id: int) -> Optional[Dict[str, Any]]:
-        try:
-            return self._client.get_match_details(match_id)
-        except Exception:
-            return None
-
     def get_league_standings(self, league_id: int) -> List[Dict[str, Any]]:
+        """Return sorted list of teams in league standings."""
         teams = list(self._load_league(league_id).values())
         teams.sort(key=lambda x: x.get("position", 999))
         return teams
 
 
 _client: Optional[FotMobClient] = None
+
 
 def get_fotmob_client() -> FotMobClient:
     global _client

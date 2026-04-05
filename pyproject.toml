@@ -9,7 +9,7 @@ dependencies = [
     "langgraph>=1.0.0",
     "langsmith>=0.1.0",
     "lxml>=6.0.2",
-    "mobfot>=1.4.0",
+    "requests>=2.31.0",
     "pytest>=9.0.1",
     "python-dotenv>=1.0.0",
 ]
