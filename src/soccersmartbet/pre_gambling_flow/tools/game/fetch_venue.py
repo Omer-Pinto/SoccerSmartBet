@@ -83,14 +83,19 @@ def fetch_venue(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
         # FotMob venue data structure
         widget = venue.get("widget", {})
 
+        # Capacity and surface are in statPairs, not widget
+        stat_pairs = venue.get("statPairs", [])
+        capacity = next((v for k, v in stat_pairs if k == "Capacity"), None)
+        surface = next((v for k, v in stat_pairs if k == "Surface"), None)
+
         return {
             "home_team": team_info.get("name", home_team_name),
             "away_team": away_team_name,
             "venue_name": widget.get("name"),
             "venue_city": widget.get("city"),
-            "venue_capacity": widget.get("capacity"),
+            "venue_capacity": capacity,
             "venue_address": None,  # FotMob doesn't provide address
-            "venue_surface": None,  # FotMob doesn't provide surface type
+            "venue_surface": surface,
             "error": None,
         }
 

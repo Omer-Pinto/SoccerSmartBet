@@ -81,6 +81,20 @@ def fetch_weather(home_team_name: str, away_team_name: str, match_datetime: str)
                 f"Venue city not found for team '{home_team_name}'",
             )
 
+        # Step 2: Extract lat/lon directly from venue widget location field
+        location = widget.get("location", [])
+        if len(location) >= 2:
+            latitude = float(location[0])
+            longitude = float(location[1])
+        else:
+            return _error_response(
+                home_team_name,
+                away_team_name,
+                venue_city,
+                match_datetime,
+                f"Venue coordinates not available for '{home_team_name}'",
+            )
+
     except Exception as e:
         return _error_response(
             home_team_name,
@@ -88,59 +102,6 @@ def fetch_weather(home_team_name: str, away_team_name: str, match_datetime: str)
             None,
             match_datetime,
             f"Error fetching venue: {str(e)}",
-        )
-
-    # Step 2: Get coordinates using Nominatim geocoding
-    try:
-        geocode_url = "https://nominatim.openstreetmap.org/search"
-        geocode_params = {"q": venue_city, "format": "json", "limit": 1}
-        geocode_headers = {"User-Agent": "SoccerSmartBet/1.0"}
-
-        geocode_response = requests.get(
-            geocode_url,
-            params=geocode_params,
-            headers=geocode_headers,
-            timeout=TIMEOUT,
-        )
-
-        if geocode_response.status_code != 200:
-            return _error_response(
-                home_team_name,
-                away_team_name,
-                venue_city,
-                match_datetime,
-                f"Geocoding API error: {geocode_response.status_code}",
-            )
-
-        geocode_data = geocode_response.json()
-
-        if not geocode_data:
-            return _error_response(
-                home_team_name,
-                away_team_name,
-                venue_city,
-                match_datetime,
-                f"City '{venue_city}' not found by geocoding service",
-            )
-
-        latitude = float(geocode_data[0]["lat"])
-        longitude = float(geocode_data[0]["lon"])
-
-    except requests.Timeout:
-        return _error_response(
-            home_team_name,
-            away_team_name,
-            venue_city,
-            match_datetime,
-            "Geocoding API timeout",
-        )
-    except Exception as e:
-        return _error_response(
-            home_team_name,
-            away_team_name,
-            venue_city,
-            match_datetime,
-            f"Geocoding error: {str(e)}",
         )
 
     # Step 3: Parse match datetime
