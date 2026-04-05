@@ -21,7 +21,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 | Wave | Status | Agents | Cherry-picked | Pending | Notes |
 |------|--------|--------|---------------|---------|-------|
 | 0 | Done | — | — | 0/4 | All 4 tasks complete |
-| 1 | Done | 3/3 | 3/3 | 0/3 | FotMob client + team registry + winner client |
+| 1 | Done | 3/3 | 3/3 | 0/3 | FotMob client + team registry + winner client (5 deferred items below) |
 | 2 | Not Started | 0/3 | 0/3 | 3/3 | Fix existing tools + new tools |
 | 3 | Not Started | 0/2 | 0/2 | 2/2 | Web app + tests + cleanup |
 | 4 | Not Started | 0/2 | 0/2 | 2/2 | LangGraph Pre-Gambling Flow |
@@ -73,6 +73,15 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 | 3 | Market parsing | 🟢 Done | 1X2 with name-based home/away assignment |
 | 4 | League filtering | 🟢 Done | Hebrew→English league map |
 | 5 | Match fetch_odds interface | 🟢 Done | Uses team_registry for Hebrew resolution |
+
+### Wave 1 — Deferred Items (DOCUMENT & DEFER from review)
+| # | Item | Owner | Notes |
+|---|------|-------|-------|
+| D1 | Verify inferred fotmob_ids for 9 clubs | Agent 1B scope | Newcastle(10261), Villa(8697), Brighton(10204), West Ham(8654), Sociedad(9864), Athletic(9862), Villarreal(9868), Roma(8637), Lazio(8638) — need live FotMob API verification |
+| D2 | Substring match false-positive risk | Agent 1B scope | Bidirectional `query in key or key in query` can match "Roma" inside "Deportivo La Roma". Add inline comment noting risk. |
+| D3 | winner.co.il response envelope shape | Agent 1C scope | Field names (Outcomes/Selections, Price/Odds, EventDate/StartTime) are guesses. Confirm with live call. |
+| D4 | 1X2 market identification heuristic | Agent 1C scope | Identified by "3 outcomes, one containing X/תיקו". Add comment noting assumption, tighten when MarketType confirmed. |
+| D5 | Broad except Exception: return None | Agent 1A scope | All FotMob public methods swallow all exceptions identically. Add structured logging when logging layer exists. |
 
 ---
 
