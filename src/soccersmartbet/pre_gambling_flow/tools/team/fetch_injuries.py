@@ -1,13 +1,44 @@
-"""Fetch team's current injuries using FotMob API."""
+"""Fetch team's current injuries using FotMob squad data."""
 
-from typing import Dict, Any
+from typing import Any, Dict, List
+
 from ..fotmob_client import get_fotmob_client
+
+# Mapping from FotMob injury id to human-readable type.
+# IDs observed in live data; unmapped ids fall back to "Injury".
+_INJURY_TYPE_MAP: Dict[str, str] = {
+    "30": "Muscle Injury",
+    "42": "Knock / Fitness",
+    "69": "Ligament / Knee",
+    "76": "Long-Term Injury",
+    "101": "Broken Bone",
+}
+
+# Squad group titles that are actual players (skip the coach group).
+_PLAYER_GROUPS = {"keepers", "defenders", "midfielders", "attackers"}
 
 
 def fetch_injuries(team_name: str) -> Dict[str, Any]:
-    """Fetch team's current injury/unavailability list from upcoming match."""
+    """Fetch team's current injury list from squad data.
+
+    Reads ``squad.squad[].members[].injury`` — only players with a non-None
+    ``injury`` value are included in the result.
+
+    Args:
+        team_name: Team name (e.g., "Barcelona", "Manchester City").
+
+    Returns:
+        Dictionary with keys:
+            team_name (str): Resolved team name.
+            injuries (list[dict]): Each entry has ``player_name``,
+                ``position_group``, ``injury_type``, and ``expected_return``.
+            total_injuries (int): Count of injured players.
+            source (str): Always ``"squad"`` on success.
+            error (str | None): Error message or ``None`` on success.
+    """
     try:
         client = get_fotmob_client()
+
         team_info = client.find_team(team_name)
         if not team_info:
             return _error(team_name, f"Team '{team_name}' not found")
@@ -16,55 +47,38 @@ def fetch_injuries(team_name: str) -> Dict[str, Any]:
         if not team_data:
             return _error(team_name, "Could not fetch team data")
 
-        next_match = team_data.get("overview", {}).get("nextMatch", {})
-        match_id = next_match.get("id")
-        if not match_id:
-            return _result(team_info.get("name", team_name), [], "no_upcoming_match")
+        squad_groups: List[Dict[str, Any]] = (
+            team_data.get("squad", {}).get("squad", [])
+        )
+        if not squad_groups:
+            return _result(team_info.get("name", team_name), [], "squad_unavailable")
 
-        match_data = client.get_match_data(match_id)
-        if not match_data:
-            return _result(team_info.get("name", team_name), [], "match_data_unavailable")
+        injuries: List[Dict[str, Any]] = []
+        for group in squad_groups:
+            group_title: str = group.get("title", "").lower()
+            if group_title not in _PLAYER_GROUPS:
+                continue
+            for member in group.get("members", []):
+                injury = member.get("injury")
+                if not injury:
+                    continue
+                injury_id = str(injury.get("id", ""))
+                injuries.append(
+                    {
+                        "player_name": member.get("name", "Unknown"),
+                        "position_group": group_title,
+                        "injury_type": _INJURY_TYPE_MAP.get(injury_id, "Injury"),
+                        "expected_return": injury.get("expectedReturn", "Unknown"),
+                    }
+                )
 
-        lineup = match_data.get("content", {}).get("lineup", {})
-        if not lineup:
-            return _result(team_info.get("name", team_name), [], "lineup_not_available")
+        return _result(team_info.get("name", team_name), injuries, "squad")
 
-        # Find our team in lineup (home or away)
-        team_id = team_info["id"]
-        home_team = lineup.get("homeTeam", {})
-        away_team = lineup.get("awayTeam", {})
-
-        # Check team IDs first, fallback to name matching
-        if home_team.get("id") == team_id:
-            unavailable = home_team.get("unavailable", [])
-        elif away_team.get("id") == team_id:
-            unavailable = away_team.get("unavailable", [])
-        else:
-            # Fallback to name matching
-            team_normalized = team_info.get("name", "").lower()
-            if team_normalized in home_team.get("name", "").lower():
-                unavailable = home_team.get("unavailable", [])
-            elif team_normalized in away_team.get("name", "").lower():
-                unavailable = away_team.get("unavailable", [])
-            else:
-                return _result(team_info.get("name", team_name), [], "team_not_in_lineup")
-
-        injuries = [
-            {
-                "player_name": p.get("name", "Unknown"),
-                "injury_type": p.get("unavailability", {}).get("type", "unknown"),
-                "expected_return": p.get("unavailability", {}).get("expectedReturn", "Unknown"),
-            }
-            for p in unavailable
-        ]
-
-        return _result(team_info.get("name", team_name), injuries, "upcoming_match")
-
-    except Exception as e:
-        return _error(team_name, str(e))
+    except Exception as exc:
+        return _error(team_name, str(exc))
 
 
-def _result(team_name: str, injuries: list, source: str) -> Dict[str, Any]:
+def _result(team_name: str, injuries: List[Dict[str, Any]], source: str) -> Dict[str, Any]:
     return {
         "team_name": team_name,
         "injuries": injuries,
