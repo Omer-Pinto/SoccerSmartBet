@@ -100,7 +100,11 @@ class FotMobClient:
             data = self.get_league_table(league_id)
             if not data:
                 return {}
-            tables = data.get("table", [])
+            # /api/data/tltable returns a list directly; guard against both shapes.
+            if isinstance(data, list):
+                tables = data
+            else:
+                tables = data.get("table", [])
             if not tables:
                 return {}
             teams = {}
