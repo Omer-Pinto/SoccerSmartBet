@@ -4,9 +4,11 @@ version = "0.1.0"
 description = "AI-assisted soccer betting analysis system"
 requires-python = ">=3.13"
 dependencies = [
+    "beautifulsoup4>=4.14.3",
     "langchain>=0.1.0",
     "langgraph>=1.0.0",
     "langsmith>=0.1.0",
+    "lxml>=6.0.2",
     "mobfot>=1.4.0",
     "pytest>=9.0.1",
     "python-dotenv>=1.0.0",
