@@ -37,16 +37,15 @@ def fetch_team_news(team_name: str, limit: int = 10) -> Dict[str, Any]:
         raw_articles: List[Dict[str, Any]] = news_data.get("data", [])
         total_available: int = news_data.get("totalItems", len(raw_articles))
 
-        articles: List[Dict[str, Any]] = []
-        for item in raw_articles[:limit]:
-            articles.append(
-                {
-                    "title": item.get("title", ""),
-                    "source": item.get("sourceStr", ""),
-                    "published": item.get("gmtTime", ""),
-                    "language": item.get("language", ""),
-                }
-            )
+        articles: List[Dict[str, Any]] = [
+            {
+                "title": item.get("title", ""),
+                "source": item.get("sourceStr", ""),
+                "published": item.get("gmtTime", ""),
+                "language": item.get("language", ""),
+            }
+            for item in raw_articles[:limit]
+        ]
 
         return {
             "team_name": team_info.get("name", team_name),

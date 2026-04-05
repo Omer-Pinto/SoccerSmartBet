@@ -22,7 +22,7 @@ def test_fetch_venue_barcelona() -> None:
     assert result["venue_city"] is not None, "venue_city should not be None"
     assert result["venue_capacity"] is not None, "venue_capacity should not be None"
     assert int(result["venue_capacity"]) > 0, "capacity must be positive"
-    assert "barcelona" in result["venue_city"].lower() or result["venue_city"] is not None
+    assert "barcelona" in result["venue_city"].lower()
 
 
 @pytest.mark.integration

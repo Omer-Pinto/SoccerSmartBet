@@ -26,9 +26,9 @@ def fetch_venue(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
             "away_team": "Tottenham",
             "venue_name": "Etihad Stadium",
             "venue_city": "Manchester",
-            "venue_capacity": 55097,
-            "venue_address": None,  # FotMob doesn't provide address
-            "venue_surface": None,  # FotMob doesn't provide surface
+            "venue_capacity": "55097",
+            "venue_address": None,
+            "venue_surface": "Grass",
             "error": None
         }
     """
