@@ -5,14 +5,18 @@
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜] 75% (42/56)
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 40% (22/56)
 ```
 
 | Status | Count | % |
 |--------|-------|---|
-| 🟢 Done | 42 / 56 | 75% |
-| 🔵 In Progress | 0 | 0% |
+| 🟢 Done | 22 / 56 | 40% |
+| 🟡 Partially Done | 20 | 36% |
 | ⬜ Pending | 14 | 25% |
+
+**Honest assessment**: Waves 0-2 are done (tools work). Wave 3 partially done
+(web app works but tests were mostly worthless — deleted). Waves 4-6 not started.
+No LangGraph flow code exists. No Telegram bot. No DB integration tested.
 
 ---
 
@@ -23,7 +27,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜�
 | 0 | Done | — | — | 0/4 | All 4 tasks complete |
 | 1 | Done | 3/3 | 3/3 | 0/3 | FotMob client + team registry + winner client (5 deferred items below) |
 | 2 | Done | 3/3 | 3/3 | 0/3 | Fix existing tools + new tools — 22/22 live tests pass |
-| 3 | Done | 2/2 | 2/2 | 0/2 | Web app + tests — 53/53 tests pass |
+| 3 | Partial | 2/2 | 2/2 | 0/2 | Web app works. Tests gutted — 6/10 deleted as worthless. |
 | 4 | Not Started | 0/2 | 0/2 | 2/2 | LangGraph Pre-Gambling Flow |
 | 5 | Not Started | 0/3 | 0/3 | 3/3 | Gambling + Post-Games + Offline Analysis |
 | 6 | Not Started | 0/1 | 0/1 | 1/1 | Competition expansion + polish |
