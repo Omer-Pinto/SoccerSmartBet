@@ -122,7 +122,7 @@ def fetch_match_data(request: MatchRequest):
     client.find_team(away_team)
 
     # Step 1: Get H2H data first (needed for match date)
-    h2h_result = _run_tool("fetch_h2h", fetch_h2h, home_team, away_team, 5)
+    h2h_result = _run_tool("fetch_h2h", fetch_h2h, home_team, away_team, 10)
 
     # Extract match date for other tools
     match_date = None
@@ -222,7 +222,7 @@ async def stream_match_data(request: MatchRequest):
 
         # H2H first — needed to extract match_date for other tools
         h2h_result = await loop.run_in_executor(
-            None, lambda: _run_tool("fetch_h2h", fetch_h2h, home_team, away_team, 5)
+            None, lambda: _run_tool("fetch_h2h", fetch_h2h, home_team, away_team, 10)
         )
         yield f"data: {json.dumps({'category': 'game', 'result': h2h_result.model_dump()})}\n\n"
 

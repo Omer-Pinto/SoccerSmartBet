@@ -371,11 +371,11 @@ function renderH2H(tool) {
 
     const { h2h_matches, home_team, away_team, total_h2h } = tool.data;
 
-    // Calculate summary
+    // Calculate summary — winner is now the user's input team name (or "DRAW")
     let homeWins = 0, draws = 0, awayWins = 0;
     (h2h_matches || []).forEach(m => {
-        if (m.winner === 'HOME_TEAM') homeWins++;
-        else if (m.winner === 'AWAY_TEAM') awayWins++;
+        if (m.winner === home_team) homeWins++;
+        else if (m.winner === away_team) awayWins++;
         else draws++;
     });
 
@@ -393,8 +393,8 @@ function renderH2H(tool) {
     h2hMatches.textContent = '';
     (h2h_matches || []).slice(0, 5).forEach(match => {
         const score = match.score_home !== null ? `${match.score_home} - ${match.score_away}` : 'N/A';
-        const winnerColor = match.winner === 'HOME_TEAM' ? 'var(--win-green)' :
-            match.winner === 'AWAY_TEAM' ? 'var(--loss-red)' : 'var(--draw-gray)';
+        const winnerColor = match.winner === home_team ? 'var(--win-green)' :
+            match.winner === away_team ? 'var(--loss-red)' : 'var(--draw-gray)';
 
         const matchDiv = createElement('div', 'h2h-match');
         matchDiv.appendChild(createElement('span', 'h2h-date', formatDate(match.date)));

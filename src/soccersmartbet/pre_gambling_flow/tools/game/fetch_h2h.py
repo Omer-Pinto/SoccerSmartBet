@@ -43,7 +43,7 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
                     "away_team": "Manchester City",
                     "score_home": 1,
                     "score_away": 3,
-                    "winner": "AWAY_TEAM"
+                    "winner": "Tottenham"
                 },
                 ...
             ],
@@ -192,9 +192,21 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
             winner = "DRAW"
             if score_home is not None and score_away is not None:
                 if score_home > score_away:
-                    winner = "HOME_TEAM"
+                    # home side of THIS historical match won — resolve to user's input name
+                    home_match_canonical = resolve_team(home) or home
+                    input_home_canonical = resolve_team(home_team_name) or home_team_name
+                    if normalize_team_name(home_match_canonical) == normalize_team_name(input_home_canonical):
+                        winner = home_team_name
+                    else:
+                        winner = away_team_name
                 elif score_away > score_home:
-                    winner = "AWAY_TEAM"
+                    # away side of THIS historical match won — resolve to user's input name
+                    away_match_canonical = resolve_team(away) or away
+                    input_home_canonical = resolve_team(home_team_name) or home_team_name
+                    if normalize_team_name(away_match_canonical) == normalize_team_name(input_home_canonical):
+                        winner = home_team_name
+                    else:
+                        winner = away_team_name
             
             h2h_matches.append({
                 "date": match_date_str,
