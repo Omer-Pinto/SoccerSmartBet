@@ -5,6 +5,7 @@ Clean interface: Accepts team names, returns 1/X/2 odds in decimal format.
 """
 
 import os
+import time
 from typing import Dict, Any
 import requests
 from dotenv import load_dotenv
@@ -17,14 +18,14 @@ ODDS_API_KEY = os.getenv("ODDS_API_KEY")
 BASE_URL = "https://api.the-odds-api.com/v4"
 TIMEOUT = 10
 
-# Major soccer leagues to search
+# Major soccer leagues to search — CL first (most commonly queried cross-league fixture)
 SOCCER_LEAGUES = [
+    "soccer_uefa_champs_league",     # Champions League FIRST
     "soccer_epl",                    # Premier League
     "soccer_spain_la_liga",          # La Liga
     "soccer_italy_serie_a",          # Serie A
     "soccer_germany_bundesliga",     # Bundesliga
     "soccer_france_ligue_one",       # Ligue 1
-    "soccer_uefa_champs_league",     # Champions League
     "soccer_uefa_europa_league",     # Europa League
 ]
 
@@ -97,6 +98,20 @@ def fetch_odds(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
                     },
                     timeout=TIMEOUT
                 )
+
+                # Retry once on 429 (rate limit) before moving on
+                if response.status_code == 429:
+                    time.sleep(2)
+                    response = requests.get(
+                        f"{BASE_URL}/sports/{sport_key}/odds/",
+                        params={
+                            "apiKey": ODDS_API_KEY,
+                            "regions": "eu",
+                            "markets": "h2h",
+                            "oddsFormat": "decimal"
+                        },
+                        timeout=TIMEOUT
+                    )
 
                 if response.status_code != 200:
                     continue  # Try next league

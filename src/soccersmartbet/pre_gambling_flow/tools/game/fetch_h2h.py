@@ -5,6 +5,7 @@ Clean interface: Accepts team names, returns historical match data.
 """
 
 import os
+import time
 from typing import Dict, Any
 import requests
 from dotenv import load_dotenv
@@ -78,15 +79,16 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
     try:
         # Step 1: Find next scheduled match between these teams
         # Search across all major competitions
+        # CL first — most commonly queried cross-league fixture; found in request 1
         search_urls = [
+            f"{BASE_URL}/competitions/CL/matches",   # Champions League FIRST
             f"{BASE_URL}/competitions/PL/matches",   # Premier League
             f"{BASE_URL}/competitions/PD/matches",   # La Liga
             f"{BASE_URL}/competitions/SA/matches",   # Serie A
             f"{BASE_URL}/competitions/BL1/matches",  # Bundesliga
             f"{BASE_URL}/competitions/FL1/matches",  # Ligue 1
-            f"{BASE_URL}/competitions/CL/matches",   # Champions League
         ]
-        
+
         upcoming_match = None
 
         # Resolve input names to canonical names for robust matching
@@ -95,10 +97,7 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
         home_input_norm = normalize_team_name(home_canonical)
         away_input_norm = normalize_team_name(away_canonical)
 
-        # Collect all candidate matches across competitions, then pick earliest
-        candidates = []
-
-        # Try each competition URL
+        # Try each competition URL; stop as soon as we find a match
         for url in search_urls:
             response = requests.get(
                 url,
@@ -107,12 +106,23 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
                 timeout=TIMEOUT
             )
 
+            # Retry once on 429 before moving on
+            if response.status_code == 429:
+                time.sleep(2)
+                response = requests.get(
+                    url,
+                    headers=headers,
+                    params={"status": "SCHEDULED"},
+                    timeout=TIMEOUT
+                )
+
             if response.status_code != 200:
                 continue  # Try next competition
 
             matches = response.json().get("matches", [])
 
-            # Find matches between these two teams
+            # Find matches between these two teams in this competition
+            candidates = []
             for match in matches:
                 # Skip placeholder matches where team names are not yet assigned
                 home_name = (match.get("homeTeam") or {}).get("name")
@@ -137,10 +147,11 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
                    (home_matches_input_away and away_matches_input_home):
                     candidates.append(match)
 
-        # Pick the earliest scheduled match among all candidates
-        if candidates:
-            candidates.sort(key=lambda m: m.get("utcDate") or "")
-            upcoming_match = candidates[0]
+            # Found the fixture in this competition — pick earliest and stop
+            if candidates:
+                candidates.sort(key=lambda m: m.get("utcDate") or "")
+                upcoming_match = candidates[0]
+                break
         
         if not upcoming_match:
             return {
