@@ -5,146 +5,141 @@
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 40% (22/56)
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 40%
 ```
 
-| Status | Count | % |
-|--------|-------|---|
-| 🟢 Done | 22 / 56 | 40% |
-| 🟡 Partially Done | 20 | 36% |
-| ⬜ Pending | 14 | 25% |
-
-**Honest assessment**: Waves 0-2 are done (tools work). Wave 3 partially done
-(web app works but tests were mostly worthless — deleted). Waves 4-6 not started.
-No LangGraph flow code exists. No Telegram bot. No DB integration tested.
+| What | Status |
+|------|--------|
+| 11 data tools (FotMob, football-data.org, The Odds API, winner.co.il) | Working |
+| Team registry (83 teams, Hebrew, fuzzy match, Israeli league) | Working |
+| Web app tool tester (SSE streaming, concurrent, dual odds) | Working |
+| DB schema (5 tables) | Written, never tested against real DB |
+| State + prompts + structured outputs | Written, never wired |
+| Pre-Gambling LangGraph flow | **NOT BUILT** — zero flow code |
+| Gambling Flow (Telegram + AI bets) | **NOT BUILT** — directory doesn't exist |
+| Post-Games Flow (results + P&L) | **NOT BUILT** — directory doesn't exist |
+| Offline Analysis Flow | **NOT BUILT** — directory doesn't exist |
 
 ---
 
 ## Wave Status
 
-| Wave | Status | Agents | Cherry-picked | Pending | Notes |
-|------|--------|--------|---------------|---------|-------|
-| 0 | Done | — | — | 0/4 | All 4 tasks complete |
-| 1 | Done | 3/3 | 3/3 | 0/3 | FotMob client + team registry + winner client (5 deferred items below) |
-| 2 | Done | 3/3 | 3/3 | 0/3 | Fix existing tools + new tools — 22/22 live tests pass |
-| 3 | Partial | 2/2 | 2/2 | 0/2 | Web app works. Tests gutted — 6/10 deleted as worthless. |
-| 4 | Not Started | 0/2 | 0/2 | 2/2 | LangGraph Pre-Gambling Flow |
-| 5 | Not Started | 0/3 | 0/3 | 3/3 | Gambling + Post-Games + Offline Analysis |
-| 6 | Not Started | 0/1 | 0/1 | 1/1 | Competition expansion + polish |
-
-**Wave status values:** `Not Started` → `In Progress` → `Cherry-picking` → `Verifying` → `Done`
+| Wave | Status | Notes |
+|------|--------|-------|
+| 0 | 🟢 Done | Setup, curation, schema, enrichment verification |
+| 1 | 🟢 Done | FotMob client, team registry, winner client. Heavy post-wave bug fixes. |
+| 2 | 🟢 Done | All 11 tools working against live APIs |
+| 3 | 🟡 Partial | Web app works (streaming, concurrent). Tests mostly deleted (4 kept of 10). |
+| 4 | ⬜ Not Started | Pre-Gambling LangGraph flow — no code exists |
+| 5 | ⬜ Not Started | Gambling + Post-Games + Offline — no code exists |
+| 6 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
 ---
 
-## Wave 0 — Setup + Tools Curation
+## Wave 0 — Setup + Tools Curation ✅
 
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 0.1 | Clean dead refs + deps | 🟢 Done | Removed APIFOOTBALL_API_KEY, pinned langgraph>=1.0.0, updated ORCHESTRATION_STATE |
-| 0.2 | Tools curation session | 🟢 Done | 1-11 IN, 12-13 OUT (Cloudflare), 14-15 STRETCH, 16-18 NO |
-| 0.3 | Schema update (teams table) | 🟢 Done | Added teams table to schema + deployment init |
-| 0.4 | Verify enrichment sources | 🟢 Done | FBref=403, Sofascore=403, FotMob news=works, FotMob topPlayers=empty |
+| # | Task | Status |
+|---|------|--------|
+| 0.1 | Clean dead refs + deps | 🟢 Done |
+| 0.2 | Tools curation session | 🟢 Done |
+| 0.3 | Schema update (teams table) | 🟢 Done |
+| 0.4 | Verify enrichment sources | 🟢 Done |
 
 ---
 
-## Wave 1 — Core Infrastructure
+## Wave 1 — Core Infrastructure ✅ (with major post-wave fixes)
 
-### Agent 1A: FotMob Client Rewrite
+### Agent 1A: FotMob Client
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Rewrite fotmob_client.py | 🟢 Done | Direct requests to /api/data/* endpoints |
-| 2 | Implement x-mas signing | 🟢 Done | MD5-based token generation |
-| 3 | get_league_table | 🟢 Done | /api/data/tltable endpoint |
-| 4 | get_team_data | 🟢 Done | /api/data/teams endpoint |
-| 5 | get_match_data | 🟢 Done | /api/data/match endpoint |
-| 6 | get_team_news | 🟢 Done | /api/data/tlnews endpoint (NEW) |
-| 7 | find_team with league search | 🟢 Done | Uses shared normalize_team_name |
+| 1 | Rewrite fotmob_client.py | 🟢 Done | x-mas signing, direct requests |
+| 2 | get_league_table | 🟢 Done | Fixed post-wave: response is list not dict |
+| 3 | get_team_data / get_match_data | 🟢 Done | |
+| 4 | get_team_news | 🟢 Done | |
+| 5 | find_team | 🟢 Done | Fixed post-wave: registry lookup for Bayern/PSG |
 
 ### Agent 1B: Team Name Registry
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create team_registry.py | 🟢 Done | In-memory registry from JSON, shared normalize |
-| 2 | Fuzzy matching | 🟢 Done | Levenshtein DP + substring + exact |
+| 1 | team_registry.py + fuzzy matching | 🟢 Done | Levenshtein + substring + exact |
+| 2 | teams_registry.json | 🟢 Done | 83 teams (was 29, expanded during bug fixes) |
 | 3 | teams_seed.py | 🟢 Done | football-data.org bulk seeder |
-| 4 | winner.co.il Hebrew names | 🟢 Done | Hebrew indexed for resolve_team |
-| 5 | Israeli Premier League seed | 🟢 Done | Deferred to Wave 6 (data in registry) |
+| 4 | Israeli Premier League (14 teams) | 🟢 Done | Originally Wave 6, done during bug fixes |
+| 5 | Hebrew name corrections | 🟢 Done | AC Milan=מילאן, Inter=אינטר, 38 teams added |
+| 6 | Hyphen/accent normalization | 🟢 Done | Saint-Germain vs Saint Germain etc. |
 
 ### Agent 1C: winner.co.il Odds Client
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create fetch_winner_odds.py | 🟢 Done | 2-step mobile API flow |
-| 2 | Header generation | 🟢 Done | Static deviceid + fresh uuid4 requestid |
-| 3 | Market parsing | 🟢 Done | 1X2 with name-based home/away assignment |
+| 1 | fetch_winner_odds.py | 🟢 Done | **Fully rewritten** post-wave |
+| 2 | API endpoint | 🟢 Done | www.winner.co.il/api/v2/publicapi/ (GET, session cookies) |
+| 3 | Market parsing | 🟢 Done | Flat markets list, 1X2 by mp field |
 | 4 | League filtering | 🟢 Done | Hebrew→English league map |
-| 5 | Match fetch_odds interface | 🟢 Done | Uses team_registry for Hebrew resolution |
+| 5 | fetch_all_winner_odds | 🟢 Done | Bulk fetch with optional league filter |
 
-### Wave 1 — Deferred Items (DOCUMENT & DEFER from review)
-| # | Item | Owner | Notes |
-|---|------|-------|-------|
-| D1 | Verify inferred fotmob_ids for 9 clubs | Agent 1B scope | Newcastle(10261), Villa(8697), Brighton(10204), West Ham(8654), Sociedad(9864), Athletic(9862), Villarreal(9868), Roma(8637), Lazio(8638) — need live FotMob API verification |
-| D2 | Substring match false-positive risk | Agent 1B scope | Bidirectional `query in key or key in query` can match "Roma" inside "Deportivo La Roma". Add inline comment noting risk. |
-| D3 | winner.co.il response envelope shape | Agent 1C scope | Field names (Outcomes/Selections, Price/Odds, EventDate/StartTime) are guesses. Confirm with live call. |
-| D4 | 1X2 market identification heuristic | Agent 1C scope | Identified by "3 outcomes, one containing X/תיקו". Add comment noting assumption, tighten when MarketType confirmed. |
-| D5 | Broad except Exception: return None | Agent 1A scope | All FotMob public methods swallow all exceptions identically. Add structured logging when logging layer exists. |
+**Post-wave lessons**: winner.co.il API was built without testing (Incapsula WAF blocked original endpoint). Entire client was rewritten after live investigation found the real API at www.winner.co.il/api/v2/publicapi/.
 
 ---
 
-## Wave 2 — Fix Existing + New Tools
+## Wave 2 — Fix Existing + New Tools ✅
 
 ### Agent 2A: Fix FotMob Game Tools
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Fix fetch_venue.py | 🟢 Done | Capacity+surface from statPairs, location from widget |
-| 2 | Fix fetch_weather.py | 🟢 Done | Uses venue lat/lon directly, no geocoding |
+| 1 | Fix fetch_venue.py | 🟢 Done | Capacity from statPairs, lat/lon from widget |
+| 2 | Fix fetch_weather.py | 🟢 Done | Direct lat/lon, no geocoding needed |
 
 ### Agent 2B: Fix FotMob Team Tools
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Fix fetch_form.py | 🟢 Done | Verified against live teamForm data |
-| 2 | Fix fetch_injuries.py | 🟢 Done | Rewritten: squad data, not match lineup |
-| 3 | Fix fetch_league_position.py | 🟢 Done | Uses fixed find_team + league table |
-| 4 | Fix calculate_recovery_time.py | 🟢 Done | lastMatch.status.utcTime works |
-| 5 | Create fetch_team_news.py | 🟢 Done | FotMob /api/data/tlnews endpoint |
-| 6 | Update team __init__.py | 🟢 Done | Added fetch_team_news export |
+| 1 | Fix fetch_form.py | 🟢 Done | teamForm data verified |
+| 2 | Fix fetch_injuries.py | 🟢 Done | Rewritten: uses squad data not match lineup |
+| 3 | Fix fetch_league_position.py | 🟢 Done | |
+| 4 | Fix calculate_recovery_time.py | 🟢 Done | |
+| 5 | Create fetch_team_news.py | 🟢 Done | FotMob news (empty for Israeli clubs) |
 
-### Agent 2C: Daily Fixtures + Enrichment
+### Agent 2C: Daily Fixtures
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create fetch_daily_fixtures.py | 🟢 Done | football-data.org /v4/matches, 30s timeout |
-| 2 | Create enrichment tools (from curation) | 🟢 Done | Covered by team_news + fixture congestion via daily fixtures |
-| 3 | Update game __init__.py | 🟢 Done | Added fetch_daily_fixtures export |
+| 1 | Create fetch_daily_fixtures.py | 🟢 Done | football-data.org, 30s timeout |
+
+**Post-wave fixes**: H2H crash on None names, accent matching (Atlético), CL-first search order, 429 rate limit handling, earliest match selection, win attribution relative to queried teams.
 
 ---
 
-## Wave 3 — Web App + Tests
+## Wave 3 — Web App + Tests 🟡
 
-### Agent 3A: Fix Web App
+### Agent 3A: Web App
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Update main.py imports | 🟢 Done | Added winner_odds, team_news imports |
-| 2 | Winner odds display | 🟢 Done | Israeli Toto odds with Hebrew names |
-| 3 | Team news display | 🟢 Done | News cards in both team columns |
-| 4 | Enrichment data display | 🟢 Done | Covered by team news + winner odds |
-| 5 | E2E verify | 🟢 Done | FastAPI TestClient verified all endpoints |
+| 1 | Wire new tools | 🟢 Done | winner_odds, team_news added |
+| 2 | Winner odds display | 🟢 Done | Israeli Toto section |
+| 3 | Team news display | 🟢 Done | News cards in team columns |
+| 4 | SSE streaming | 🟢 Done | Results appear as tools complete (post-wave fix) |
+| 5 | Concurrent execution | 🟢 Done | ThreadPoolExecutor + cache pre-warm (post-wave fix) |
+| 6 | E2E verify | 🟡 Partial | Works but bugs found by manual QA, not automated tests |
 
 ### Agent 3B: Tests + Cleanup
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Update existing tool tests | 🟢 Done | Deleted 5 dead apifootball tests, rewrote 3 |
-| 2 | Create new tool tests | 🟢 Done | All 11 tools covered in test_all_tools.py |
-| 3 | Update test_all_tools.py | 🟢 Done | 53/53 tests passing |
-| 4 | Clean .env.example | 🟢 Done | Already cleaned in Wave 0 |
-| 5 | Update ORCHESTRATION_STATE.md | 🟢 Done | Batch 6 REVERTED, revival status added |
+| 1 | Tests | 🔴 Failed | 6/10 test files deleted as worthless (only checked dict keys) |
+| 2 | 4 surviving tests | 🟢 Done | venue_live, weather_live, fixtures_live, team_tools_live |
+| 3 | ORCHESTRATION_STATE.md | 🟢 Done | |
 
 ---
 
-## Wave 4 — LangGraph Pre-Gambling Flow
+## Wave 4 — LangGraph Pre-Gambling Flow ⬜ NOT STARTED
+
+**Zero code exists.** Files that exist but aren't wired:
+- `state.py` — state schema written
+- `structured_outputs.py` — Pydantic models written
+- `prompts.py` — LLM prompts written (updated to remove phantom tools)
 
 ### Agent 4A: Core Flow + Pipeline Nodes
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Verify state.py for LangGraph 1.x | ⬜ Pending | |
-| 2 | Update structured_outputs.py | ⬜ Pending | |
+| 1 | Verify state.py for LangGraph 1.x | ⬜ Pending | state.py exists, needs verification |
+| 2 | Update structured_outputs.py | ⬜ Pending | exists, may need updates |
 | 3 | Create smart_game_picker.py | ⬜ Pending | |
 | 4 | Create persist_games.py | ⬜ Pending | |
 | 5 | Create combine_reports.py | ⬜ Pending | |
@@ -159,9 +154,11 @@ No LangGraph flow code exists. No Telegram bot. No DB integration tested.
 | 3 | Create parallel_orchestrator.py | ⬜ Pending | |
 | 4 | Add DB write utilities | ⬜ Pending | |
 
+**Prerequisite**: DB must be running and tested before this wave.
+
 ---
 
-## Wave 5 — Gambling + Post-Games + Offline Analysis
+## Wave 5 — Gambling + Post-Games + Offline Analysis ⬜ NOT STARTED
 
 ### Agent 5A: Telegram Bot + Gambling Flow
 | # | Task | Status | Notes |
@@ -188,13 +185,25 @@ No LangGraph flow code exists. No Telegram bot. No DB integration tested.
 
 ---
 
-## Wave 6 — Expansion
+## Wave 6 — Expansion 🟡 PARTIALLY DONE
 
-### Agent 6A: League Expansion + Polish
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Seed Israeli Premier League | ⬜ Pending | |
-| 2 | Seed CL/EL teams | ⬜ Pending | |
-| 3 | Add Euro/WC national teams | ⬜ Pending | |
-| 4 | Add FotMob IDs to registry | ⬜ Pending | |
-| 5 | Final documentation | ⬜ Pending | |
+| 1 | Israeli Premier League | 🟢 Done | 14 teams, FotMob IDs, Hebrew names — done during bug fixes |
+| 2 | CL/EL teams | 🟢 Done | Sporting CP + main CL teams in registry |
+| 3 | Euro/WC support | 🟡 Partial | Search lists added (EC, WC), no national teams in registry |
+| 4 | FotMob IDs in registry | 🟢 Done | All 83 teams have FotMob IDs where known |
+| 5 | Full league coverage | 🟡 Partial | 83 teams. ~62 winner.co.il teams in major leagues still unresolved. |
+| 6 | Final documentation | ⬜ Pending | |
+
+---
+
+## Known Issues / Tech Debt
+
+- football-data.org free tier: 10 req/min. H2H + odds + fixtures share this budget.
+- winner.co.il: Incapsula WAF requires session cookies. Session may expire.
+- FotMob x-mas key: hardcoded. If rotated, all FotMob tools fail silently (return None).
+- Team news: empty for Israeli clubs (FotMob content gap).
+- Copa del Rey / domestic cups: not in football-data.org free tier, won't appear in H2H.
+- ~62 teams in major leagues on winner.co.il still don't resolve (smaller clubs).
+- Tests: only 4 meaningful test files remain. No test for H2H accuracy, odds matching, or Hebrew resolution.
