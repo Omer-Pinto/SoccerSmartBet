@@ -19,10 +19,13 @@ from soccersmartbet.pre_gambling_flow.tools.game.fetch_h2h import fetch_h2h
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_venue import fetch_venue
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_weather import fetch_weather
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_odds import fetch_odds
+from soccersmartbet.pre_gambling_flow.tools.game.fetch_winner_odds import fetch_winner_odds
+from soccersmartbet.pre_gambling_flow.tools.game.fetch_daily_fixtures import fetch_daily_fixtures
 from soccersmartbet.pre_gambling_flow.tools.team.fetch_form import fetch_form
 from soccersmartbet.pre_gambling_flow.tools.team.fetch_injuries import fetch_injuries
 from soccersmartbet.pre_gambling_flow.tools.team.fetch_league_position import fetch_league_position
 from soccersmartbet.pre_gambling_flow.tools.team.calculate_recovery_time import calculate_recovery_time
+from soccersmartbet.pre_gambling_flow.tools.team.fetch_team_news import fetch_team_news
 from soccersmartbet.pre_gambling_flow.tools.fotmob_client import get_fotmob_client
 
 app = FastAPI(
@@ -127,8 +130,10 @@ async def fetch_match_data(request: MatchRequest):
                 team_data = client.get_team_data(home_info["id"])
                 if team_data and team_data.get("overview", {}).get("nextMatch"):
                     next_match = team_data["overview"]["nextMatch"]
-                    if "utcTime" in next_match:
-                        match_datetime = next_match["utcTime"]
+                    status = next_match.get("status", {})
+                    utc_time = status.get("utcTime")
+                    if utc_time:
+                        match_datetime = utc_time
         except Exception:
             pass
 
@@ -152,12 +157,16 @@ async def fetch_match_data(request: MatchRequest):
     odds_result = _run_tool("fetch_odds", fetch_odds, home_team, away_team)
     game_tools.append(odds_result)
 
+    winner_odds_result = _run_tool("fetch_winner_odds", fetch_winner_odds, home_team, away_team)
+    game_tools.append(winner_odds_result)
+
     # Step 3: Run home team tools
     home_team_tools = [
         _run_tool("fetch_form", fetch_form, home_team, 5),
         _run_tool("fetch_injuries", fetch_injuries, home_team),
         _run_tool("fetch_league_position", fetch_league_position, home_team),
         _run_tool("calculate_recovery_time", calculate_recovery_time, home_team, match_date),
+        _run_tool("fetch_team_news", fetch_team_news, home_team),
     ]
 
     # Step 4: Run away team tools
@@ -166,6 +175,7 @@ async def fetch_match_data(request: MatchRequest):
         _run_tool("fetch_injuries", fetch_injuries, away_team),
         _run_tool("fetch_league_position", fetch_league_position, away_team),
         _run_tool("calculate_recovery_time", calculate_recovery_time, away_team, match_date),
+        _run_tool("fetch_team_news", fetch_team_news, away_team),
     ]
 
     total_time = (datetime.now() - start_time).total_seconds() * 1000

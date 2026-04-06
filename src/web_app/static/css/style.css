@@ -464,6 +464,138 @@ body {
     color: var(--text-muted);
 }
 
+/* Winner.co.il Israeli Toto Odds */
+.winner-odds-row {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: rgba(255, 215, 0, 0.06);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: var(--radius-md);
+}
+
+.winner-odds-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.winner-flag {
+    font-size: 1.2rem;
+}
+
+.winner-label {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--accent-gold);
+}
+
+.winner-league {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+
+.winner-odds-container {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.winner-odd {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    min-width: 90px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+}
+
+.winner-odd.home-win {
+    border-color: rgba(76, 175, 80, 0.5);
+}
+
+.winner-odd.draw {
+    border-color: rgba(158, 158, 158, 0.5);
+}
+
+.winner-odd.away-win {
+    border-color: rgba(244, 67, 54, 0.5);
+}
+
+.winner-odd-label {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.winner-odd-value {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+}
+
+.winner-odds-meta {
+    text-align: center;
+    margin-top: var(--spacing-sm);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* Team News */
+.news-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.news-item {
+    padding: var(--spacing-sm);
+    background: rgba(79, 195, 247, 0.06);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.news-title {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-light);
+    line-height: 1.3;
+    margin-bottom: 2px;
+}
+
+.news-meta {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.news-source {
+    font-size: 0.75rem;
+    color: var(--accent-blue);
+    font-weight: 500;
+}
+
+.news-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.no-news {
+    text-align: center;
+    color: var(--text-muted);
+    padding: var(--spacing-md);
+    font-size: 0.85rem;
+}
+
 /* Comparison Grid */
 .comparison-grid {
     display: grid;

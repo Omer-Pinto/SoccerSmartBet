@@ -87,6 +87,7 @@ function renderMatchData(data) {
 
     // Render game tools
     renderOdds(findTool(data.game_tools, 'fetch_odds'));
+    renderWinnerOdds(findTool(data.game_tools, 'fetch_winner_odds'));
     renderVenue(findTool(data.game_tools, 'fetch_venue'));
     renderWeather(findTool(data.game_tools, 'fetch_weather'));
     renderH2H(findTool(data.game_tools, 'fetch_h2h'));
@@ -95,12 +96,14 @@ function renderMatchData(data) {
     renderForm('home', findTool(data.home_team_tools, 'fetch_form'));
     renderLeaguePosition('home', findTool(data.home_team_tools, 'fetch_league_position'));
     renderInjuries('home', findTool(data.home_team_tools, 'fetch_injuries'));
+    renderTeamNews('home', findTool(data.home_team_tools, 'fetch_team_news'));
     renderRecovery('home', findTool(data.home_team_tools, 'calculate_recovery_time'));
 
     // Render away team tools
     renderForm('away', findTool(data.away_team_tools, 'fetch_form'));
     renderLeaguePosition('away', findTool(data.away_team_tools, 'fetch_league_position'));
     renderInjuries('away', findTool(data.away_team_tools, 'fetch_injuries'));
+    renderTeamNews('away', findTool(data.away_team_tools, 'fetch_team_news'));
     renderRecovery('away', findTool(data.away_team_tools, 'calculate_recovery_time'));
 
     // Extract league name from league position
@@ -386,6 +389,87 @@ function renderRecovery(side, tool) {
 }
 
 /**
+ * Render winner.co.il Israeli Toto odds
+ */
+function renderWinnerOdds(tool) {
+    const homeOdds = document.getElementById('winner-odds-home');
+    const drawOdds = document.getElementById('winner-odds-draw');
+    const awayOdds = document.getElementById('winner-odds-away');
+    const leagueEl = document.getElementById('winner-league');
+    const metaEl = document.getElementById('winner-odds-meta');
+
+    if (!tool?.success || !tool.data) {
+        homeOdds.textContent = '-';
+        drawOdds.textContent = '-';
+        awayOdds.textContent = '-';
+        leagueEl.textContent = '';
+        metaEl.textContent = tool?.error || 'No winner.co.il data';
+        return;
+    }
+
+    const { odds_home, odds_draw, odds_away, league, home_name_he, away_name_he } = tool.data;
+    homeOdds.textContent = odds_home?.toFixed(2) || '-';
+    drawOdds.textContent = odds_draw?.toFixed(2) || '-';
+    awayOdds.textContent = odds_away?.toFixed(2) || '-';
+    leagueEl.textContent = league || '';
+
+    if (home_name_he && away_name_he) {
+        metaEl.textContent = `${home_name_he} vs ${away_name_he}`;
+    } else if (tool.error) {
+        metaEl.textContent = tool.error;
+    } else {
+        metaEl.textContent = '';
+    }
+}
+
+/**
+ * Render team news articles
+ */
+function renderTeamNews(side, tool) {
+    const newsList = document.getElementById(`${side}-news`);
+
+    if (!tool?.success || !tool.data) {
+        newsList.textContent = '';
+        newsList.appendChild(createElement('span', null, tool?.error || 'No news data', { color: 'var(--text-muted)' }));
+        return;
+    }
+
+    const { articles, total_available } = tool.data;
+
+    if (!articles || articles.length === 0) {
+        newsList.textContent = '';
+        newsList.appendChild(createElement('div', 'no-news', 'No recent news'));
+        return;
+    }
+
+    newsList.textContent = '';
+    articles.slice(0, 5).forEach(article => {
+        const item = createElement('div', 'news-item');
+        const title = createElement('div', 'news-title', article.title);
+        const meta = createElement('div', 'news-meta');
+        if (article.source) {
+            meta.appendChild(createElement('span', 'news-source', article.source));
+        }
+        if (article.published) {
+            const pubDate = formatDate(article.published);
+            meta.appendChild(createElement('span', 'news-date', pubDate));
+        }
+        item.appendChild(title);
+        item.appendChild(meta);
+        newsList.appendChild(item);
+    });
+
+    if (total_available > 5) {
+        newsList.appendChild(createElement('div', null, `+${total_available - 5} more articles`, {
+            textAlign: 'center',
+            color: 'var(--text-muted)',
+            fontSize: '0.8rem',
+            marginTop: '4px'
+        }));
+    }
+}
+
+/**
  * Render performance/debug stats
  */
 function renderPerformance(data) {
@@ -394,7 +478,7 @@ function renderPerformance(data) {
     const failedCount = allTools.filter(t => !t.success).length;
 
     document.getElementById('total-time').textContent = `${Math.round(data.total_time_ms)}ms`;
-    document.getElementById('tools-success').textContent = `${successCount}/12`;
+    document.getElementById('tools-success').textContent = `${successCount}/${allTools.length}`;
     document.getElementById('tools-failed').textContent = failedCount;
 
     // Tool breakdown using DOM (XSS-safe)
