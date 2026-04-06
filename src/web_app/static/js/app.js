@@ -27,7 +27,131 @@ homeTeamInput.addEventListener('keypress', (e) => e.key === 'Enter' && awayTeamI
 awayTeamInput.addEventListener('keypress', (e) => e.key === 'Enter' && fetchMatchData());
 
 /**
- * Fetch match data from the API
+ * Reset all result sections to loading/placeholder state
+ */
+function resetResults() {
+    // Match header
+    document.getElementById('header-home-team').textContent = homeTeamInput.value.trim();
+    document.getElementById('header-away-team').textContent = awayTeamInput.value.trim();
+    document.getElementById('col-home-team').textContent = homeTeamInput.value.trim();
+    document.getElementById('col-away-team').textContent = awayTeamInput.value.trim();
+    document.getElementById('home-crest').textContent = homeTeamInput.value.trim().charAt(0);
+    document.getElementById('away-crest').textContent = awayTeamInput.value.trim().charAt(0);
+    document.getElementById('match-date').textContent = '...';
+    document.getElementById('league-name').textContent = '-';
+
+    // Odds
+    document.getElementById('odds-home').textContent = '...';
+    document.getElementById('odds-draw').textContent = '...';
+    document.getElementById('odds-away').textContent = '...';
+    document.getElementById('odds-bookmaker').textContent = 'Loading...';
+    document.getElementById('winner-odds-home').textContent = '...';
+    document.getElementById('winner-odds-draw').textContent = '...';
+    document.getElementById('winner-odds-away').textContent = '...';
+    document.getElementById('winner-league').textContent = '';
+    document.getElementById('winner-odds-meta').textContent = 'Loading...';
+
+    // Game tools
+    document.getElementById('h2h-summary').textContent = 'Loading...';
+    document.getElementById('h2h-matches').textContent = '';
+    document.getElementById('venue-name').textContent = 'Loading...';
+    document.getElementById('venue-city').textContent = '';
+    document.getElementById('venue-capacity').textContent = '';
+    document.getElementById('weather-icon').textContent = '...';
+    document.getElementById('weather-temp').textContent = '...';
+    document.getElementById('weather-conditions').textContent = 'Loading...';
+    document.getElementById('weather-wind').textContent = '';
+    document.getElementById('weather-rain').textContent = '';
+
+    // Team tools
+    for (const side of ['home', 'away']) {
+        document.getElementById(`${side}-form-circles`).textContent = '';
+        document.getElementById(`${side}-form-record`).textContent = 'Loading...';
+        document.getElementById(`${side}-position`).textContent = '...';
+        document.getElementById(`${side}-position-stats`).textContent = 'Loading...';
+        document.getElementById(`${side}-league-form`).textContent = '';
+        document.getElementById(`${side}-injuries`).textContent = 'Loading...';
+        document.getElementById(`${side}-news`).textContent = 'Loading...';
+        document.getElementById(`${side}-recovery-days`).textContent = '...';
+        document.getElementById(`${side}-recovery-status`).textContent = 'Loading...';
+    }
+
+    // Performance
+    document.getElementById('total-time').textContent = '...';
+    document.getElementById('tools-success').textContent = '0/15';
+    document.getElementById('tools-failed').textContent = '0';
+    document.getElementById('tool-breakdown').textContent = '';
+}
+
+// Track completed tools for performance section
+let _toolResults = [];
+
+/**
+ * Render a single tool result as it arrives via SSE
+ */
+function renderToolResult(category, result) {
+    _toolResults.push(result);
+
+    switch (result.tool_name) {
+        case 'fetch_odds':      renderOdds(result); break;
+        case 'fetch_winner_odds': renderWinnerOdds(result); break;
+        case 'fetch_venue':     renderVenue(result); break;
+        case 'fetch_weather':   renderWeather(result); break;
+        case 'fetch_h2h':
+            renderH2H(result);
+            // Update match date when H2H arrives
+            if (result.success && result.data && result.data.upcoming_match_date) {
+                document.getElementById('match-date').textContent = formatDate(result.data.upcoming_match_date);
+            }
+            break;
+        case 'fetch_form':
+            renderForm(category, result);
+            break;
+        case 'fetch_league_position':
+            renderLeaguePosition(category, result);
+            if (category === 'home' && result.success && result.data && result.data.league_name) {
+                document.getElementById('league-name').textContent = result.data.league_name;
+            }
+            break;
+        case 'fetch_injuries':
+            renderInjuries(category, result);
+            break;
+        case 'fetch_team_news':
+            renderTeamNews(category, result);
+            break;
+        case 'calculate_recovery_time':
+            renderRecovery(category, result);
+            break;
+    }
+
+    // Update live performance counter
+    const success = _toolResults.filter(t => t.success).length;
+    const failed = _toolResults.filter(t => !t.success).length;
+    document.getElementById('tools-success').textContent = `${success}/${_toolResults.length}`;
+    document.getElementById('tools-failed').textContent = failed;
+    updateToolBreakdown();
+}
+
+/**
+ * Update the tool breakdown badges
+ */
+function updateToolBreakdown() {
+    const breakdown = document.getElementById('tool-breakdown');
+    breakdown.textContent = '';
+    _toolResults.forEach(tool => {
+        const statusClass = tool.success ? 'success' : 'error';
+        const icon = tool.success ? '\u2714' : '\u2718';
+        const badge = createElement('div', `tool-badge ${statusClass}`);
+        badge.title = tool.error || 'OK';
+        badge.appendChild(createElement('span', null, icon));
+        badge.appendChild(createElement('span', null, tool.tool_name));
+        badge.appendChild(createElement('span', 'time', `${Math.round(tool.execution_time_ms)}ms`));
+        breakdown.appendChild(badge);
+    });
+}
+
+/**
+ * Fetch match data from the API using SSE streaming
  */
 async function fetchMatchData() {
     const homeTeam = homeTeamInput.value.trim();
@@ -40,18 +164,17 @@ async function fetchMatchData() {
 
     setLoading(true);
     hideError();
-    hideResults();
+    _toolResults = [];
+    resetResults();
+    showResults();
+
+    const startTime = Date.now();
 
     try {
-        const response = await fetch('/api/fetch-match-data', {
+        const response = await fetch('/api/stream-match-data', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                home_team: homeTeam,
-                away_team: awayTeam
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ home_team: homeTeam, away_team: awayTeam })
         });
 
         if (!response.ok) {
@@ -59,9 +182,35 @@ async function fetchMatchData() {
             throw new Error(error.detail || 'Failed to fetch match data');
         }
 
-        const data = await response.json();
-        renderMatchData(data);
-        showResults();
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop(); // keep any incomplete trailing chunk
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                let data;
+                try {
+                    data = JSON.parse(line.slice(6));
+                } catch {
+                    continue;
+                }
+                if (data.done) {
+                    const elapsed = Date.now() - startTime;
+                    document.getElementById('total-time').textContent = `${elapsed}ms`;
+                    setLoading(false);
+                    return;
+                }
+                renderToolResult(data.category, data.result);
+            }
+        }
     } catch (error) {
         showError(error.message);
     } finally {
