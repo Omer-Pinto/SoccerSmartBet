@@ -113,6 +113,12 @@ def fetch_match_data(request: MatchRequest):
     if not home_team or not away_team:
         raise HTTPException(status_code=400, detail="Both team names are required")
 
+    # Step 0: Pre-warm FotMob cache for both teams (avoids thundering herd
+    # when 14 threads all call find_team() on an empty cache simultaneously)
+    client = get_fotmob_client()
+    client.find_team(home_team)
+    client.find_team(away_team)
+
     # Step 1: Get H2H data first (needed for match date)
     h2h_result = _run_tool("fetch_h2h", fetch_h2h, home_team, away_team, 5)
 
@@ -202,5 +208,8 @@ def health_check():
 
 
 if __name__ == "__main__":
+    import sys
+    # Ensure src/ is on the path so soccersmartbet package resolves
+    sys.path.insert(0, str(Path(__file__).parent.parent))
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
