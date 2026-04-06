@@ -77,6 +77,29 @@
 
 ---
 
-## Revival (2026-04-05)
+## Revival Status (2026-04-06)
 
-Work continues on `revive` branch with new wave-based plan. See `docs/system_revive/progress.md` for current status.
+Work continues on `revive` branch with a wave-based plan. See `docs/system_revive/progress.md` for full details.
+
+### Wave 0 — Foundation (COMPLETE)
+- Tools curation done: apifootball.com removed, FotMob-based tools confirmed
+- Dependencies pinned, `teams` table schema added
+- Dead refs cleaned
+
+### Wave 1 — Tool Stabilisation (COMPLETE)
+- FotMob client (`fotmob_client.py`) stabilised and tested
+- All 8 tools (game + team) verified against live FotMob API
+
+### Wave 2 — Live Integration Tests (COMPLETE)
+- `test_fetch_venue_live.py`, `test_fetch_weather_live.py`,
+  `test_fetch_daily_fixtures_live.py`, `test_team_tools_live.py` added
+- `fetch_winner_odds` and `fetch_team_news` implemented
+
+### Wave 3 — Test Cleanup (COMPLETE)
+- Deleted dead apifootball.com tests: `test_recovery_api.py`,
+  `test_key_players_api.py`, `test_injuries_api.py`, `test_form_api.py`,
+  `test_venue_api.py`
+- Rewrote `test_h2h_api.py`, `test_weather_api.py`, `test_odds_api.py`
+  to use current tool interface with proper `assert`-based pytest tests
+- Rewrote `test_all_tools.py` with full current tool suite (11 game + team tools),
+  `@pytest.mark.integration` markers, and `error` key assertions

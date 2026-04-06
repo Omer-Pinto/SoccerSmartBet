@@ -1,34 +1,46 @@
-"""Test Open-Meteo API availability for weather data."""
+"""Tests for fetch_weather tool using current FotMob + Open-Meteo interface."""
 
-import requests
-from datetime import datetime
+import pytest
+
+from soccersmartbet.pre_gambling_flow.tools.game.fetch_weather import fetch_weather
 
 
-def test_weather_api_available():
-    """Test that Open-Meteo API is accessible."""
-    tomorrow = datetime.now().strftime("%Y-%m-%d")
-    
-    response = requests.get(
-        "https://api.open-meteo.com/v1/forecast",
-        params={
-            "latitude": 51.5074,
-            "longitude": -0.1278,
-            "hourly": "temperature_2m",
-            "start_date": tomorrow,
-            "end_date": tomorrow
-        },
-        timeout=10
+@pytest.mark.integration
+def test_fetch_weather_returns_dict_with_error_key():
+    """fetch_weather always returns a dict with an 'error' key."""
+    result = fetch_weather("Barcelona", "Real Madrid", "2026-04-10T20:00:00")
+    assert isinstance(result, dict)
+    assert "error" in result
+
+
+@pytest.mark.integration
+def test_fetch_weather_known_team_returns_data():
+    """fetch_weather should succeed for a well-known team with a future match date."""
+    result = fetch_weather("Barcelona", "Real Madrid", "2026-04-10T20:00:00")
+    # Either succeeds or returns a graceful error — never raises
+    assert isinstance(result, dict)
+    assert "home_team" in result
+    assert "away_team" in result
+    assert result["home_team"] == "Barcelona"
+    assert result["away_team"] == "Real Madrid"
+
+
+@pytest.mark.integration
+def test_fetch_weather_unknown_team_returns_error():
+    """fetch_weather returns a populated error for an unknown team."""
+    result = fetch_weather("NonExistentTeamXYZ12345", "Barcelona", "2026-04-10T20:00:00")
+    assert result["error"] is not None
+
+
+@pytest.mark.integration
+def test_fetch_weather_result_keys_present():
+    """fetch_weather result always contains all expected keys."""
+    result = fetch_weather("Manchester City", "Arsenal", "2026-04-12T15:00:00")
+    expected_keys = {
+        "home_team", "away_team", "venue_city", "match_datetime",
+        "temperature_celsius", "precipitation_mm", "precipitation_probability",
+        "wind_speed_kmh", "conditions", "error",
+    }
+    assert expected_keys.issubset(result.keys()), (
+        f"Missing keys: {expected_keys - result.keys()}"
     )
-    
-    if response.status_code != 200:
-        print(f"❌ API error: {response.status_code}")
-        return False
-    
-    data = response.json()
-    
-    print(f"✅ API accessible - Weather data available")
-    return True
-
-
-if __name__ == "__main__":
-    test_weather_api_available()

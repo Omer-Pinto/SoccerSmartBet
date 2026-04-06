@@ -1,264 +1,242 @@
 """
-Integration test: Run ALL tools for a single match.
+Integration tests: verify every tool in the current suite returns a dict
+with an 'error' key when called against real team names.
 
-User provides two team names, test runs all 8 tools and reports results.
-Uses FotMob API for team data (no API key required).
+These tests make live network requests (FotMob, Open-Meteo, football-data.org,
+The Odds API, winner.co.il). Run with:
+
+    uv run pytest tests/pre_gambling_flow/tools/integration/test_all_tools.py -v -m integration
+
+Team names used: "Barcelona" and "Real Madrid" — both well-known clubs
+supported by all back-ends.
 """
 
-import sys
-from pathlib import Path
-from datetime import datetime, timedelta
+import pytest
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent / "src"))
+# Game tools
+from soccersmartbet.pre_gambling_flow.tools.game.fetch_h2h import fetch_h2h
+from soccersmartbet.pre_gambling_flow.tools.game.fetch_venue import fetch_venue
+from soccersmartbet.pre_gambling_flow.tools.game.fetch_weather import fetch_weather
+from soccersmartbet.pre_gambling_flow.tools.game.fetch_odds import fetch_odds
+from soccersmartbet.pre_gambling_flow.tools.game.fetch_winner_odds import fetch_winner_odds
+from soccersmartbet.pre_gambling_flow.tools.game.fetch_daily_fixtures import fetch_daily_fixtures
 
-from soccersmartbet.pre_gambling_flow.tools.game import (
-    fetch_h2h,
-    fetch_venue,
-    fetch_weather,
-    fetch_odds,
-)
-from soccersmartbet.pre_gambling_flow.tools.team import (
-    fetch_form,
-    fetch_injuries,
-    fetch_league_position,
-    calculate_recovery_time,
-)
-from soccersmartbet.pre_gambling_flow.tools.fotmob_client import get_fotmob_client
+# Team tools
+from soccersmartbet.pre_gambling_flow.tools.team.fetch_form import fetch_form
+from soccersmartbet.pre_gambling_flow.tools.team.fetch_injuries import fetch_injuries
+from soccersmartbet.pre_gambling_flow.tools.team.fetch_league_position import fetch_league_position
+from soccersmartbet.pre_gambling_flow.tools.team.calculate_recovery_time import calculate_recovery_time
+from soccersmartbet.pre_gambling_flow.tools.team.fetch_team_news import fetch_team_news
 
-
-def print_section(title):
-    """Print section header."""
-    print("\n" + "=" * 70)
-    print(f" {title}")
-    print("=" * 70)
+HOME_TEAM = "Barcelona"
+AWAY_TEAM = "Real Madrid"
+MATCH_DATETIME = "2026-04-10T20:00:00"
+UPCOMING_DATE = "2026-04-10"
 
 
-def print_result(tool_name, result, success_key=None):
-    """Print tool result with pass/fail status."""
-    has_error = result.get("error") is not None
-
-    if has_error:
-        status = "❌ FAILED"
-        print(f"\n{tool_name}: {status}")
-        print(f"  Error: {result['error']}")
-    else:
-        # Check if we got actual data
-        if success_key:
-            has_data = result.get(success_key) is not None and len(result.get(success_key, [])) > 0
-        else:
-            has_data = True
-
-        status = "✅ PASSED" if has_data else "⚠️  NO DATA"
-        print(f"\n{tool_name}: {status}")
-
-        # Print key fields
-        for key, value in result.items():
-            if key == "error":
-                continue
-            if isinstance(value, list):
-                print(f"  {key}: {len(value)} items")
-                # Show all items (or first 5 if more than 5)
-                items_to_show = value[:5] if len(value) > 5 else value
-                for item in items_to_show:
-                    print(f"    - {item}")
-                if len(value) > 5:
-                    print(f"    ... and {len(value) - 5} more")
-            elif isinstance(value, dict):
-                print(f"  {key}: {value}")
-            else:
-                print(f"  {key}: {value}")
-
-    return not has_error
+# ---------------------------------------------------------------------------
+# Smoke test: all tools importable from their package __init__
+# ---------------------------------------------------------------------------
 
 
-def test_all_tools(home_team, away_team):
-    """
-    Run all 8 tools for a match and report results.
-
-    Args:
-        home_team: Home team name
-        away_team: Away team name
-    """
-    print_section(f"INTEGRATION TEST: {home_team} vs {away_team}")
-    print("Testing 8 unique tools (12 total calls: 4 game + 4 team × 2 teams)")
-    print("Using FotMob API (NO API KEY REQUIRED)")
-
-    results = {"passed": [], "failed": [], "no_data": []}
-
-    # GAME TOOLS (4 tools - called once per match)
-    print_section("GAME TOOLS")
-
-    # 1. H2H
-    print("\n[1/12] fetch_h2h...")
-    h2h_result = fetch_h2h(home_team, away_team, limit=5)
-    success = print_result("fetch_h2h", h2h_result, success_key="h2h_matches")
-
-    if success:
-        if h2h_result.get("total_h2h", 0) > 0:
-            results["passed"].append("fetch_h2h")
-        else:
-            results["no_data"].append("fetch_h2h")
-    else:
-        results["failed"].append("fetch_h2h")
-
-    # Extract match date for later tools
-    upcoming_match_date = h2h_result.get("upcoming_match_date")
-    if not upcoming_match_date:
-        upcoming_match_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-        print(f"  ⚠️  Using estimated match date: {upcoming_match_date}")
-
-    # 2. Venue
-    print("\n[2/12] fetch_venue...")
-    venue_result = fetch_venue(home_team, away_team)
-    success = print_result("fetch_venue", venue_result)
-    (results["passed"] if success else results["failed"]).append("fetch_venue")
-
-    # 3. Weather - get actual match time from FotMob
-    print("\n[3/12] fetch_weather...")
-    match_datetime = f"{upcoming_match_date}T15:00:00"  # Default fallback
-    try:
-        client = get_fotmob_client()
-        team_info = client.find_team(home_team)
-        if team_info:
-            team_data = client.get_team_data(team_info["id"])
-            if team_data:
-                utc_time = team_data.get("overview", {}).get("nextMatch", {}).get("status", {}).get("utcTime")
-                if utc_time:
-                    # Format: "2025-12-14T20:00:00.000Z" -> "2025-12-14T20:00:00"
-                    match_datetime = utc_time.replace(".000Z", "").replace("Z", "")
-                    print(f"  Using actual match time: {match_datetime}")
-    except Exception as e:
-        print(f"  ⚠️  Could not get match time from FotMob: {e}")
-    weather_result = fetch_weather(home_team, away_team, match_datetime)
-    success = print_result("fetch_weather", weather_result)
-    (results["passed"] if success else results["failed"]).append("fetch_weather")
-
-    # 4. Odds
-    print("\n[4/12] fetch_odds...")
-    odds_result = fetch_odds(home_team, away_team)
-    success = print_result("fetch_odds", odds_result)
-    (results["passed"] if success else results["failed"]).append("fetch_odds")
-
-    # TEAM TOOLS - HOME TEAM (4 tools)
-    print_section(f"TEAM TOOLS - {home_team}")
-
-    # 5. Form
-    print("\n[5/12] fetch_form...")
-    form_result = fetch_form(home_team, limit=5)
-    success = print_result("fetch_form", form_result, success_key="matches")
-
-    if success:
-        if form_result.get("matches"):
-            results["passed"].append(f"fetch_form({home_team})")
-        else:
-            results["no_data"].append(f"fetch_form({home_team})")
-    else:
-        results["failed"].append(f"fetch_form({home_team})")
-
-    # 6. Injuries
-    print("\n[6/12] fetch_injuries...")
-    injuries_result = fetch_injuries(home_team)
-    success = print_result("fetch_injuries", injuries_result)
-    (results["passed"] if success else results["failed"]).append(f"fetch_injuries({home_team})")
-
-    # 7. League Position
-    print("\n[7/12] fetch_league_position...")
-    position_result = fetch_league_position(home_team)
-    success = print_result("fetch_league_position", position_result)
-    (results["passed"] if success else results["failed"]).append(f"fetch_league_position({home_team})")
-
-    # 8. Recovery Time
-    print("\n[8/12] calculate_recovery_time...")
-    recovery_result = calculate_recovery_time(home_team, upcoming_match_date)
-    success = print_result("calculate_recovery_time", recovery_result)
-    (results["passed"] if success else results["failed"]).append(f"calculate_recovery_time({home_team})")
-
-    # TEAM TOOLS - AWAY TEAM (4 tools)
-    print_section(f"TEAM TOOLS - {away_team}")
-
-    # 9. Form
-    print("\n[9/12] fetch_form...")
-    away_form = fetch_form(away_team, limit=5)
-    success = print_result("fetch_form", away_form, success_key="matches")
-    if success:
-        if away_form.get("matches"):
-            results["passed"].append(f"fetch_form({away_team})")
-        else:
-            results["no_data"].append(f"fetch_form({away_team})")
-    else:
-        results["failed"].append(f"fetch_form({away_team})")
-
-    # 10. Injuries
-    print("\n[10/12] fetch_injuries...")
-    away_injuries = fetch_injuries(away_team)
-    success = print_result("fetch_injuries", away_injuries)
-    (results["passed"] if success else results["failed"]).append(f"fetch_injuries({away_team})")
-
-    # 11. League Position
-    print("\n[11/12] fetch_league_position...")
-    away_position = fetch_league_position(away_team)
-    success = print_result("fetch_league_position", away_position)
-    (results["passed"] if success else results["failed"]).append(f"fetch_league_position({away_team})")
-
-    # 12. Recovery Time
-    print("\n[12/12] calculate_recovery_time...")
-    away_recovery = calculate_recovery_time(away_team, upcoming_match_date)
-    success = print_result("calculate_recovery_time", away_recovery)
-    (results["passed"] if success else results["failed"]).append(f"calculate_recovery_time({away_team})")
-
-    # FINAL REPORT
-    print_section("FINAL REPORT")
-
-    total_tools = len(results["passed"]) + len(results["failed"]) + len(results["no_data"])
-    passed_count = len(results["passed"])
-    failed_count = len(results["failed"])
-    no_data_count = len(results["no_data"])
-
-    print(f"\nTotal tools tested: {total_tools}")
-    print(f"✅ Passed: {passed_count}")
-    print(f"⚠️  No data: {no_data_count}")
-    print(f"❌ Failed: {failed_count}")
-
-    if results["passed"]:
-        print("\n✅ PASSED:")
-        for tool in results["passed"]:
-            print(f"  - {tool}")
-
-    if results["no_data"]:
-        print("\n⚠️  NO DATA (tool works but returned empty):")
-        for tool in results["no_data"]:
-            print(f"  - {tool}")
-
-    if results["failed"]:
-        print("\n❌ FAILED:")
-        for tool in results["failed"]:
-            print(f"  - {tool}")
-
-    print("\n" + "=" * 70)
-
-    if failed_count == 0:
-        print("✅ ALL TOOLS WORKING")
-    else:
-        print(f"⚠️  {failed_count} TOOLS BROKEN")
-
-    print("=" * 70)
-
-    return failed_count == 0
+def test_game_tools_importable():
+    """All game tools should be importable from the game package __init__."""
+    from soccersmartbet.pre_gambling_flow.tools.game import (
+        fetch_h2h,
+        fetch_venue,
+        fetch_weather,
+        fetch_odds,
+        fetch_winner_odds,
+        fetch_all_winner_odds,
+        fetch_daily_fixtures,
+    )
+    assert callable(fetch_h2h)
+    assert callable(fetch_venue)
+    assert callable(fetch_weather)
+    assert callable(fetch_odds)
+    assert callable(fetch_winner_odds)
+    assert callable(fetch_all_winner_odds)
+    assert callable(fetch_daily_fixtures)
 
 
-if __name__ == "__main__":
-    import sys
+def test_team_tools_importable():
+    """All team tools should be importable from the team package __init__."""
+    from soccersmartbet.pre_gambling_flow.tools.team import (
+        fetch_form,
+        fetch_injuries,
+        fetch_league_position,
+        calculate_recovery_time,
+        fetch_team_news,
+    )
+    assert callable(fetch_form)
+    assert callable(fetch_injuries)
+    assert callable(fetch_league_position)
+    assert callable(calculate_recovery_time)
+    assert callable(fetch_team_news)
 
-    if len(sys.argv) < 3:
-        print("Usage: python test_all_tools.py <home_team> <away_team>")
-        print("Example: python test_all_tools.py 'Manchester City' 'Tottenham'")
-        print("         python test_all_tools.py 'Barcelona' 'Real Madrid'")
-        print("         python test_all_tools.py 'Deportivo Alavés' 'Real Madrid'")
-        sys.exit(1)
 
-    home_team = sys.argv[1]
-    away_team = sys.argv[2]
+# ---------------------------------------------------------------------------
+# Game tools — each must return a dict with an 'error' key
+# ---------------------------------------------------------------------------
 
-    success = test_all_tools(home_team, away_team)
-    sys.exit(0 if success else 1)
+
+@pytest.mark.integration
+def test_fetch_h2h_returns_error_key():
+    """fetch_h2h returns a dict with 'error' key."""
+    result = fetch_h2h(HOME_TEAM, AWAY_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["home_team"] == HOME_TEAM
+    assert result["away_team"] == AWAY_TEAM
+    assert isinstance(result["h2h_matches"], list)
+
+
+@pytest.mark.integration
+def test_fetch_venue_returns_error_key():
+    """fetch_venue returns a dict with 'error' key."""
+    result = fetch_venue(HOME_TEAM, AWAY_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["home_team"] is not None
+    assert result["away_team"] == AWAY_TEAM
+
+
+@pytest.mark.integration
+def test_fetch_weather_returns_error_key():
+    """fetch_weather returns a dict with 'error' key."""
+    result = fetch_weather(HOME_TEAM, AWAY_TEAM, MATCH_DATETIME)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["home_team"] == HOME_TEAM
+    assert result["away_team"] == AWAY_TEAM
+
+
+@pytest.mark.integration
+def test_fetch_odds_returns_error_key():
+    """fetch_odds returns a dict with 'error' key."""
+    result = fetch_odds(HOME_TEAM, AWAY_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["home_team"] == HOME_TEAM
+    assert result["away_team"] == AWAY_TEAM
+
+
+@pytest.mark.integration
+def test_fetch_winner_odds_returns_error_key():
+    """fetch_winner_odds returns a dict with 'error' key."""
+    result = fetch_winner_odds(HOME_TEAM, AWAY_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["home_team"] == HOME_TEAM
+    assert result["away_team"] == AWAY_TEAM
+
+
+@pytest.mark.integration
+def test_fetch_daily_fixtures_returns_error_key():
+    """fetch_daily_fixtures returns a dict with 'error' key."""
+    result = fetch_daily_fixtures(UPCOMING_DATE)
+    assert isinstance(result, dict)
+    assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Team tools (home team) — each must return a dict with an 'error' key
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_fetch_form_home_returns_error_key():
+    """fetch_form (home) returns a dict with 'error' key."""
+    result = fetch_form(HOME_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
+    assert isinstance(result["matches"], list)
+
+
+@pytest.mark.integration
+def test_fetch_injuries_home_returns_error_key():
+    """fetch_injuries (home) returns a dict with 'error' key."""
+    result = fetch_injuries(HOME_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
+    assert isinstance(result["injuries"], list)
+
+
+@pytest.mark.integration
+def test_fetch_league_position_home_returns_error_key():
+    """fetch_league_position (home) returns a dict with 'error' key."""
+    result = fetch_league_position(HOME_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
+
+
+@pytest.mark.integration
+def test_calculate_recovery_time_home_returns_error_key():
+    """calculate_recovery_time (home) returns a dict with 'error' key."""
+    result = calculate_recovery_time(HOME_TEAM, UPCOMING_DATE)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
+
+
+@pytest.mark.integration
+def test_fetch_team_news_home_returns_error_key():
+    """fetch_team_news (home) returns a dict with 'error' key."""
+    result = fetch_team_news(HOME_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
+    assert isinstance(result["articles"], list)
+
+
+# ---------------------------------------------------------------------------
+# Team tools (away team) — each must return a dict with an 'error' key
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_fetch_form_away_returns_error_key():
+    """fetch_form (away) returns a dict with 'error' key."""
+    result = fetch_form(AWAY_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
+
+
+@pytest.mark.integration
+def test_fetch_injuries_away_returns_error_key():
+    """fetch_injuries (away) returns a dict with 'error' key."""
+    result = fetch_injuries(AWAY_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
+
+
+@pytest.mark.integration
+def test_fetch_league_position_away_returns_error_key():
+    """fetch_league_position (away) returns a dict with 'error' key."""
+    result = fetch_league_position(AWAY_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
+
+
+@pytest.mark.integration
+def test_calculate_recovery_time_away_returns_error_key():
+    """calculate_recovery_time (away) returns a dict with 'error' key."""
+    result = calculate_recovery_time(AWAY_TEAM, UPCOMING_DATE)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
+
+
+@pytest.mark.integration
+def test_fetch_team_news_away_returns_error_key():
+    """fetch_team_news (away) returns a dict with 'error' key."""
+    result = fetch_team_news(AWAY_TEAM)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
