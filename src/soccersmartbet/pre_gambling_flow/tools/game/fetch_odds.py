@@ -9,7 +9,7 @@ import time
 from typing import Dict, Any
 import requests
 from dotenv import load_dotenv
-from soccersmartbet.team_registry import normalize_team_name
+from soccersmartbet.team_registry import normalize_team_name, resolve_team
 
 load_dotenv()
 
@@ -27,6 +27,8 @@ SOCCER_LEAGUES = [
     "soccer_germany_bundesliga",     # Bundesliga
     "soccer_france_ligue_one",       # Ligue 1
     "soccer_uefa_europa_league",     # Europa League
+    "soccer_uefa_euro_championship", # Euro
+    "soccer_fifa_world_cup",         # World Cup
 ]
 
 
@@ -82,9 +84,16 @@ def fetch_odds(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
         }
     
     try:
-        # Search across all major leagues for upcoming match
-        home_input_norm = normalize_team_name(home_team_name)
-        away_input_norm = normalize_team_name(away_team_name)
+        # Resolve abbreviations/aliases to canonical names for robust matching
+        home_canonical = resolve_team(home_team_name)
+        away_canonical = resolve_team(away_team_name)
+        # Build sets of normalized names — input + canonical (if different)
+        home_norms = {normalize_team_name(home_team_name)}
+        away_norms = {normalize_team_name(away_team_name)}
+        if home_canonical:
+            home_norms.add(normalize_team_name(home_canonical))
+        if away_canonical:
+            away_norms.add(normalize_team_name(away_canonical))
 
         for sport_key in SOCCER_LEAGUES:
             try:
@@ -120,12 +129,12 @@ def fetch_odds(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
 
                 # Find match between these two teams (fuzzy matching with accent folding)
                 for match in matches:
-                    home = normalize_team_name(match.get("home_team") or "")
-                    away = normalize_team_name(match.get("away_team") or "")
+                    home_api = normalize_team_name(match.get("home_team") or "")
+                    away_api = normalize_team_name(match.get("away_team") or "")
 
-                    # Check if team names match (fuzzy comparison)
-                    home_matches = home_input_norm in home or home in home_input_norm
-                    away_matches = away_input_norm in away or away in away_input_norm
+                    # Check if any of our normalized names match the API name
+                    home_matches = any(h in home_api or home_api in h for h in home_norms)
+                    away_matches = any(a in away_api or away_api in a for a in away_norms)
 
                     if home_matches and away_matches:
                         # Found the match! Extract odds

@@ -87,6 +87,8 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
             f"{BASE_URL}/competitions/SA/matches",   # Serie A
             f"{BASE_URL}/competitions/BL1/matches",  # Bundesliga
             f"{BASE_URL}/competitions/FL1/matches",  # Ligue 1
+            f"{BASE_URL}/competitions/EC/matches",   # European Championship
+            f"{BASE_URL}/competitions/WC/matches",   # World Cup
         ]
 
         upcoming_match = None
