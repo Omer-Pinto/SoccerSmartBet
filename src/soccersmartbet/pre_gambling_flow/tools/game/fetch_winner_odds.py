@@ -1,13 +1,14 @@
 """
 Fetch betting odds from winner.co.il Israeli Toto mobile API.
 
-Implements the 2-step GetCMobileHashes + GetCMobileLine flow to retrieve
-1X2 odds for soccer matches listed on the Israeli Toto platform.
+Uses a GET request to /api/v2/publicapi/GetCMobileLine which returns a flat
+list of all available markets. Requires session cookies obtained by visiting
+the main site first.
 """
 
-import hashlib
 import json
 import uuid
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 import requests
@@ -15,24 +16,35 @@ import requests
 from soccersmartbet.team_registry import resolve_team, get_source_name_he
 
 # API Configuration
-BASE_URL = "https://api.winner.co.il/api/CouponDataCenter"
-TIMEOUT = 15
+_BASE_URL = "https://www.winner.co.il"
+_API_URL = f"{_BASE_URL}/api/v2/publicapi/GetCMobileLine"
+TIMEOUT = 30
 
-# Static device ID derived from a deterministic SHA256 hash
-_DEVICE_SEED = "soccersmartbet-device"
-DEVICE_ID = hashlib.sha256(_DEVICE_SEED.encode()).hexdigest()
+# Stable device ID for the session lifetime
+_DEVICE_ID = str(uuid.uuid4())
 
-# Fixed app metadata headers
-APP_VERSION = "3.0.0"
-USER_AGENT_DATA = json.dumps(
+# App metadata that mirrors the Android mobile web client
+_USER_AGENT_DATA = json.dumps(
     {
-        "os": "Android",
-        "osVersion": "14",
-        "appVersion": APP_VERSION,
-        "deviceModel": "SM-G991B",
+        "devicemodel": "SM-G991B",
+        "deviceos": "android",
+        "deviceosversion": "14",
+        "appversion": "2.6.0",
+        "apptype": "mobileweb",
+        "originId": "3",
+        "isAccessibility": False,
     },
     separators=(",", ":"),
 )
+
+_REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-G991B) AppleWebKit/537.36",
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "DeviceId": _DEVICE_ID,
+    "UserAgentData": _USER_AGENT_DATA,
+    "appVersion": "2.6.0",
+}
 
 # Hebrew league name → English canonical name
 LEAGUE_MAP_HE: Dict[str, str] = {
@@ -46,20 +58,228 @@ LEAGUE_MAP_HE: Dict[str, str] = {
     "ליגת Winner": "Israeli Premier League",
 }
 
+# ---------------------------------------------------------------------------
+# Module-level session — initialised once, cookies persist across calls
+# ---------------------------------------------------------------------------
+
+_session: Optional[requests.Session] = None
+
+
+def _get_session() -> requests.Session:
+    """Return the module-level session, creating and priming it on first call."""
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        # Visit the main page to acquire any required session cookies
+        try:
+            _session.get(
+                _BASE_URL,
+                headers={"User-Agent": _REQUEST_HEADERS["User-Agent"]},
+                timeout=TIMEOUT,
+            )
+        except Exception:
+            pass  # Proceed even if the homepage request fails
+    return _session
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_headers() -> Dict[str, str]:
-    """Build request headers with a fresh requestid per call."""
-    return {
-        "Content-Type": "application/json",
-        "deviceid": DEVICE_ID,
-        "appversion": APP_VERSION,
-        "requestid": str(uuid.uuid4()),
-        "useragentdata": USER_AGENT_DATA,
-    }
+    """Return request headers with a fresh RequestId per call."""
+    return {**_REQUEST_HEADERS, "RequestId": str(uuid.uuid4())}
+
+
+def _to_float(value: Any) -> Optional[float]:
+    """Safely convert a value to float, returning None on failure."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_edate(e_date: int, m_hour: str) -> Optional[str]:
+    """
+    Convert winner.co.il date/time fields to an ISO-8601 string.
+
+    Args:
+        e_date: Integer in YYMMDD format (e.g. 260408 for 2026-04-08).
+        m_hour: String in HHMM format (e.g. "2200" for 22:00).
+
+    Returns:
+        ISO-8601 datetime string or None if parsing fails.
+    """
+    try:
+        date_str = str(e_date).zfill(6)
+        year = 2000 + int(date_str[0:2])
+        month = int(date_str[2:4])
+        day = int(date_str[4:6])
+        hour = int(m_hour[0:2])
+        minute = int(m_hour[2:4])
+        dt = datetime(year, month, day, hour, minute)
+        return dt.isoformat()
+    except Exception:
+        return None
+
+
+def _map_league(league_he: str) -> str:
+    """
+    Map a Hebrew league name to its English canonical name.
+
+    Uses substring matching so partial tournament names still map correctly.
+    Falls back to the original Hebrew string if no match is found.
+    """
+    for he_key, en_val in LEAGUE_MAP_HE.items():
+        if he_key in league_he:
+            return en_val
+    return league_he
+
+
+def _extract_1x2_odds(
+    outcomes: list[Dict[str, Any]],
+) -> Optional[Dict[str, float]]:
+    """
+    Extract home/draw/away odds from a 3-outcome list.
+
+    The draw outcome is identified by its desc containing "X" (possibly wrapped
+    in RTL Unicode markers). Home and away are assigned positionally from the
+    remaining two outcomes.
+
+    Returns:
+        {"home": float, "draw": float, "away": float} or None.
+    """
+    if len(outcomes) != 3:
+        return None
+
+    draw_outcome = None
+    for o in outcomes:
+        desc = o.get("desc") or ""
+        # Strip RTL/LTR Unicode control characters before checking for "X"
+        stripped = "".join(c for c in desc if c.isalpha() or c.isdigit())
+        if stripped == "X":
+            draw_outcome = o
+            break
+
+    if draw_outcome is None:
+        return None
+
+    non_draw = [o for o in outcomes if o is not draw_outcome]
+    if len(non_draw) != 2:
+        return None
+
+    odds_home = _to_float(non_draw[0].get("price"))
+    odds_draw = _to_float(draw_outcome.get("price"))
+    odds_away = _to_float(non_draw[1].get("price"))
+
+    if odds_home is None or odds_draw is None or odds_away is None:
+        return None
+
+    return {"home": odds_home, "draw": odds_draw, "away": odds_away}
+
+
+def _parse_soccer_markets(data: Dict[str, Any]) -> list[Dict[str, Any]]:
+    """
+    Parse the flat ``markets`` list from the GetCMobileLine response.
+
+    Filters to 1X2 full-time result markets ("1X2" and "תוצאת סיום" both
+    present in the ``mp`` field) and returns a list of enriched event dicts.
+
+    Each entry contains:
+        home_name_he, away_name_he, league_he, league_en,
+        odds_home, odds_draw, odds_away, commence_time
+    """
+    events: list[Dict[str, Any]] = []
+    markets: list[Dict[str, Any]] = data.get("markets") or []
+
+    for market in markets:
+        mp: str = market.get("mp") or ""
+        if "1X2" not in mp or "תוצאת סיום" not in mp:
+            continue
+
+        desc: str = market.get("desc") or ""
+        if " - " not in desc:
+            continue
+
+        home_he, away_he = desc.split(" - ", 1)
+        home_he = home_he.strip()
+        away_he = away_he.strip()
+
+        league_he: str = market.get("league") or ""
+        league_en: str = _map_league(league_he)
+
+        e_date: int = market.get("e_date") or 0
+        m_hour: str = str(market.get("m_hour") or "0000").zfill(4)
+        commence_time = _parse_edate(e_date, m_hour)
+
+        outcomes: list[Dict[str, Any]] = market.get("outcomes") or []
+        odds = _extract_1x2_odds(outcomes)
+        if odds is None:
+            continue
+
+        events.append(
+            {
+                "home_name_he": home_he,
+                "away_name_he": away_he,
+                "league_he": league_he,
+                "league_en": league_en,
+                "odds_home": odds["home"],
+                "odds_draw": odds["draw"],
+                "odds_away": odds["away"],
+                "commence_time": commence_time,
+            }
+        )
+
+    return events
+
+
+def _he_name_for_english(english_name: str) -> Optional[str]:
+    """
+    Resolve an English team name to its Hebrew equivalent via team_registry.
+
+    Example: "Barcelona" → "ברצלונה"
+    """
+    canonical = resolve_team(english_name)
+    if canonical:
+        return get_source_name_he(canonical)
+    return None
+
+
+def _events_match(
+    event: Dict[str, Any],
+    home_team_name: str,
+    away_team_name: str,
+) -> bool:
+    """
+    Return True if an event matches the requested home/away team names.
+
+    Matching strategy (in priority order):
+    1. Direct Hebrew lookup via team_registry
+    2. Canonical name resolution on both sides via resolve_team
+    """
+    home_he = event["home_name_he"]
+    away_he = event["away_name_he"]
+
+    expected_home_he = _he_name_for_english(home_team_name)
+    expected_away_he = _he_name_for_english(away_team_name)
+
+    if expected_home_he and expected_away_he:
+        if home_he == expected_home_he and away_he == expected_away_he:
+            return True
+        # Hebrew spelling may differ between registry and source; fall through
+        # to canonical comparison before giving up.
+
+    # Fallback: resolve both sides to canonical and compare
+    home_canonical = resolve_team(home_he)
+    away_canonical = resolve_team(away_he)
+    req_home_canonical = resolve_team(home_team_name)
+    req_away_canonical = resolve_team(away_team_name)
+
+    if home_canonical and away_canonical and req_home_canonical and req_away_canonical:
+        return home_canonical == req_home_canonical and away_canonical == req_away_canonical
+
+    return False
 
 
 def _error_dict(
@@ -87,261 +307,42 @@ def _error_dict(
     }
 
 
-def _get_mobile_hashes() -> Optional[Dict[str, Any]]:
-    """
-    Step 1: POST GetCMobileHashes.
-
-    Returns the raw JSON response body or None on failure.
-    """
-    try:
-        response = requests.post(
-            f"{BASE_URL}/GetCMobileHashes",
-            headers=_build_headers(),
-            json={"LanguageId": 2},
-            timeout=TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        return response.json()
-    except Exception:
-        return None
-
-
-def _get_mobile_line(hashes: list | None = None) -> Optional[Dict[str, Any]]:
-    """
-    Step 2: POST GetCMobileLine.
-
-    Args:
-        hashes: Hash list from Step 1 response. Forwarded to the API.
-
-    Returns the raw JSON response body or None on failure.
-    """
-    try:
-        response = requests.post(
-            f"{BASE_URL}/GetCMobileLine",
-            headers=_build_headers(),
-            json={
-                "LanguageId": 2,
-                "Hashes": hashes or [],
-                "FavoritesHashCode": "",
-                "FavoritesData": None,
-            },
-            timeout=TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        return response.json()
-    except Exception:
-        return None
-
-
-def _parse_soccer_events(data: Dict[str, Any]) -> list[Dict[str, Any]]:
-    """
-    Walk Sports → Tournaments → Events and return a flat list of enriched
-    soccer event dicts containing parsed odds and league info.
-
-    Each entry has:
-        home_name_he, away_name_he, league_he, league_en,
-        odds_home, odds_draw, odds_away, commence_time
-    """
-    events: list[Dict[str, Any]] = []
-    sports = data.get("Sports") or []
-
-    for sport in sports:
-        sport_name: str = sport.get("Name") or sport.get("SportName") or ""
-        if "כדורגל" not in sport_name:
-            continue
-
-        tournaments = sport.get("Tournaments") or []
-        for tournament in tournaments:
-            league_he: str = tournament.get("Name") or tournament.get("TournamentName") or ""
-            league_en: str = _map_league(league_he)
-
-            raw_events = tournament.get("Events") or []
-            for event in raw_events:
-                home_he: str = event.get("HomeName") or ""
-                away_he: str = event.get("AwayName") or ""
-                commence_time: Optional[str] = (
-                    event.get("EventDate")
-                    or event.get("StartTime")
-                    or event.get("Date")
-                )
-
-                markets = event.get("Markets") or []
-                odds = _extract_1x2_odds(markets, home_he, away_he)
-                if odds is None:
-                    continue
-
-                events.append(
-                    {
-                        "home_name_he": home_he,
-                        "away_name_he": away_he,
-                        "league_he": league_he,
-                        "league_en": league_en,
-                        "odds_home": odds["home"],
-                        "odds_draw": odds["draw"],
-                        "odds_away": odds["away"],
-                        "commence_time": commence_time,
-                    }
-                )
-
-    return events
-
-
-def _extract_1x2_odds(
-    markets: list[Dict[str, Any]],
-    home_name_he: str = "",
-    away_name_he: str = "",
-) -> Optional[Dict[str, float]]:
-    """
-    Find the 1X2 market and return {"home", "draw", "away"} decimal prices.
-
-    A 1X2 market is identified by having exactly 3 outcomes where one outcome
-    name contains "X" or "תיקו" (Hebrew for "draw").
-
-    Home/away assignment uses outcome names matched against the event's Hebrew
-    team names. Falls back to positional order only when names don't match.
-
-    Returns None if no valid 1X2 market is found.
-    """
-    for market in markets:
-        outcomes = market.get("Outcomes") or market.get("Selections") or []
-        if len(outcomes) != 3:
-            continue
-
-        draw_outcome = next(
-            (
-                o
-                for o in outcomes
-                if "X" in (o.get("Name") or "")
-                or "תיקו" in (o.get("Name") or "")
-            ),
-            None,
-        )
-        if draw_outcome is None:
-            continue
-
-        non_draw = [o for o in outcomes if o is not draw_outcome]
-        if len(non_draw) != 2:
-            continue
-
-        # Try to match outcome names against home/away Hebrew team names
-        home_outcome = None
-        away_outcome = None
-        if home_name_he and away_name_he:
-            for o in non_draw:
-                oname = o.get("Name") or ""
-                if home_name_he in oname or oname in home_name_he:
-                    home_outcome = o
-                elif away_name_he in oname or oname in away_name_he:
-                    away_outcome = o
-
-        # Fall back to positional if name matching didn't resolve both
-        if home_outcome is None or away_outcome is None:
-            home_outcome = non_draw[0]
-            away_outcome = non_draw[1]
-
-        odds_home = _to_float(home_outcome.get("Price") or home_outcome.get("Odds"))
-        odds_draw = _to_float(draw_outcome.get("Price") or draw_outcome.get("Odds"))
-        odds_away = _to_float(away_outcome.get("Price") or away_outcome.get("Odds"))
-
-        if odds_home is None or odds_draw is None or odds_away is None:
-            continue
-
-        return {"home": odds_home, "draw": odds_draw, "away": odds_away}
-
-    return None
-
-
-def _to_float(value: Any) -> Optional[float]:
-    """Safely convert a value to float, returning None on failure."""
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _map_league(league_he: str) -> str:
-    """
-    Map a Hebrew league name to its English canonical name.
-
-    Uses substring matching so partial tournament names still map correctly.
-    Falls back to the original Hebrew string if no match is found.
-    """
-    for he_key, en_val in LEAGUE_MAP_HE.items():
-        if he_key in league_he:
-            return en_val
-    return league_he
-
-
-def _he_name_for_english(english_name: str) -> Optional[str]:
-    """
-    Resolve an English team name to its Hebrew equivalent via team_registry.
-
-    Example: "Manchester City" → "מנצ'סטר סיטי"
-    """
-    canonical = resolve_team(english_name)
-    if canonical:
-        return get_source_name_he(canonical)
-    return None
-
-
-def _events_match(
-    event: Dict[str, Any],
-    home_team_name: str,
-    away_team_name: str,
-) -> bool:
-    """
-    Return True if an event matches the requested home/away team names.
-
-    Matching strategy (in priority order):
-    1. Direct Hebrew lookup via team_registry
-    2. Canonical name resolution on both sides via resolve_team
-    """
-    home_he = event["home_name_he"]
-    away_he = event["away_name_he"]
-
-    # Resolve Hebrew names for caller's English inputs
-    expected_home_he = _he_name_for_english(home_team_name)
-    expected_away_he = _he_name_for_english(away_team_name)
-
-    if expected_home_he and expected_away_he:
-        return home_he == expected_home_he and away_he == expected_away_he
-
-    # Fallback: resolve both sides to canonical and compare
-    home_canonical = resolve_team(home_he)
-    away_canonical = resolve_team(away_he)
-    req_home_canonical = resolve_team(home_team_name)
-    req_away_canonical = resolve_team(away_team_name)
-
-    if home_canonical and away_canonical and req_home_canonical and req_away_canonical:
-        return home_canonical == req_home_canonical and away_canonical == req_away_canonical
-
-    return False
-
-
 # ---------------------------------------------------------------------------
-# Shared 2-step API flow
+# Shared API flow
 # ---------------------------------------------------------------------------
+
 
 def _fetch_all_soccer_events() -> tuple[list[Dict[str, Any]], Optional[str]]:
-    """Execute the 2-step winner.co.il mobile API flow and parse soccer events.
+    """
+    Call GetCMobileLine and parse all 1X2 soccer markets.
 
     Returns:
-        (events, error) — events is a list of parsed soccer event dicts,
+        (events, error) — events is a list of parsed event dicts,
         error is a string describing the failure or None on success.
     """
-    hashes_data = _get_mobile_hashes()
-    if hashes_data is None:
-        return [], "Failed to reach winner.co.il GetCMobileHashes endpoint"
+    session = _get_session()
+    try:
+        response = session.get(
+            _API_URL,
+            headers=_build_headers(),
+            timeout=TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        return [], f"Network error reaching winner.co.il: {exc}"
 
-    hashes_list = hashes_data.get("Hashes") or []
-    line_data = _get_mobile_line(hashes=hashes_list)
-    if line_data is None:
-        return [], "Failed to reach winner.co.il GetCMobileLine endpoint"
+    if response.status_code != 200:
+        return [], (
+            f"winner.co.il returned HTTP {response.status_code} "
+            f"from GetCMobileLine"
+        )
 
     try:
-        events = _parse_soccer_events(line_data)
+        data = response.json()
+    except ValueError as exc:
+        return [], f"Invalid JSON from winner.co.il: {exc}"
+
+    try:
+        events = _parse_soccer_markets(data)
     except Exception as exc:
         return [], f"Error parsing winner.co.il response: {exc}"
 
@@ -357,12 +358,12 @@ def fetch_winner_odds(home_team_name: str, away_team_name: str) -> Dict[str, Any
     """
     Fetch 1X2 odds for a specific match from winner.co.il.
 
-    Executes the 2-step mobile API flow (GetCMobileHashes then GetCMobileLine),
-    parses all soccer events, and returns odds for the requested fixture.
+    Calls GetCMobileLine, parses all 1X2 soccer markets, and returns odds for
+    the requested fixture.
 
     Args:
         home_team_name: Home team name in English (e.g., "Barcelona").
-        away_team_name: Away team name in English (e.g., "Real Madrid").
+        away_team_name: Away team name in English (e.g., "Atletico Madrid").
 
     Returns:
         Dict with keys:
@@ -409,7 +410,7 @@ def fetch_all_winner_odds(league: Optional[str] = None) -> Dict[str, Any]:
     Fetch all available 1X2 odds from winner.co.il, optionally filtered by league.
 
     Args:
-        league: Optional English league name to filter by (e.g., "La Liga").
+        league: Optional English league name to filter by (e.g., "Champions League").
                 Matching is case-insensitive substring. Pass None to return all.
 
     Returns:
