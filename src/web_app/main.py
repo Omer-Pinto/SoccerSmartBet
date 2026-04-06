@@ -1,5 +1,6 @@
 """FastAPI backend for the web tool tester."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -142,38 +143,44 @@ def fetch_match_data(request: MatchRequest):
     if not match_datetime:
         match_datetime = f"{match_date}T15:00:00"
 
-    # Step 2: Run remaining game tools
+    # Step 2: Run ALL remaining tools concurrently
+    # Each future maps to (category, tool_name) so results can be sorted back
     game_tools = [h2h_result]
+    home_team_tools: list[ToolResult] = []
+    away_team_tools: list[ToolResult] = []
 
-    venue_result = _run_tool("fetch_venue", fetch_venue, home_team, away_team)
-    game_tools.append(venue_result)
+    _concurrent_tasks: dict[Any, tuple[str, str]] = {}
 
-    weather_result = _run_tool("fetch_weather", fetch_weather, home_team, away_team, match_datetime)
-    game_tools.append(weather_result)
+    with ThreadPoolExecutor(max_workers=14) as executor:
+        # Game tools
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_venue", fetch_venue, home_team, away_team)] = ("game", "fetch_venue")
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_weather", fetch_weather, home_team, away_team, match_datetime)] = ("game", "fetch_weather")
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_odds", fetch_odds, home_team, away_team)] = ("game", "fetch_odds")
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_winner_odds", fetch_winner_odds, home_team, away_team)] = ("game", "fetch_winner_odds")
 
-    odds_result = _run_tool("fetch_odds", fetch_odds, home_team, away_team)
-    game_tools.append(odds_result)
+        # Home team tools
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_form", fetch_form, home_team, 5)] = ("home", "fetch_form")
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_injuries", fetch_injuries, home_team)] = ("home", "fetch_injuries")
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_league_position", fetch_league_position, home_team)] = ("home", "fetch_league_position")
+        _concurrent_tasks[executor.submit(_run_tool, "calculate_recovery_time", calculate_recovery_time, home_team, match_date)] = ("home", "calculate_recovery_time")
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_team_news", fetch_team_news, home_team)] = ("home", "fetch_team_news")
 
-    winner_odds_result = _run_tool("fetch_winner_odds", fetch_winner_odds, home_team, away_team)
-    game_tools.append(winner_odds_result)
+        # Away team tools
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_form", fetch_form, away_team, 5)] = ("away", "fetch_form")
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_injuries", fetch_injuries, away_team)] = ("away", "fetch_injuries")
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_league_position", fetch_league_position, away_team)] = ("away", "fetch_league_position")
+        _concurrent_tasks[executor.submit(_run_tool, "calculate_recovery_time", calculate_recovery_time, away_team, match_date)] = ("away", "calculate_recovery_time")
+        _concurrent_tasks[executor.submit(_run_tool, "fetch_team_news", fetch_team_news, away_team)] = ("away", "fetch_team_news")
 
-    # Step 3: Run home team tools
-    home_team_tools = [
-        _run_tool("fetch_form", fetch_form, home_team, 5),
-        _run_tool("fetch_injuries", fetch_injuries, home_team),
-        _run_tool("fetch_league_position", fetch_league_position, home_team),
-        _run_tool("calculate_recovery_time", calculate_recovery_time, home_team, match_date),
-        _run_tool("fetch_team_news", fetch_team_news, home_team),
-    ]
-
-    # Step 4: Run away team tools
-    away_team_tools = [
-        _run_tool("fetch_form", fetch_form, away_team, 5),
-        _run_tool("fetch_injuries", fetch_injuries, away_team),
-        _run_tool("fetch_league_position", fetch_league_position, away_team),
-        _run_tool("calculate_recovery_time", calculate_recovery_time, away_team, match_date),
-        _run_tool("fetch_team_news", fetch_team_news, away_team),
-    ]
+        for future in as_completed(_concurrent_tasks):
+            category, _ = _concurrent_tasks[future]
+            result = future.result()
+            if category == "game":
+                game_tools.append(result)
+            elif category == "home":
+                home_team_tools.append(result)
+            else:
+                away_team_tools.append(result)
 
     total_time = (datetime.now() - start_time).total_seconds() * 1000
 

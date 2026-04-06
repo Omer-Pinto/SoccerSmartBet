@@ -8,6 +8,7 @@ import os
 from typing import Dict, Any
 import requests
 from dotenv import load_dotenv
+from soccersmartbet.team_registry import normalize_team_name
 
 load_dotenv()
 
@@ -81,9 +82,9 @@ def fetch_odds(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
     
     try:
         # Search across all major leagues for upcoming match
-        home_team_lower = home_team_name.lower()
-        away_team_lower = away_team_name.lower()
-        
+        home_input_norm = normalize_team_name(home_team_name)
+        away_input_norm = normalize_team_name(away_team_name)
+
         for sport_key in SOCCER_LEAGUES:
             try:
                 response = requests.get(
@@ -96,21 +97,21 @@ def fetch_odds(home_team_name: str, away_team_name: str) -> Dict[str, Any]:
                     },
                     timeout=TIMEOUT
                 )
-                
+
                 if response.status_code != 200:
                     continue  # Try next league
-                
+
                 matches = response.json()
-                
-                # Find match between these two teams (fuzzy matching)
+
+                # Find match between these two teams (fuzzy matching with accent folding)
                 for match in matches:
-                    home = match.get("home_team", "").lower()
-                    away = match.get("away_team", "").lower()
-                    
+                    home = normalize_team_name(match.get("home_team") or "")
+                    away = normalize_team_name(match.get("away_team") or "")
+
                     # Check if team names match (fuzzy comparison)
-                    home_matches = home_team_lower in home or home in home_team_lower
-                    away_matches = away_team_lower in away or away in away_team_lower
-                    
+                    home_matches = home_input_norm in home or home in home_input_norm
+                    away_matches = away_input_norm in away or away in away_input_norm
+
                     if home_matches and away_matches:
                         # Found the match! Extract odds
                         return _extract_odds_from_match(match, home_team_name, away_team_name)

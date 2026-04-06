@@ -8,6 +8,7 @@ import os
 from typing import Dict, Any
 import requests
 from dotenv import load_dotenv
+from soccersmartbet.team_registry import normalize_team_name
 
 load_dotenv()
 
@@ -87,9 +88,9 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
         ]
         
         upcoming_match = None
-        home_team_lower = home_team_name.lower()
-        away_team_lower = away_team_name.lower()
-        
+        home_input_norm = normalize_team_name(home_team_name)
+        away_input_norm = normalize_team_name(away_team_name)
+
         # Try each competition URL until we find a match
         for url in search_urls:
             response = requests.get(
@@ -98,24 +99,24 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
                 params={"status": "SCHEDULED"},
                 timeout=TIMEOUT
             )
-            
+
             if response.status_code != 200:
                 continue  # Try next competition
-            
+
             matches = response.json().get("matches", [])
-            
-            # Find match between these two teams (fuzzy matching)
+
+            # Find match between these two teams (fuzzy matching with accent folding)
             for match in matches:
-                home = match.get("homeTeam", {}).get("name", "").lower()
-                away = match.get("awayTeam", {}).get("name", "").lower()
-                
+                home = normalize_team_name((match.get("homeTeam") or {}).get("name") or "")
+                away = normalize_team_name((match.get("awayTeam") or {}).get("name") or "")
+
                 # Check if team names match (either order, fuzzy)
-                home_matches_input_home = home_team_lower in home or home in home_team_lower
-                away_matches_input_away = away_team_lower in away or away in away_team_lower
-                
-                home_matches_input_away = home_team_lower in away or away in home_team_lower
-                away_matches_input_home = away_team_lower in home or home in away_team_lower
-                
+                home_matches_input_home = home_input_norm in home or home in home_input_norm
+                away_matches_input_away = away_input_norm in away or away in away_input_norm
+
+                home_matches_input_away = home_input_norm in away or away in home_input_norm
+                away_matches_input_home = away_input_norm in home or home in away_input_norm
+
                 if (home_matches_input_home and away_matches_input_away) or \
                    (home_matches_input_away and away_matches_input_home):
                     upcoming_match = match
