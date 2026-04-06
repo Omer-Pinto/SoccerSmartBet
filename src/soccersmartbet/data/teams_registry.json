@@ -165,7 +165,7 @@
     "aliases": ["Inter", "Internazionale", "FC Internazionale Milano", "Nerazzurri"],
     "football_data_id": 108,
     "fotmob_id": 8636,
-    "winner_name_he": "אינטר מילאן",
+    "winner_name_he": "אינטר",
     "league": "Serie A",
     "country": "Italy"
   },
@@ -175,7 +175,7 @@
     "aliases": ["Milan", "Rossoneri", "ACM"],
     "football_data_id": 98,
     "fotmob_id": 8564,
-    "winner_name_he": "אם מילאן",
+    "winner_name_he": "מילאן",
     "league": "Serie A",
     "country": "Italy"
   },
@@ -448,5 +448,385 @@
     "winner_name_he": "עירוני טבריה",
     "league": "Israeli Premier League",
     "country": "Israel"
+  },
+  {
+    "canonical_name": "Atalanta",
+    "short_name": "Atalanta",
+    "aliases": ["Atalanta BC"],
+    "football_data_id": 102,
+    "fotmob_id": null,
+    "winner_name_he": "אטאלנטה",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Bologna",
+    "short_name": "Bologna",
+    "aliases": ["Bologna FC"],
+    "football_data_id": 103,
+    "fotmob_id": null,
+    "winner_name_he": "בולוניה",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Torino",
+    "short_name": "Torino",
+    "aliases": ["Torino FC"],
+    "football_data_id": 586,
+    "fotmob_id": null,
+    "winner_name_he": "טורינו",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Udinese",
+    "short_name": "Udinese",
+    "aliases": ["Udinese Calcio"],
+    "football_data_id": 115,
+    "fotmob_id": null,
+    "winner_name_he": "אודינזה",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Genoa",
+    "short_name": "Genoa",
+    "aliases": ["Genoa CFC"],
+    "football_data_id": 107,
+    "fotmob_id": null,
+    "winner_name_he": "גנואה",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Parma",
+    "short_name": "Parma",
+    "aliases": ["Parma Calcio"],
+    "football_data_id": null,
+    "fotmob_id": null,
+    "winner_name_he": "פארמה",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Hellas Verona",
+    "short_name": "Verona",
+    "aliases": ["Verona"],
+    "football_data_id": 450,
+    "fotmob_id": null,
+    "winner_name_he": "ורונה",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Cagliari",
+    "short_name": "Cagliari",
+    "aliases": ["Cagliari Calcio"],
+    "football_data_id": 104,
+    "fotmob_id": null,
+    "winner_name_he": "קליארי",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Como",
+    "short_name": "Como",
+    "aliases": ["Como 1907"],
+    "football_data_id": null,
+    "fotmob_id": null,
+    "winner_name_he": "קומו",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Lecce",
+    "short_name": "Lecce",
+    "aliases": ["US Lecce"],
+    "football_data_id": 282,
+    "fotmob_id": null,
+    "winner_name_he": "לצ'ה",
+    "league": "Serie A",
+    "country": "Italy"
+  },
+  {
+    "canonical_name": "Sevilla",
+    "short_name": "Sevilla",
+    "aliases": ["Sevilla FC"],
+    "football_data_id": 559,
+    "fotmob_id": null,
+    "winner_name_he": "סביליה",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Real Betis",
+    "short_name": "Betis",
+    "aliases": ["Betis", "Real Betis Balompie"],
+    "football_data_id": 90,
+    "fotmob_id": null,
+    "winner_name_he": "ריאל בטיס",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Girona",
+    "short_name": "Girona",
+    "aliases": ["Girona FC"],
+    "football_data_id": 298,
+    "fotmob_id": null,
+    "winner_name_he": "ג'ירונה",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Valencia",
+    "short_name": "Valencia",
+    "aliases": ["Valencia CF"],
+    "football_data_id": 95,
+    "fotmob_id": null,
+    "winner_name_he": "ולנסיה",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Celta Vigo",
+    "short_name": "Celta",
+    "aliases": ["Celta de Vigo", "RC Celta"],
+    "football_data_id": 558,
+    "fotmob_id": null,
+    "winner_name_he": "סלטה ויגו",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Espanyol",
+    "short_name": "Espanyol",
+    "aliases": ["RCD Espanyol"],
+    "football_data_id": 80,
+    "fotmob_id": null,
+    "winner_name_he": "אספניול",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Osasuna",
+    "short_name": "Osasuna",
+    "aliases": ["CA Osasuna"],
+    "football_data_id": 79,
+    "fotmob_id": null,
+    "winner_name_he": "אוסאסונה",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Mallorca",
+    "short_name": "Mallorca",
+    "aliases": ["RCD Mallorca"],
+    "football_data_id": 89,
+    "fotmob_id": null,
+    "winner_name_he": "מאיורקה",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Rayo Vallecano",
+    "short_name": "Rayo",
+    "aliases": ["Rayo"],
+    "football_data_id": 87,
+    "fotmob_id": null,
+    "winner_name_he": "ראיו וייקאנו",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Alaves",
+    "short_name": "Alaves",
+    "aliases": ["Deportivo Alaves"],
+    "football_data_id": 263,
+    "fotmob_id": null,
+    "winner_name_he": "אלאבס",
+    "league": "La Liga",
+    "country": "Spain"
+  },
+  {
+    "canonical_name": "Eintracht Frankfurt",
+    "short_name": "Frankfurt",
+    "aliases": ["Frankfurt", "SGE"],
+    "football_data_id": 19,
+    "fotmob_id": null,
+    "winner_name_he": "איינטרכט פרנקפורט",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "VfB Stuttgart",
+    "short_name": "Stuttgart",
+    "aliases": ["Stuttgart"],
+    "football_data_id": 10,
+    "fotmob_id": null,
+    "winner_name_he": "שטוטגרט",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "SC Freiburg",
+    "short_name": "Freiburg",
+    "aliases": ["Freiburg"],
+    "football_data_id": 17,
+    "fotmob_id": null,
+    "winner_name_he": "פרייבורג",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "VfL Wolfsburg",
+    "short_name": "Wolfsburg",
+    "aliases": ["Wolfsburg"],
+    "football_data_id": 11,
+    "fotmob_id": null,
+    "winner_name_he": "וולפסבורג",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "1. FSV Mainz 05",
+    "short_name": "Mainz",
+    "aliases": ["Mainz", "Mainz 05"],
+    "football_data_id": 15,
+    "fotmob_id": null,
+    "winner_name_he": "מיינץ",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "TSG Hoffenheim",
+    "short_name": "Hoffenheim",
+    "aliases": ["Hoffenheim"],
+    "football_data_id": 2,
+    "fotmob_id": null,
+    "winner_name_he": "הופנהיים",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "Borussia Monchengladbach",
+    "short_name": "Gladbach",
+    "aliases": ["Gladbach", "BMG"],
+    "football_data_id": 18,
+    "fotmob_id": null,
+    "winner_name_he": "בורוסיה מינשנגלדבאך",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "FC Augsburg",
+    "short_name": "Augsburg",
+    "aliases": ["Augsburg"],
+    "football_data_id": 16,
+    "fotmob_id": null,
+    "winner_name_he": "אוגסבורג",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "1. FC Union Berlin",
+    "short_name": "Union Berlin",
+    "aliases": ["Union Berlin"],
+    "football_data_id": 28,
+    "fotmob_id": null,
+    "winner_name_he": "אוניון ברלין",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "Werder Bremen",
+    "short_name": "Bremen",
+    "aliases": ["Bremen", "Werder"],
+    "football_data_id": 12,
+    "fotmob_id": null,
+    "winner_name_he": "ורדר ברמן",
+    "league": "Bundesliga",
+    "country": "Germany"
+  },
+  {
+    "canonical_name": "Olympique Lyonnais",
+    "short_name": "Lyon",
+    "aliases": ["Lyon", "OL"],
+    "football_data_id": 523,
+    "fotmob_id": null,
+    "winner_name_he": "ליון",
+    "league": "Ligue 1",
+    "country": "France"
+  },
+  {
+    "canonical_name": "LOSC Lille",
+    "short_name": "Lille",
+    "aliases": ["Lille", "LOSC"],
+    "football_data_id": 521,
+    "fotmob_id": null,
+    "winner_name_he": "ליל",
+    "league": "Ligue 1",
+    "country": "France"
+  },
+  {
+    "canonical_name": "OGC Nice",
+    "short_name": "Nice",
+    "aliases": ["Nice"],
+    "football_data_id": 522,
+    "fotmob_id": null,
+    "winner_name_he": "ניס",
+    "league": "Ligue 1",
+    "country": "France"
+  },
+  {
+    "canonical_name": "Stade Rennais",
+    "short_name": "Rennes",
+    "aliases": ["Rennes"],
+    "football_data_id": 529,
+    "fotmob_id": null,
+    "winner_name_he": "ראן",
+    "league": "Ligue 1",
+    "country": "France"
+  },
+  {
+    "canonical_name": "RC Lens",
+    "short_name": "Lens",
+    "aliases": ["Lens"],
+    "football_data_id": 546,
+    "fotmob_id": null,
+    "winner_name_he": "לאנס",
+    "league": "Ligue 1",
+    "country": "France"
+  },
+  {
+    "canonical_name": "Toulouse FC",
+    "short_name": "Toulouse",
+    "aliases": ["Toulouse"],
+    "football_data_id": 534,
+    "fotmob_id": null,
+    "winner_name_he": "טולוז",
+    "league": "Ligue 1",
+    "country": "France"
+  },
+  {
+    "canonical_name": "FC Nantes",
+    "short_name": "Nantes",
+    "aliases": ["Nantes"],
+    "football_data_id": 543,
+    "fotmob_id": null,
+    "winner_name_he": "נאנט",
+    "league": "Ligue 1",
+    "country": "France"
+  },
+  {
+    "canonical_name": "Sporting CP",
+    "short_name": "Sporting",
+    "aliases": ["Sporting Lisbon", "Sporting Clube de Portugal"],
+    "football_data_id": 498,
+    "fotmob_id": null,
+    "winner_name_he": "ספורטינג ליסבון",
+    "league": "Primeira Liga",
+    "country": "Portugal"
   }
 ]
