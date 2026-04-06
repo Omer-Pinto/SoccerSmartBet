@@ -38,6 +38,9 @@ def normalize_team_name(name: str) -> str:
     for src, dst in (("ü", "u"), ("ö", "o"), ("ä", "a"), ("ß", "ss")):
         n = n.replace(src, dst)
 
+    # Normalize punctuation that varies between sources
+    n = n.replace("-", " ").replace("'", "").replace(".", "")
+
     # Strip suffixes
     for suffix in (" fc", " cf", " sc", " afc", " club", " sporting"):
         if n.endswith(suffix):
