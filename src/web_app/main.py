@@ -1,5 +1,6 @@
 """FastAPI backend for the web tool tester."""
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -203,7 +204,7 @@ def fetch_match_data(request: MatchRequest):
 
 
 @app.post("/api/stream-match-data")
-def stream_match_data(request: MatchRequest):
+async def stream_match_data(request: MatchRequest):
     """Stream tool results via SSE as each completes, instead of waiting for all."""
     home_team = request.home_team.strip()
     away_team = request.away_team.strip()
@@ -211,14 +212,18 @@ def stream_match_data(request: MatchRequest):
     if not home_team or not away_team:
         raise HTTPException(status_code=400, detail="Both team names are required")
 
-    def generate():
+    async def generate():
+        loop = asyncio.get_event_loop()
+
         # Pre-warm FotMob cache for both teams
         client = get_fotmob_client()
-        client.find_team(home_team)
-        client.find_team(away_team)
+        await loop.run_in_executor(None, client.find_team, home_team)
+        await loop.run_in_executor(None, client.find_team, away_team)
 
         # H2H first — needed to extract match_date for other tools
-        h2h_result = _run_tool("fetch_h2h", fetch_h2h, home_team, away_team, 5)
+        h2h_result = await loop.run_in_executor(
+            None, lambda: _run_tool("fetch_h2h", fetch_h2h, home_team, away_team, 5)
+        )
         yield f"data: {json.dumps({'category': 'game', 'result': h2h_result.model_dump()})}\n\n"
 
         # Extract match date
@@ -229,11 +234,12 @@ def stream_match_data(request: MatchRequest):
             try:
                 home_info = client.find_team(home_team)
                 if home_info:
-                    team_data = client.get_team_data(home_info["id"])
+                    team_data = await loop.run_in_executor(
+                        None, client.get_team_data, home_info["id"]
+                    )
                     if team_data and team_data.get("overview", {}).get("nextMatch"):
                         next_match = team_data["overview"]["nextMatch"]
-                        status = next_match.get("status", {})
-                        utc_time = status.get("utcTime")
+                        utc_time = next_match.get("status", {}).get("utcTime")
                         if utc_time:
                             match_datetime = utc_time
             except Exception:
@@ -244,38 +250,44 @@ def stream_match_data(request: MatchRequest):
         if not match_datetime:
             match_datetime = f"{match_date}T15:00:00"
 
-        # Launch remaining 14 tools concurrently, stream each as it finishes
-        _concurrent_tasks: dict[Any, tuple[str, str]] = {}
+        # Launch all 14 remaining tools concurrently, yield each as it completes
+        tool_defs = [
+            ("game", "fetch_venue", fetch_venue, [home_team, away_team]),
+            ("game", "fetch_weather", fetch_weather, [home_team, away_team, match_datetime]),
+            ("game", "fetch_odds", fetch_odds, [home_team, away_team]),
+            ("game", "fetch_winner_odds", fetch_winner_odds, [home_team, away_team]),
+            ("home", "fetch_form", fetch_form, [home_team, 5]),
+            ("home", "fetch_injuries", fetch_injuries, [home_team]),
+            ("home", "fetch_league_position", fetch_league_position, [home_team]),
+            ("home", "calculate_recovery_time", calculate_recovery_time, [home_team, match_date]),
+            ("home", "fetch_team_news", fetch_team_news, [home_team]),
+            ("away", "fetch_form", fetch_form, [away_team, 5]),
+            ("away", "fetch_injuries", fetch_injuries, [away_team]),
+            ("away", "fetch_league_position", fetch_league_position, [away_team]),
+            ("away", "calculate_recovery_time", calculate_recovery_time, [away_team, match_date]),
+            ("away", "fetch_team_news", fetch_team_news, [away_team]),
+        ]
 
-        with ThreadPoolExecutor(max_workers=14) as executor:
-            # Game tools
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_venue", fetch_venue, home_team, away_team)] = ("game", "fetch_venue")
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_weather", fetch_weather, home_team, away_team, match_datetime)] = ("game", "fetch_weather")
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_odds", fetch_odds, home_team, away_team)] = ("game", "fetch_odds")
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_winner_odds", fetch_winner_odds, home_team, away_team)] = ("game", "fetch_winner_odds")
+        async def run_one(cat, name, func, args):
+            result = await loop.run_in_executor(None, lambda: _run_tool(name, func, *args))
+            return cat, result
 
-            # Home team tools
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_form", fetch_form, home_team, 5)] = ("home", "fetch_form")
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_injuries", fetch_injuries, home_team)] = ("home", "fetch_injuries")
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_league_position", fetch_league_position, home_team)] = ("home", "fetch_league_position")
-            _concurrent_tasks[executor.submit(_run_tool, "calculate_recovery_time", calculate_recovery_time, home_team, match_date)] = ("home", "calculate_recovery_time")
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_team_news", fetch_team_news, home_team)] = ("home", "fetch_team_news")
+        pending = [
+            asyncio.create_task(run_one(cat, name, func, args))
+            for cat, name, func, args in tool_defs
+        ]
 
-            # Away team tools
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_form", fetch_form, away_team, 5)] = ("away", "fetch_form")
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_injuries", fetch_injuries, away_team)] = ("away", "fetch_injuries")
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_league_position", fetch_league_position, away_team)] = ("away", "fetch_league_position")
-            _concurrent_tasks[executor.submit(_run_tool, "calculate_recovery_time", calculate_recovery_time, away_team, match_date)] = ("away", "calculate_recovery_time")
-            _concurrent_tasks[executor.submit(_run_tool, "fetch_team_news", fetch_team_news, away_team)] = ("away", "fetch_team_news")
-
-            for future in as_completed(_concurrent_tasks):
-                category, _ = _concurrent_tasks[future]
-                result = future.result()
-                yield f"data: {json.dumps({'category': category, 'result': result.model_dump()})}\n\n"
+        for coro in asyncio.as_completed(pending):
+            cat, result = await coro
+            yield f"data: {json.dumps({'category': cat, 'result': result.model_dump()})}\n\n"
 
         yield 'data: {"done": true}\n\n'
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/health")

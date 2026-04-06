@@ -8,7 +8,7 @@ import os
 from typing import Dict, Any
 import requests
 from dotenv import load_dotenv
-from soccersmartbet.team_registry import normalize_team_name
+from soccersmartbet.team_registry import normalize_team_name, resolve_team
 
 load_dotenv()
 
@@ -88,10 +88,17 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
         ]
         
         upcoming_match = None
-        home_input_norm = normalize_team_name(home_team_name)
-        away_input_norm = normalize_team_name(away_team_name)
 
-        # Try each competition URL until we find a match
+        # Resolve input names to canonical names for robust matching
+        home_canonical = resolve_team(home_team_name) or home_team_name
+        away_canonical = resolve_team(away_team_name) or away_team_name
+        home_input_norm = normalize_team_name(home_canonical)
+        away_input_norm = normalize_team_name(away_canonical)
+
+        # Collect all candidate matches across competitions, then pick earliest
+        candidates = []
+
+        # Try each competition URL
         for url in search_urls:
             response = requests.get(
                 url,
@@ -105,25 +112,35 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
 
             matches = response.json().get("matches", [])
 
-            # Find match between these two teams (fuzzy matching with accent folding)
+            # Find matches between these two teams
             for match in matches:
-                home = normalize_team_name((match.get("homeTeam") or {}).get("name") or "")
-                away = normalize_team_name((match.get("awayTeam") or {}).get("name") or "")
+                # Skip placeholder matches where team names are not yet assigned
+                home_name = (match.get("homeTeam") or {}).get("name")
+                away_name = (match.get("awayTeam") or {}).get("name")
+                if not home_name or not away_name:
+                    continue
 
-                # Check if team names match (either order, fuzzy)
-                home_matches_input_home = home_input_norm in home or home in home_input_norm
-                away_matches_input_away = away_input_norm in away or away in away_input_norm
+                # Resolve API names to canonical for apples-to-apples comparison
+                home_resolved = resolve_team(home_name) or home_name
+                away_resolved = resolve_team(away_name) or away_name
+                home_norm = normalize_team_name(home_resolved)
+                away_norm = normalize_team_name(away_resolved)
 
-                home_matches_input_away = home_input_norm in away or away in home_input_norm
-                away_matches_input_home = away_input_norm in home or home in away_input_norm
+                # Check if team names match (either order) using canonical names
+                home_matches_input_home = home_input_norm in home_norm or home_norm in home_input_norm
+                away_matches_input_away = away_input_norm in away_norm or away_norm in away_input_norm
+
+                home_matches_input_away = home_input_norm in away_norm or away_norm in home_input_norm
+                away_matches_input_home = away_input_norm in home_norm or home_norm in away_input_norm
 
                 if (home_matches_input_home and away_matches_input_away) or \
                    (home_matches_input_away and away_matches_input_home):
-                    upcoming_match = match
-                    break
-            
-            if upcoming_match:
-                break  # Found match, stop searching
+                    candidates.append(match)
+
+        # Pick the earliest scheduled match among all candidates
+        if candidates:
+            candidates.sort(key=lambda m: m.get("utcDate") or "")
+            upcoming_match = candidates[0]
         
         if not upcoming_match:
             return {
