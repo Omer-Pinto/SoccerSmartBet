@@ -171,4 +171,5 @@ cython_debug/
 .DS_Store
 LangGraphWrappers/
 .playwright-mcp/
+.claude/worktrees/
 
