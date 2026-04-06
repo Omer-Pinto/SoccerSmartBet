@@ -5,14 +5,14 @@
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 57% (32/56)
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜] 75% (42/56)
 ```
 
 | Status | Count | % |
 |--------|-------|---|
-| 🟢 Done | 32 / 56 | 57% |
+| 🟢 Done | 42 / 56 | 75% |
 | 🔵 In Progress | 0 | 0% |
-| ⬜ Pending | 24 | 43% |
+| ⬜ Pending | 14 | 25% |
 
 ---
 
@@ -23,7 +23,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜
 | 0 | Done | — | — | 0/4 | All 4 tasks complete |
 | 1 | Done | 3/3 | 3/3 | 0/3 | FotMob client + team registry + winner client (5 deferred items below) |
 | 2 | Done | 3/3 | 3/3 | 0/3 | Fix existing tools + new tools — 22/22 live tests pass |
-| 3 | Not Started | 0/2 | 0/2 | 2/2 | Web app + tests + cleanup |
+| 3 | Done | 2/2 | 2/2 | 0/2 | Web app + tests — 53/53 tests pass |
 | 4 | Not Started | 0/2 | 0/2 | 2/2 | LangGraph Pre-Gambling Flow |
 | 5 | Not Started | 0/3 | 0/3 | 3/3 | Gambling + Post-Games + Offline Analysis |
 | 6 | Not Started | 0/1 | 0/1 | 1/1 | Competition expansion + polish |
@@ -117,20 +117,20 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜
 ### Agent 3A: Fix Web App
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Update main.py imports | ⬜ Pending | |
-| 2 | Winner odds display | ⬜ Pending | |
-| 3 | Team news display | ⬜ Pending | |
-| 4 | Enrichment data display | ⬜ Pending | |
-| 5 | E2E verify | ⬜ Pending | |
+| 1 | Update main.py imports | 🟢 Done | Added winner_odds, team_news imports |
+| 2 | Winner odds display | 🟢 Done | Israeli Toto odds with Hebrew names |
+| 3 | Team news display | 🟢 Done | News cards in both team columns |
+| 4 | Enrichment data display | 🟢 Done | Covered by team news + winner odds |
+| 5 | E2E verify | 🟢 Done | FastAPI TestClient verified all endpoints |
 
 ### Agent 3B: Tests + Cleanup
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Update existing tool tests | ⬜ Pending | |
-| 2 | Create new tool tests | ⬜ Pending | |
-| 3 | Update test_all_tools.py | ⬜ Pending | |
-| 4 | Clean .env.example | ⬜ Pending | |
-| 5 | Update ORCHESTRATION_STATE.md | ⬜ Pending | |
+| 1 | Update existing tool tests | 🟢 Done | Deleted 5 dead apifootball tests, rewrote 3 |
+| 2 | Create new tool tests | 🟢 Done | All 11 tools covered in test_all_tools.py |
+| 3 | Update test_all_tools.py | 🟢 Done | 53/53 tests passing |
+| 4 | Clean .env.example | 🟢 Done | Already cleaned in Wave 0 |
+| 5 | Update ORCHESTRATION_STATE.md | 🟢 Done | Batch 6 REVERTED, revival status added |
 
 ---
 
