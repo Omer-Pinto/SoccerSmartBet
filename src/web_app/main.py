@@ -1,7 +1,6 @@
 """FastAPI backend for the web tool tester."""
 
-import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +19,6 @@ from soccersmartbet.pre_gambling_flow.tools.game.fetch_venue import fetch_venue
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_weather import fetch_weather
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_odds import fetch_odds
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_winner_odds import fetch_winner_odds
-from soccersmartbet.pre_gambling_flow.tools.game.fetch_daily_fixtures import fetch_daily_fixtures
 from soccersmartbet.pre_gambling_flow.tools.team.fetch_form import fetch_form
 from soccersmartbet.pre_gambling_flow.tools.team.fetch_injuries import fetch_injuries
 from soccersmartbet.pre_gambling_flow.tools.team.fetch_league_position import fetch_league_position
@@ -98,14 +96,14 @@ def _run_tool(tool_name: str, func, *args, **kwargs) -> ToolResult:
 
 
 @app.get("/", response_class=HTMLResponse)
-async def root():
+def root():
     """Serve the main HTML page."""
     html_path = Path(__file__).parent / "templates" / "index.html"
     return html_path.read_text()
 
 
 @app.post("/api/fetch-match-data", response_model=MatchDataResponse)
-async def fetch_match_data(request: MatchRequest):
+def fetch_match_data(request: MatchRequest):
     """Fetch all data for a match using all available tools."""
     start_time = datetime.now()
     home_team = request.home_team.strip()
@@ -139,7 +137,6 @@ async def fetch_match_data(request: MatchRequest):
 
     # If no match date from H2H, use tomorrow as fallback
     if not match_date:
-        from datetime import timedelta
         match_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
     if not match_datetime:
@@ -192,7 +189,7 @@ async def fetch_match_data(request: MatchRequest):
 
 
 @app.get("/api/health")
-async def health_check():
+def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 

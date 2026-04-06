@@ -97,6 +97,7 @@ def test_fetch_venue_returns_error_key():
     result = fetch_venue(HOME_TEAM, AWAY_TEAM)
     assert isinstance(result, dict)
     assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
     assert result["home_team"] is not None
     assert result["away_team"] == AWAY_TEAM
 
@@ -107,6 +108,7 @@ def test_fetch_weather_returns_error_key():
     result = fetch_weather(HOME_TEAM, AWAY_TEAM, MATCH_DATETIME)
     assert isinstance(result, dict)
     assert "error" in result
+    assert result["error"] is None, f"Unexpected error: {result['error']}"
     assert result["home_team"] == HOME_TEAM
     assert result["away_team"] == AWAY_TEAM
 

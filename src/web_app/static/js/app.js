@@ -504,6 +504,7 @@ function formatDate(dateStr) {
     if (!dateStr || dateStr === 'TBD') return 'TBD';
     try {
         const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return dateStr;
         return date.toLocaleDateString('en-GB', {
             weekday: 'short',
             day: 'numeric',
