@@ -16,6 +16,7 @@ FOTMOB_LEAGUES = {
     "Premier League": 47, "La Liga": 87, "Serie A": 55, "Bundesliga": 54,
     "Ligue 1": 53, "Champions League": 42, "Europa League": 73,
     "Eredivisie": 57, "Primeira Liga": 61,
+    "Israeli Premier League": 127,
 }
 
 _league_cache: Dict[int, Dict[str, Any]] = {}

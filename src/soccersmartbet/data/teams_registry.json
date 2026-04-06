@@ -294,7 +294,7 @@
     "short_name": "M. Tel Aviv",
     "aliases": ["Maccabi TA"],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 7855,
     "winner_name_he": "מכבי תל אביב",
     "league": "Israeli Premier League",
     "country": "Israel"
@@ -304,7 +304,7 @@
     "short_name": "M. Haifa",
     "aliases": [],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 10185,
     "winner_name_he": "מכבי חיפה",
     "league": "Israeli Premier League",
     "country": "Israel"
@@ -314,7 +314,7 @@
     "short_name": "H. Tel Aviv",
     "aliases": ["Hapoel TA"],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 10181,
     "winner_name_he": "הפועל תל אביב",
     "league": "Israeli Premier League",
     "country": "Israel"
@@ -324,7 +324,7 @@
     "short_name": "H. Beer Sheva",
     "aliases": ["Hapoel BS", "Hapoel Be'er Sheva"],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 9754,
     "winner_name_he": "הפועל באר שבע",
     "league": "Israeli Premier League",
     "country": "Israel"
@@ -334,7 +334,7 @@
     "short_name": "Beitar",
     "aliases": ["Beitar J'lem"],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 8173,
     "winner_name_he": "בית\"ר ירושלים",
     "league": "Israeli Premier League",
     "country": "Israel"
@@ -344,7 +344,7 @@
     "short_name": "M. Netanya",
     "aliases": [],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 1832,
     "winner_name_he": "מכבי נתניה",
     "league": "Israeli Premier League",
     "country": "Israel"
@@ -354,7 +354,7 @@
     "short_name": "H. Haifa",
     "aliases": [],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 8301,
     "winner_name_he": "הפועל חיפה",
     "league": "Israeli Premier League",
     "country": "Israel"
@@ -364,7 +364,7 @@
     "short_name": "Sakhnin",
     "aliases": ["Bnei Sachnin"],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 8718,
     "winner_name_he": "בני סכנין",
     "league": "Israeli Premier League",
     "country": "Israel"
@@ -394,7 +394,7 @@
     "short_name": "K. Shmona",
     "aliases": ["Kiryat Shmona"],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 2095,
     "winner_name_he": "עירוני קריית שמונה",
     "league": "Israeli Premier League",
     "country": "Israel"
@@ -404,7 +404,7 @@
     "short_name": "Ashdod",
     "aliases": ["MS Ashdod", "Moadon Sport Ashdod"],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 6203,
     "winner_name_he": "מ.ס. אשדוד",
     "league": "Israeli Premier League",
     "country": "Israel"
@@ -424,8 +424,28 @@
     "short_name": "H. Petah Tikva",
     "aliases": [],
     "football_data_id": null,
-    "fotmob_id": null,
+    "fotmob_id": 9755,
     "winner_name_he": "הפועל פתח תקוה",
+    "league": "Israeli Premier League",
+    "country": "Israel"
+  },
+  {
+    "canonical_name": "Hapoel Jerusalem",
+    "short_name": "H. Jerusalem",
+    "aliases": ["Hapoel Jerusalem FC"],
+    "football_data_id": null,
+    "fotmob_id": 459591,
+    "winner_name_he": "הפועל ירושלים",
+    "league": "Israeli Premier League",
+    "country": "Israel"
+  },
+  {
+    "canonical_name": "Ironi Tiberias",
+    "short_name": "Tiberias",
+    "aliases": [],
+    "football_data_id": null,
+    "fotmob_id": 543580,
+    "winner_name_he": "עירוני טבריה",
     "league": "Israeli Premier League",
     "country": "Israel"
   }
