@@ -12,8 +12,11 @@ happens in Python before the model is invoked.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -209,11 +212,20 @@ def run_team_intelligence(game_id: int, team_name: str, match_date: str) -> Team
     Returns:
         LLM-generated TeamReport persisted to the database.
     """
+    logger.info("run_team_intelligence: game_id=%d team=%s", game_id, team_name)
+
     # Step 1: Call all four tools programmatically
     form_data = fetch_form(team_name)
+    logger.info("run_team_intelligence: fetch_form done, error=%s", form_data.get("error"))
+
     injuries_data = fetch_injuries(team_name)
+    logger.info("run_team_intelligence: fetch_injuries done, error=%s", injuries_data.get("error"))
+
     league_data = fetch_league_position(team_name)
+    logger.info("run_team_intelligence: fetch_league_position done, error=%s", league_data.get("error"))
+
     recovery_data = calculate_recovery_time(team_name, match_date)
+    logger.info("run_team_intelligence: calculate_recovery_time done, error=%s", recovery_data.get("error"))
 
     # Step 2: Format all raw results into a single user message
     user_content = _build_user_message(
@@ -233,8 +245,10 @@ def run_team_intelligence(game_id: int, team_name: str, match_date: str) -> Team
     human_msg = HumanMessage(content=user_content)
 
     result: TeamReport = structured_model.invoke([system_msg, human_msg])
+    logger.info("run_team_intelligence: LLM call done for %s", team_name)
 
     # Step 4: Persist to database
     insert_team_report(game_id, team_name, result)
+    logger.info("run_team_intelligence: report saved to DB for %s", team_name)
 
     return result

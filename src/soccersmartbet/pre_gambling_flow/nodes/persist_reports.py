@@ -6,9 +6,12 @@ intelligence reports have been combined by the combine_reports node.
 
 from __future__ import annotations
 
+import logging
 import os
 
 import psycopg2
+
+logger = logging.getLogger(__name__)
 
 from soccersmartbet.pre_gambling_flow.state import PreGamblingState
 
@@ -37,6 +40,7 @@ def persist_reports(state: PreGamblingState) -> dict:
         Empty dict — no state changes required.
     """
     game_ids: list[int] = state["games_to_analyze"]
+    logger.info("persist_reports: updating status for %d games", len(game_ids))
 
     if not game_ids:
         return {}
@@ -49,4 +53,5 @@ def persist_reports(state: PreGamblingState) -> dict:
     finally:
         conn.close()
 
+    logger.info("persist_reports: done")
     return {}

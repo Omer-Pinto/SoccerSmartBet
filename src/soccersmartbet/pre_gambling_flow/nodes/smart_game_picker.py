@@ -7,9 +7,12 @@ delegates final selection to an LLM with structured output.
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -127,11 +130,15 @@ def smart_game_picker(state: PreGamblingState) -> dict:  # noqa: ARG001
     Returns:
         State update dict with ``all_games``, ``phase``, and ``messages``.
     """
+    logger.info("smart_game_picker: starting")
+
     fixtures_result = fetch_daily_fixtures()
     fixtures: list[dict[str, Any]] = fixtures_result.get("fixtures") or []
+    logger.info("smart_game_picker: %d fixtures fetched", len(fixtures))
 
     winner_result = fetch_all_winner_odds()
     winner_events: list[dict[str, Any]] = winner_result.get("events") or []
+    logger.info("smart_game_picker: %d winner events fetched", len(winner_events))
 
     winner_index = _build_winner_index(winner_events)
 
@@ -179,6 +186,8 @@ def smart_game_picker(state: PreGamblingState) -> dict:  # noqa: ARG001
             }
         )
 
+    logger.info("smart_game_picker: %d eligible games", len(eligible))
+
     # Assemble top-6 names for the prompt
     top6_display = ", ".join(sorted(top6_israeli)) if top6_israeli else "unavailable"
 
@@ -214,6 +223,7 @@ Select the most interesting games for today's betting analysis."""
     structured_model = model.with_structured_output(SelectedGames)
 
     selected: SelectedGames = structured_model.invoke([system_msg, human_msg])
+    logger.info("smart_game_picker: LLM selected %d games", len(selected.games))
 
     # Build a map from (normalised_home, normalised_away) → eligible entry
     # so we can recover odds for each LLM-selected game
@@ -244,6 +254,8 @@ Select the most interesting games for today's betting analysis."""
                 n3=source["odds_draw"],
             )
         )
+
+    logger.info("smart_game_picker: returning %d games", len(game_contexts))
 
     ai_message = AIMessage(
         content=(

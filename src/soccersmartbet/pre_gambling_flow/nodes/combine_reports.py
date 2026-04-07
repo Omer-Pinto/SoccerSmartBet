@@ -6,10 +6,13 @@ combines them into a single AIMessage for downstream consumption.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
 import psycopg2
+
+logger = logging.getLogger(__name__)
 from langchain_core.messages import AIMessage
 
 from soccersmartbet.pre_gambling_flow.state import Phase, PreGamblingState
@@ -120,6 +123,7 @@ def combine_reports(state: PreGamblingState) -> dict[str, Any]:
         ``phase`` set to ``Phase.COMPLETE``.
     """
     game_ids: list[int] = state["games_to_analyze"]
+    logger.info("combine_reports: querying reports for %d games", len(game_ids))
 
     if not game_ids:
         return {
@@ -185,6 +189,7 @@ def combine_reports(state: PreGamblingState) -> dict[str, Any]:
         conn.close()
 
     combined_text = "\n\n".join(blocks)
+    logger.info("combine_reports: combined %d game reports", len(blocks))
 
     return {
         "messages": [AIMessage(content=combined_text)],

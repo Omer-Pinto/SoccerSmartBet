@@ -12,8 +12,11 @@ happens in Python before the model is invoked.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -213,15 +216,24 @@ def run_game_intelligence(
     Returns:
         LLM-generated GameReport persisted to the database.
     """
+    logger.info("run_game_intelligence: game_id=%d %s vs %s", game_id, home_team, away_team)
+
     # Step 1: Call all four tools programmatically
     h2h_data = fetch_h2h(home_team, away_team)
+    logger.info("run_game_intelligence: fetch_h2h done, error=%s", h2h_data.get("error"))
+
     venue_data = fetch_venue(home_team, away_team)
+    logger.info("run_game_intelligence: fetch_venue done, error=%s", venue_data.get("error"))
 
     match_datetime = f"{match_date}T{kickoff_time}:00"
     weather_data = fetch_weather(home_team, away_team, match_datetime)
+    logger.info("run_game_intelligence: fetch_weather done, error=%s", weather_data.get("error"))
 
     home_news = fetch_team_news(home_team)
+    logger.info("run_game_intelligence: fetch_team_news (home) done, error=%s", home_news.get("error"))
+
     away_news = fetch_team_news(away_team)
+    logger.info("run_game_intelligence: fetch_team_news (away) done, error=%s", away_news.get("error"))
 
     # Step 2: Format all raw results into a single user message
     user_content = _build_user_message(
@@ -244,8 +256,10 @@ def run_game_intelligence(
     human_msg = HumanMessage(content=user_content)
 
     result: GameReport = structured_model.invoke([system_msg, human_msg])
+    logger.info("run_game_intelligence: LLM call done")
 
     # Step 4: Persist to database
     insert_game_report(game_id, result)
+    logger.info("run_game_intelligence: report saved to DB")
 
     return result

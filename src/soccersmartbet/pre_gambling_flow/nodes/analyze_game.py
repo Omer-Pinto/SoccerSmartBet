@@ -20,7 +20,11 @@ effect is the DB write.
 
 from __future__ import annotations
 
+import logging
+
 from langgraph.graph import StateGraph, START, END
+
+logger = logging.getLogger(__name__)
 
 from soccersmartbet.pre_gambling_flow.state import AnalyzeGameState
 from soccersmartbet.pre_gambling_flow.agents.db_utils import update_game_status
@@ -43,6 +47,12 @@ def _game_intelligence_node(state: AnalyzeGameState) -> dict:
         game_id.  This is the only node that produces fan-in output.
     """
     game_id = state["game_id"]
+    logger.info(
+        "game_intelligence: starting for game_id=%d (%s vs %s)",
+        game_id,
+        state["home_team"],
+        state["away_team"],
+    )
 
     update_game_status(game_id, "processing")
 
@@ -54,6 +64,7 @@ def _game_intelligence_node(state: AnalyzeGameState) -> dict:
         state["kickoff_time"],
     )
 
+    logger.info("game_intelligence: completed for game_id=%d", game_id)
     return {"analyzed_game_ids": [game_id]}
 
 
@@ -70,11 +81,18 @@ def _team_intelligence_home_node(state: AnalyzeGameState) -> dict:
     Returns:
         Empty dict -- no state updates needed; DB write is the side effect.
     """
+    logger.info(
+        "team_intel_home: starting for game_id=%d (%s vs %s)",
+        state["game_id"],
+        state["home_team"],
+        state["away_team"],
+    )
     run_team_intelligence(
         state["game_id"],
         state["home_team"],
         state["match_date"],
     )
+    logger.info("team_intel_home: completed for game_id=%d", state["game_id"])
     return {}
 
 
@@ -91,11 +109,18 @@ def _team_intelligence_away_node(state: AnalyzeGameState) -> dict:
     Returns:
         Empty dict -- no state updates needed; DB write is the side effect.
     """
+    logger.info(
+        "team_intel_away: starting for game_id=%d (%s vs %s)",
+        state["game_id"],
+        state["home_team"],
+        state["away_team"],
+    )
     run_team_intelligence(
         state["game_id"],
         state["away_team"],
         state["match_date"],
     )
+    logger.info("team_intel_away: completed for game_id=%d", state["game_id"])
     return {}
 
 

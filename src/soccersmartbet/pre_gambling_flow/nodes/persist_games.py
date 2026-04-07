@@ -7,10 +7,13 @@ them by real primary keys.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
 import psycopg2
+
+logger = logging.getLogger(__name__)
 
 from soccersmartbet.pre_gambling_flow.state import GameContext, Phase, PreGamblingState
 
@@ -61,6 +64,7 @@ def persist_games(state: PreGamblingState) -> dict[str, Any]:
         ``phase`` set to ``Phase.ANALYZING``.
     """
     games: list[GameContext] = state["all_games"]
+    logger.info("persist_games: inserting %d games", len(games))
 
     if not games:
         return {
@@ -93,6 +97,8 @@ def persist_games(state: PreGamblingState) -> dict[str, Any]:
                     game_ids.append(row[0])
     finally:
         conn.close()
+
+    logger.info("persist_games: inserted game_ids=%s", game_ids)
 
     return {
         "games_to_analyze": game_ids,
