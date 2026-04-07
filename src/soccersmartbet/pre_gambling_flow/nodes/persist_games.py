@@ -27,9 +27,9 @@ INSERT INTO games (
     away_team,
     league,
     venue,
-    n1,
-    n2,
-    n3,
+    home_win_odd,
+    away_win_odd,
+    draw_odd,
     status
 )
 VALUES (
@@ -39,9 +39,9 @@ VALUES (
     %(away_team)s,
     %(league)s,
     %(venue)s,
-    %(n1)s,
-    %(n2)s,
-    %(n3)s,
+    %(home_win_odd)s,
+    %(away_win_odd)s,
+    %(draw_odd)s,
     'selected'
 )
 RETURNING game_id
@@ -88,9 +88,9 @@ def persist_games(state: PreGamblingState) -> dict[str, Any]:
                             "away_team": game["away_team"],
                             "league": game["league"],
                             "venue": game["venue"],
-                            "n1": game["n1"],
-                            "n2": game["n2"],
-                            "n3": game["n3"],
+                            "home_win_odd": game["home_win_odd"],
+                            "away_win_odd": game["away_win_odd"],
+                            "draw_odd": game["draw_odd"],
                         },
                     )
                     row = cur.fetchone()

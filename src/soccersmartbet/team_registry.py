@@ -1,27 +1,108 @@
 """
 Team name registry with canonical name resolution across FotMob, football-data.org, winner.co.il.
 
-Loaded once at import time from bundled JSON — no DB dependency at runtime.
+Loaded on first use from the PostgreSQL ``teams`` table (DATABASE_URL env var).
+The full team list is cached in module-level memory after the first DB read — no
+repeated round-trips during a single process lifetime.
+
+Public API is identical to the previous JSON-backed version so all callers
+remain unchanged.
 """
 
 from __future__ import annotations
 
-import json
+import logging
+import os
 import unicodedata
-from pathlib import Path
 from typing import Optional
 
+import psycopg2
+
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
-# Data loading
+# Module-level cache
 # ---------------------------------------------------------------------------
 
-_REGISTRY_PATH = Path(__file__).parent / "data" / "teams_registry.json"
-
-# Raw list of team dicts loaded from JSON
-_teams: list[dict] = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
-
-# normalized_name → canonical_name (reverse index built at load time)
+# Populated lazily on first call to _ensure_loaded()
+_teams: list[dict] = []
 _index: dict[str, str] = {}
+_loaded: bool = False
+
+
+def _load_from_db() -> list[dict]:
+    """Read all rows from the teams table and return as a list of dicts."""
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError(
+            "DATABASE_URL environment variable is not set; cannot load team registry from DB."
+        )
+
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        canonical_name,
+                        short_name,
+                        aliases,
+                        fotmob_id,
+                        football_data_id,
+                        winner_name_he,
+                        league,
+                        country
+                    FROM teams
+                    ORDER BY canonical_name
+                    """
+                )
+                rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    teams: list[dict] = []
+    for row in rows:
+        (
+            canonical_name,
+            short_name,
+            aliases,
+            fotmob_id,
+            football_data_id,
+            winner_name_he,
+            league,
+            country,
+        ) = row
+        teams.append(
+            {
+                "canonical_name": canonical_name,
+                "short_name": short_name,
+                # psycopg2 returns JSONB as a Python object (list or None)
+                "aliases": aliases if isinstance(aliases, list) else [],
+                "fotmob_id": fotmob_id,
+                "football_data_id": football_data_id,
+                "winner_name_he": winner_name_he,
+                "league": league,
+                "country": country,
+            }
+        )
+    return teams
+
+
+def _ensure_loaded() -> None:
+    """Load teams from DB into module cache if not already loaded."""
+    global _teams, _index, _loaded
+    if _loaded:
+        return
+    _teams = _load_from_db()
+    _index = _build_index()
+    _loaded = True
+    logger.info("team_registry: loaded %d teams from DB", len(_teams))
+
+
+# ---------------------------------------------------------------------------
+# Normalization
+# ---------------------------------------------------------------------------
 
 
 def normalize_team_name(name: str) -> str:
@@ -79,12 +160,10 @@ def _build_index() -> dict[str, str]:
     return idx
 
 
-_index = _build_index()
-
-
 # ---------------------------------------------------------------------------
 # Levenshtein (pure Python DP — no new deps)
 # ---------------------------------------------------------------------------
+
 
 def _levenshtein(a: str, b: str) -> int:
     """Compute edit distance between two strings."""
@@ -105,6 +184,7 @@ def _levenshtein(a: str, b: str) -> int:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def resolve_team(name: str) -> Optional[str]:
     """Resolve any team name string to its canonical name.
 
@@ -119,6 +199,7 @@ def resolve_team(name: str) -> Optional[str]:
     Returns:
         Canonical name string, or None if no confident match found.
     """
+    _ensure_loaded()
     norm = normalize_team_name(name)
 
     # 1. Exact
@@ -152,6 +233,7 @@ def get_team_aliases(canonical: str) -> list[str]:
     Returns:
         List of alias strings; empty list if team not found.
     """
+    _ensure_loaded()
     for team in _teams:
         if team["canonical_name"] == canonical:
             return list(team.get("aliases") or [])
@@ -168,6 +250,7 @@ def get_source_id(canonical: str, source: str) -> Optional[int]:
     Returns:
         Integer ID, or None if unknown/unmapped.
     """
+    _ensure_loaded()
     field_map = {"fotmob": "fotmob_id", "football_data": "football_data_id"}
     if source not in field_map:
         raise ValueError(f"Unknown source '{source}'. Valid: {list(field_map)}")
@@ -187,6 +270,7 @@ def get_source_name_he(canonical: str) -> Optional[str]:
     Returns:
         Hebrew name string, or None if unknown/unmapped.
     """
+    _ensure_loaded()
     for team in _teams:
         if team["canonical_name"] == canonical:
             return team.get("winner_name_he")

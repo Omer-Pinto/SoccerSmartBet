@@ -131,13 +131,6 @@ class GameReport(BaseModel):
             "Simple string field - no complex venue analytics (not in enabled sources)."
         )
     )
-    team_news: str = Field(
-        description=(
-            "AI summary of recent team news relevant to the upcoming match from FotMob "
-            "news feed. Should highlight transfer rumors, tactical changes, managerial "
-            "quotes, or any intel that impacts match outcome."
-        )
-    )
 
 
 # ============================================================================
@@ -198,5 +191,37 @@ class TeamReport(BaseModel):
             "AI assessment of team's league standing and what it means for match motivation. "
             "Includes position, points, and context (title race, relegation battle, "
             "mid-table comfort, European qualification push)."
+        )
+    )
+    team_news: str = Field(
+        description=(
+            "AI summary of recent team news relevant to the upcoming match from FotMob "
+            "news feed. Should highlight transfer rumors, tactical changes, managerial "
+            "quotes, or any intel that impacts match outcome for this specific team."
+        )
+    )
+
+
+# ============================================================================
+# Expert Game Report LLM Output
+# ============================================================================
+
+
+class ExpertGameReport(BaseModel):
+    """
+    Expert LLM pre-match analysis synthesizing game + team reports with odds.
+
+    Produced by the Expert Report Agent after combine_reports has assembled
+    all available intelligence. The expert synthesizes raw data into a
+    coherent narrative suitable for a professional pre-match analysis column.
+    """
+
+    expert_analysis: str = Field(
+        description=(
+            "Comprehensive pre-match analysis synthesizing all available intelligence "
+            "into a cohesive narrative. Highlights the 2-3 most impactful factors, "
+            "contextualizes injuries and form tactically, notes conflicting signals, "
+            "and reads like a professional pre-match analysis column. Does NOT make "
+            "betting suggestions or predict outcomes — analysis only."
         )
     )

@@ -9,7 +9,7 @@ Flow phases: SELECTING -> FILTERING -> ANALYZING -> COMPLETE
 Graph structure:
     START -> smart_game_picker -> persist_games -> [fan_out_to_analysis]
           -> analyze_game subgraph (N parallel via Send()) -> combine_reports
-          -> persist_reports -> END
+          -> generate_expert_reports -> persist_reports -> END
 
 The ``analyze_game`` node is a compiled subgraph with its own internal
 parallel topology (game_intelligence, team_intel_home, team_intel_away).
@@ -31,6 +31,7 @@ from soccersmartbet.pre_gambling_flow.nodes.smart_game_picker import smart_game_
 from soccersmartbet.pre_gambling_flow.nodes.persist_games import persist_games
 from soccersmartbet.pre_gambling_flow.nodes.analyze_game import build_analyze_game_subgraph
 from soccersmartbet.pre_gambling_flow.nodes.combine_reports import combine_reports
+from soccersmartbet.pre_gambling_flow.nodes.generate_expert_reports import generate_expert_reports
 from soccersmartbet.pre_gambling_flow.nodes.persist_reports import persist_reports
 
 
@@ -92,7 +93,7 @@ def build_pre_gambling_graph() -> StateGraph:
     Graph structure:
         START -> smart_game_picker -> persist_games -> [fan_out_to_analysis]
               -> analyze_game subgraph (N parallel) -> combine_reports
-              -> persist_reports -> END
+              -> generate_expert_reports -> persist_reports -> END
 
     The analyze_game node is a compiled subgraph (not a plain function).
     Internally it runs game_intelligence, team_intel_home, and
@@ -110,6 +111,7 @@ def build_pre_gambling_graph() -> StateGraph:
     graph.add_node("persist_games", persist_games)
     graph.add_node("analyze_game", analyze_game_subgraph)
     graph.add_node("combine_reports", combine_reports)
+    graph.add_node("generate_expert_reports", generate_expert_reports)
     graph.add_node("persist_reports", persist_reports)
 
     graph.add_edge(START, "smart_game_picker")
@@ -123,7 +125,8 @@ def build_pre_gambling_graph() -> StateGraph:
 
     graph.add_edge("analyze_game", "combine_reports")
 
-    graph.add_edge("combine_reports", "persist_reports")
+    graph.add_edge("combine_reports", "generate_expert_reports")
+    graph.add_edge("generate_expert_reports", "persist_reports")
     graph.add_edge("persist_reports", END)
 
     return graph.compile()

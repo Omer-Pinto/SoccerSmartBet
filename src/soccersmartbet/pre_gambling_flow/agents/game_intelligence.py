@@ -27,7 +27,6 @@ from soccersmartbet.pre_gambling_flow.structured_outputs import GameReport
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_h2h import fetch_h2h
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_venue import fetch_venue
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_weather import fetch_weather
-from soccersmartbet.pre_gambling_flow.tools.team.fetch_team_news import fetch_team_news
 
 INTELLIGENCE_MODEL = os.getenv("INTELLIGENCE_MODEL", "gpt-5.4")
 
@@ -122,33 +121,6 @@ def _format_weather(data: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _format_team_news(data: Dict[str, Any]) -> str:
-    """Format team news tool result into a readable section."""
-    if data.get("error"):
-        return f"Data unavailable: {data['error']}"
-
-    articles = data.get("articles", [])
-    if not articles:
-        return "No news articles available."
-
-    lines = []
-    for article in articles:
-        title = article.get("title", "")
-        source = article.get("source", "")
-        published = article.get("published", "")
-
-        parts = []
-        if published:
-            parts.append(f"[{published[:10]}]")
-        if source:
-            parts.append(f"({source})")
-        parts.append(title)
-
-        lines.append("  - " + " ".join(parts))
-
-    return "\n".join(lines)
-
-
 # ---------------------------------------------------------------------------
 # User message builder
 # ---------------------------------------------------------------------------
@@ -162,8 +134,6 @@ def _build_user_message(
     h2h_data: Dict[str, Any],
     venue_data: Dict[str, Any],
     weather_data: Dict[str, Any],
-    home_news: Dict[str, Any],
-    away_news: Dict[str, Any],
 ) -> str:
     """Build the structured text that delivers all raw tool data to the LLM."""
     sections = [
@@ -178,12 +148,6 @@ def _build_user_message(
         "",
         "## Weather Data",
         _format_weather(weather_data),
-        "",
-        f"## Team News - {home_team}",
-        _format_team_news(home_news),
-        "",
-        f"## Team News - {away_team}",
-        _format_team_news(away_news),
     ]
     return "\n".join(sections)
 
@@ -218,7 +182,7 @@ def run_game_intelligence(
     """
     logger.info("run_game_intelligence: game_id=%d %s vs %s", game_id, home_team, away_team)
 
-    # Step 1: Call all four tools programmatically
+    # Step 1: Call all three tools programmatically (team_news is handled by team_intelligence)
     h2h_data = fetch_h2h(home_team, away_team)
     logger.info("run_game_intelligence: fetch_h2h done, error=%s", h2h_data.get("error"))
 
@@ -229,12 +193,6 @@ def run_game_intelligence(
     weather_data = fetch_weather(home_team, away_team, match_datetime)
     logger.info("run_game_intelligence: fetch_weather done, error=%s", weather_data.get("error"))
 
-    home_news = fetch_team_news(home_team)
-    logger.info("run_game_intelligence: fetch_team_news (home) done, error=%s", home_news.get("error"))
-
-    away_news = fetch_team_news(away_team)
-    logger.info("run_game_intelligence: fetch_team_news (away) done, error=%s", away_news.get("error"))
-
     # Step 2: Format all raw results into a single user message
     user_content = _build_user_message(
         home_team=home_team,
@@ -244,8 +202,6 @@ def run_game_intelligence(
         h2h_data=h2h_data,
         venue_data=venue_data,
         weather_data=weather_data,
-        home_news=home_news,
-        away_news=away_news,
     )
 
     # Step 3: Single LLM call with structured output

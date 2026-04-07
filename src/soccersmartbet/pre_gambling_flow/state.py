@@ -111,7 +111,7 @@ class GameContext(TypedDict):
     - game_id: DB primary key from games.game_id (SERIAL)
     - home_team, away_team, league, venue: football-data.org API
     - match_date, kickoff_time: football-data.org API
-    - n1, n2, n3: The Odds API (Israeli Toto notation: 1=home, 2=away, x=draw)
+    - home_win_odd, away_win_odd, draw_odd: The Odds API (Israeli Toto notation: 1=home, 2=away, x=draw)
 
     DB Schema Reference:
     --------------------
@@ -126,9 +126,9 @@ class GameContext(TypedDict):
     kickoff_time: str  # Format: HH:MM
     league: str
     venue: str  # Stadium name from football-data.org
-    n1: float  # Home win odds (The Odds API)
-    n2: float  # Away win odds
-    n3: float  # Draw odds
+    home_win_odd: float  # Home win odds (The Odds API, Israeli Toto: 1)
+    away_win_odd: float  # Away win odds (Israeli Toto: 2)
+    draw_odd: float  # Draw odds (Israeli Toto: X)
 
 
 class PreGamblingState(TypedDict):

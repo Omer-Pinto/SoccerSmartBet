@@ -25,9 +25,9 @@ CREATE TABLE games (
     venue VARCHAR(255), -- Per-game venue (teams play at multiple stadiums)
     
     -- Odds directly here (no separate betting_lines table)
-    n1 DECIMAL(5,2) NOT NULL CHECK (n1 > 1.0),
-    n2 DECIMAL(5,2) NOT NULL CHECK (n2 > 1.0),
-    n3 DECIMAL(5,2) NOT NULL CHECK (n3 > 1.0),
+    home_win_odd DECIMAL(5,2) NOT NULL CHECK (home_win_odd > 1.0),
+    away_win_odd DECIMAL(5,2) NOT NULL CHECK (away_win_odd > 1.0),
+    draw_odd DECIMAL(5,2) NOT NULL CHECK (draw_odd > 1.0),
     
     -- Status tracking
     status VARCHAR(50) DEFAULT 'pending' CHECK (status IN (
@@ -48,9 +48,9 @@ CREATE INDEX idx_games_date ON games(match_date);
 CREATE INDEX idx_games_status ON games(status);
 
 COMMENT ON TABLE games IS 'Daily selected games with odds and results merged in';
-COMMENT ON COLUMN games.n1 IS 'Home win odds (Israeli Toto notation)';
-COMMENT ON COLUMN games.n2 IS 'Away win odds';
-COMMENT ON COLUMN games.n3 IS 'Draw odds';
+COMMENT ON COLUMN games.home_win_odd IS 'Home win odds (1 in Israeli Toto notation)';
+COMMENT ON COLUMN games.away_win_odd IS 'Away win odds (2 in Israeli Toto notation)';
+COMMENT ON COLUMN games.draw_odd IS 'Draw odds (X in Israeli Toto notation)';
 
 -- ============================================================================
 -- TABLE: game_reports
@@ -63,8 +63,7 @@ CREATE TABLE game_reports (
     h2h_insights TEXT,
     weather_risk TEXT,
     venue TEXT,
-    team_news TEXT,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT unique_game_report UNIQUE (game_id)
@@ -87,7 +86,8 @@ CREATE TABLE team_reports (
     form_trend TEXT,
     injury_impact TEXT,
     league_position TEXT,
-    
+    team_news TEXT,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT unique_team_game_report UNIQUE (game_id, team_name)
@@ -98,6 +98,21 @@ CREATE INDEX idx_team_reports_game ON team_reports(game_id);
 
 COMMENT ON COLUMN team_reports.report_id IS 'UUID for parallel agent writes (2 per game: home + away)';
 COMMENT ON COLUMN team_reports.team_name IS 'VARCHAR not FK - no teams table needed';
+
+-- ============================================================================
+-- TABLE: expert_game_reports
+-- Purpose: LLM-generated expert pre-match analysis synthesizing all intel
+-- ============================================================================
+CREATE TABLE expert_game_reports (
+    report_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    game_id INTEGER NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+    expert_analysis TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_expert_game_report UNIQUE (game_id)
+);
+CREATE INDEX idx_expert_game_reports_game ON expert_game_reports(game_id);
+
+COMMENT ON TABLE expert_game_reports IS 'Expert LLM pre-match analysis synthesizing game + team reports with odds';
 
 -- ============================================================================
 -- TABLE: bets

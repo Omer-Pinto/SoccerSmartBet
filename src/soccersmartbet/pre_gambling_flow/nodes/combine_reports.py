@@ -20,20 +20,20 @@ from soccersmartbet.pre_gambling_flow.state import Phase, PreGamblingState
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 _FETCH_GAME_SQL = """
-SELECT home_team, away_team, league, n1, n2, n3
+SELECT home_team, away_team, league, home_win_odd, away_win_odd, draw_odd
 FROM games
 WHERE game_id = %(game_id)s
 """
 
 _FETCH_GAME_REPORT_SQL = """
-SELECT h2h_insights, weather_risk, venue, team_news
+SELECT h2h_insights, weather_risk, venue
 FROM game_reports
 WHERE game_id = %(game_id)s
 LIMIT 1
 """
 
 _FETCH_TEAM_REPORTS_SQL = """
-SELECT team_name, recovery_days, form_trend, injury_impact, league_position
+SELECT team_name, recovery_days, form_trend, injury_impact, league_position, team_news
 FROM team_reports
 WHERE game_id = %(game_id)s
 ORDER BY team_name
@@ -46,13 +46,12 @@ def _format_game_block(
     home_team: str,
     away_team: str,
     league: str,
-    n1: Any,
-    n2: Any,
-    n3: Any,
+    home_win_odd: Any,
+    away_win_odd: Any,
+    draw_odd: Any,
     h2h_insights: str,
     weather_risk: str,
     venue: str,
-    team_news: str,
     home_report: dict[str, Any] | None,
     away_report: dict[str, Any] | None,
 ) -> str:
@@ -62,24 +61,23 @@ def _format_game_block(
         home_team: Home team name from the games table.
         away_team: Away team name from the games table.
         league: League name from the games table.
-        n1: Home-win odds decimal value.
-        n2: Away-win odds decimal value.
-        n3: Draw odds decimal value.
+        home_win_odd: Home-win odds decimal value.
+        away_win_odd: Away-win odds decimal value.
+        draw_odd: Draw odds decimal value.
         h2h_insights: Head-to-head insights text.
         weather_risk: Weather risk assessment text.
         venue: Venue description text.
-        team_news: Team news text.
         home_report: Dict with keys recovery_days, form_trend, injury_impact,
-            league_position for the home side, or None if unavailable.
+            league_position, team_news for the home side, or None if unavailable.
         away_report: Dict with keys recovery_days, form_trend, injury_impact,
-            league_position for the away side, or None if unavailable.
+            league_position, team_news for the away side, or None if unavailable.
 
     Returns:
         Formatted multi-line string for this game.
     """
     lines: list[str] = [
         f"=== GAME REPORT: {home_team} vs {away_team} ({league}) ===",
-        f"Odds: 1={n1} / X={n3} / 2={n2}",
+        f"Odds: 1={home_win_odd} / X={draw_odd} / 2={away_win_odd}",
         "",
         "--- H2H Insights ---",
         h2h_insights,
@@ -89,9 +87,6 @@ def _format_game_block(
         "",
         "--- Venue ---",
         venue,
-        "",
-        "--- Team News ---",
-        team_news,
     ]
 
     for label, report in ((f"{home_team} (Home)", home_report), (f"{away_team} (Away)", away_report)):
@@ -105,6 +100,7 @@ def _format_game_block(
             recovery = report["recovery_days"]
             lines.append(f"Recovery: {recovery if recovery is not None else _NOT_AVAILABLE} days")
             lines.append(f"Injuries: {report['injury_impact'] or _NOT_AVAILABLE}")
+            lines.append(f"Team News: {report['team_news'] or _NOT_AVAILABLE}")
 
     return "\n".join(lines)
 
@@ -142,28 +138,29 @@ def combine_reports(state: PreGamblingState) -> dict[str, Any]:
                     game_row = cur.fetchone()
                     if game_row is None:
                         continue
-                    home_team, away_team, league, n1, n2, n3 = game_row
+                    home_team, away_team, league, home_win_odd, away_win_odd, draw_odd = game_row
 
                     cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
                     report_row = cur.fetchone()
                     if report_row is not None:
-                        h2h_insights, weather_risk, venue, team_news = (
+                        h2h_insights, weather_risk, venue = (
                             v or _NOT_AVAILABLE for v in report_row
                         )
                     else:
-                        h2h_insights = weather_risk = venue = team_news = _NOT_AVAILABLE
+                        h2h_insights = weather_risk = venue = _NOT_AVAILABLE
 
                     cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
                     team_rows = cur.fetchall()
 
                     team_map: dict[str, dict[str, Any]] = {}
                     for row in team_rows:
-                        t_name, recovery_days, form_trend, injury_impact, league_position = row
+                        t_name, recovery_days, form_trend, injury_impact, league_position, team_news = row
                         team_map[t_name] = {
                             "recovery_days": recovery_days,
                             "form_trend": form_trend,
                             "injury_impact": injury_impact,
                             "league_position": league_position,
+                            "team_news": team_news,
                         }
 
                     home_report = team_map.get(home_team)
@@ -174,13 +171,12 @@ def combine_reports(state: PreGamblingState) -> dict[str, Any]:
                             home_team=home_team,
                             away_team=away_team,
                             league=league,
-                            n1=n1,
-                            n2=n2,
-                            n3=n3,
+                            home_win_odd=home_win_odd,
+                            away_win_odd=away_win_odd,
+                            draw_odd=draw_odd,
                             h2h_insights=h2h_insights,
                             weather_risk=weather_risk,
                             venue=venue,
-                            team_news=team_news,
                             home_report=home_report,
                             away_report=away_report,
                         )

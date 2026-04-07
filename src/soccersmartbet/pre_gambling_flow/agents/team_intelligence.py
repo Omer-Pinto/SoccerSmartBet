@@ -28,6 +28,7 @@ from soccersmartbet.pre_gambling_flow.tools.team.calculate_recovery_time import 
 from soccersmartbet.pre_gambling_flow.tools.team.fetch_form import fetch_form
 from soccersmartbet.pre_gambling_flow.tools.team.fetch_injuries import fetch_injuries
 from soccersmartbet.pre_gambling_flow.tools.team.fetch_league_position import fetch_league_position
+from soccersmartbet.pre_gambling_flow.tools.team.fetch_team_news import fetch_team_news
 
 INTELLIGENCE_MODEL = os.getenv("INTELLIGENCE_MODEL", "gpt-5.4")
 
@@ -159,6 +160,33 @@ def _format_recovery(data: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_team_news(data: Dict[str, Any]) -> str:
+    """Format team news tool result into a readable section."""
+    if data.get("error"):
+        return f"Data unavailable: {data['error']}"
+
+    articles = data.get("articles", [])
+    if not articles:
+        return "No news articles available."
+
+    lines = []
+    for article in articles:
+        title = article.get("title", "")
+        source = article.get("source", "")
+        published = article.get("published", "")
+
+        parts = []
+        if published:
+            parts.append(f"[{published[:10]}]")
+        if source:
+            parts.append(f"({source})")
+        parts.append(title)
+
+        lines.append("  - " + " ".join(parts))
+
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # User message builder
 # ---------------------------------------------------------------------------
@@ -171,6 +199,7 @@ def _build_user_message(
     injuries_data: Dict[str, Any],
     league_data: Dict[str, Any],
     recovery_data: Dict[str, Any],
+    news_data: Dict[str, Any],
 ) -> str:
     """Build the structured text that delivers all raw tool data to the LLM."""
     sections = [
@@ -188,6 +217,9 @@ def _build_user_message(
         "",
         "## Recovery Time",
         _format_recovery(recovery_data),
+        "",
+        "## Team News",
+        _format_team_news(news_data),
     ]
     return "\n".join(sections)
 
@@ -214,7 +246,7 @@ def run_team_intelligence(game_id: int, team_name: str, match_date: str) -> Team
     """
     logger.info("run_team_intelligence: game_id=%d team=%s", game_id, team_name)
 
-    # Step 1: Call all four tools programmatically
+    # Step 1: Call all five tools programmatically
     form_data = fetch_form(team_name)
     logger.info("run_team_intelligence: fetch_form done, error=%s", form_data.get("error"))
 
@@ -227,6 +259,9 @@ def run_team_intelligence(game_id: int, team_name: str, match_date: str) -> Team
     recovery_data = calculate_recovery_time(team_name, match_date)
     logger.info("run_team_intelligence: calculate_recovery_time done, error=%s", recovery_data.get("error"))
 
+    news_data = fetch_team_news(team_name)
+    logger.info("run_team_intelligence: fetch_team_news done, error=%s", news_data.get("error"))
+
     # Step 2: Format all raw results into a single user message
     user_content = _build_user_message(
         team_name=team_name,
@@ -235,6 +270,7 @@ def run_team_intelligence(game_id: int, team_name: str, match_date: str) -> Team
         injuries_data=injuries_data,
         league_data=league_data,
         recovery_data=recovery_data,
+        news_data=news_data,
     )
 
     # Step 3: Single LLM call with structured output

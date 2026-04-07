@@ -249,9 +249,9 @@ Select the most interesting games for today's betting analysis."""
                 kickoff_time=sg.kickoff_time,
                 league=sg.league,
                 venue=sg.venue or "",
-                n1=source["odds_home"],
-                n2=source["odds_away"],
-                n3=source["odds_draw"],
+                home_win_odd=source["odds_home"],
+                away_win_odd=source["odds_away"],
+                draw_odd=source["odds_draw"],
             )
         )
 
