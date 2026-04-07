@@ -99,8 +99,9 @@ class GameReport(BaseModel):
     AI-generated game analysis from Game Intelligence Agent.
 
     This agent analyzes game-level factors: head-to-head history patterns,
-    weather impact on play style and draw probability, and venue-specific
-    advantages. Data comes from enabled sources only (see research docs).
+    weather impact on play style and draw probability, venue-specific
+    advantages, and team news. Data comes from enabled sources only
+    (see research docs).
 
     Fields NOT included (disabled data sources):
     - atmosphere_summary (crowd/atmosphere data not enabled)
@@ -121,13 +122,20 @@ class GameReport(BaseModel):
             "Must address: (1) Cancellation/postponement risk, (2) Draw probability "
             "increase in adverse conditions, (3) Style-of-play changes (e.g., "
             "'Heavy rain favors defensive teams, reduces high-scoring probability'). "
-            "Use weather API data from enabled sources."
+            "Use weather API data via FotMob venue lookup."
         )
     )
     venue: str = Field(
         description=(
-            "Stadium name extracted from fixtures API. "
+            "Stadium name extracted from FotMob. "
             "Simple string field - no complex venue analytics (not in enabled sources)."
+        )
+    )
+    team_news: str = Field(
+        description=(
+            "AI summary of recent team news relevant to the upcoming match from FotMob "
+            "news feed. Should highlight transfer rumors, tactical changes, managerial "
+            "quotes, or any intel that impacts match outcome."
         )
     )
 
@@ -142,26 +150,27 @@ class TeamReport(BaseModel):
     AI-generated team analysis from Team Intelligence Agent.
 
     This agent analyzes team-level factors for betting assessment: recent form
-    trajectory, injury impact on lineup strength, key players' contribution rates,
-    and recovery status. Critically, the LLM must infer starter vs. bench status
-    for injured players since apifootball.com only provides basic stats.
+    trajectory, injury impact on lineup strength, league position context, and
+    recovery status. All data sourced from FotMob.
 
     Fields NOT included (disabled data sources):
     - rotation_risk (squad rotation data not reliably available)
     - morale_stability (qualitative morale/coach stability not in enabled sources)
-    - relevant_news (structured news aggregation not enabled)
 
-    Data Source Constraints (apifootball.com):
-    - injury_impact: player_injured, player_match_played, player_goals, player_type available
-    - key_players_status: Only total goals/assists/games (no recent form window)
-    - form_trend: Last 5 games results available for trend calculation
+    Available FotMob data sources:
+    - form_trend: fetch_form → FotMob teamForm (last 5 matches with W/D/L, scores, opponents)
+    - injury_impact: fetch_injuries → FotMob squad data (player name, position group,
+      injury type, expected return)
+    - league_position: fetch_league_position → FotMob league table (position, points, W/D/L)
+    - recovery_days: calculate_recovery_time → FotMob lastMatch (recovery days, recovery
+      status: Short/Normal/Extended)
     """
 
     recovery_days: int = Field(
         ge=0,
         description=(
             "Days elapsed since team's last competitive match. "
-            "Calculated from apifootball.com match history. "
+            "Calculated from FotMob lastMatch data. "
             "Critical for fatigue assessment: <3 days = high fatigue risk, "
             "3-5 days = normal, >7 days = extra rest/rhythm concerns."
         )
@@ -178,18 +187,16 @@ class TeamReport(BaseModel):
         description=(
             "AI assessment of injury list impact on expected lineup strength. "
             "CRITICAL: Must determine if injured players are starters vs. bench warmers "
-            "using player_match_played, player_goals, and player_type (position) fields. "
+            "using FotMob squad data (player name, position group, injury type, expected return). "
             "Example: 'Critical - starting striker with 0.8 goals/game out' vs. "
             "'Minor - backup defender with 3 appearances missing'. "
             "User doesn't know all teams (e.g., Napoli) - LLM must identify key contributors."
         )
     )
-    key_players_status: str = Field(
+    league_position: str = Field(
         description=(
-            "Top performers' current contribution status inferred from cumulative stats. "
-            "apifootball.com provides total goals/assists/games only (no recent form window). "
-            "LLM must infer form from ratios and availability: 'Top scorer (12 goals/20 games) "
-            "available and healthy' vs. 'Playmaker (8 assists/18 games) returning from suspension'. "
-            "Focus on players with highest goals/assists per game ratios."
+            "AI assessment of team's league standing and what it means for match motivation. "
+            "Includes position, points, and context (title race, relegation battle, "
+            "mid-table comfort, European qualification push)."
         )
     )

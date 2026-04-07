@@ -138,9 +138,9 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 ### Agent 4A: Core Flow + Pipeline Nodes
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Verify state.py for LangGraph 1.x | ⬜ Pending | state.py exists, needs verification |
-| 2 | Update structured_outputs.py | ⬜ Pending | exists, may need updates |
-| 3 | Create smart_game_picker.py | ⬜ Pending | |
+| 1 | Verify state.py for LangGraph 1.x | 🟢 Done | LangGraph 1.0.3 — all imports, reducers, StateGraph compile OK |
+| 2 | Update structured_outputs.py | 🟢 Done | Added team_news to GameReport, league_position to TeamReport, removed key_players_status, fixed FotMob refs |
+| 3 | Create smart_game_picker.py | 🟢 Done | Cross-refs fixtures×winner odds, Israeli top-6 filter, gpt-5.4-mini LLM, review fixes applied |
 | 4 | Create persist_games.py | ⬜ Pending | |
 | 5 | Create combine_reports.py | ⬜ Pending | |
 | 6 | Create persist_reports.py | ⬜ Pending | |

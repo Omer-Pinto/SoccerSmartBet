@@ -218,7 +218,7 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 |---|-------------|--------|-------|
 | 1 | Refactor `state.py` if needed | Verify LangGraph 1.x compat | Imports should work but verify |
 | 2 | Update `structured_outputs.py` | Add fields for new enrichment data | New Pydantic fields if new tools provide new data |
-| 3 | Create `nodes/smart_game_picker.py` | AI agent: fixtures → odds → filter → LLM selection | 1 LLM call for MVP. Uses `fetch_daily_fixtures` + `fetch_winner_odds`. Outputs `SelectedGames`. |
+| 3 | Create `nodes/smart_game_picker.py` | AI agent: fixtures → odds → filter → LLM selection | 1 LLM call for MVP. Uses `fetch_daily_fixtures` + `fetch_winner_odds`. Outputs `SelectedGames`. **Game Selection Preferences (from Omer):** (1) PL & La Liga always preferred, then Bundesliga, Serie A, Ligue 1 in that order. (2) Israeli league: max 1 game, must involve top-6 team. (3) No min odds threshold for now. (4) Within La Liga: prefer Barcelona & Real Madrid over others. (5) Min 3 games per day. |
 | 4 | Create `nodes/persist_games.py` | DB insert for selected games | PythonNode. Insert into `games` table. |
 | 5 | Create `nodes/combine_reports.py` | Query DB for reports, merge | PythonNode. Query `game_reports` + `team_reports`. |
 | 6 | Create `nodes/persist_reports.py` | DB insert for combined reports | Update game status to `ready_for_betting`. |
