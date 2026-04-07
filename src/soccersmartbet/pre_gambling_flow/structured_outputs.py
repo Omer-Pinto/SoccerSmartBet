@@ -74,10 +74,10 @@ class SelectedGames(BaseModel):
     """
 
     games: list[SelectedGame] = Field(
-        min_length=3,
+        min_length=1,
         description=(
             "List of selected games for today's betting analysis. "
-            "Minimum 3 games required per system constraints."
+            "Select all eligible games worth analyzing."
         )
     )
     selection_reasoning: str = Field(

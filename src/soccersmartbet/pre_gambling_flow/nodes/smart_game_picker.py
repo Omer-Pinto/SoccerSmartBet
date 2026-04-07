@@ -182,14 +182,12 @@ def smart_game_picker(state: PreGamblingState) -> dict:  # noqa: ARG001
     # Assemble top-6 names for the prompt
     top6_display = ", ".join(sorted(top6_israeli)) if top6_israeli else "unavailable"
 
-    if len(eligible) < 3:
+    if not eligible:
         return {
             "all_games": [],
             "phase": Phase.FILTERING,
             "messages": [
-                AIMessage(
-                    content=f"Insufficient eligible games ({len(eligible)} found, need 3). Skipping today."
-                )
+                AIMessage(content="No eligible games found today (no fixture/odds overlap).")
             ],
         }
 

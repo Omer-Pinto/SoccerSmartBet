@@ -6,7 +6,7 @@ across all subscribed competitions from football-data.org.
 """
 
 import os
-from datetime import date as date_type
+from datetime import date as date_type, timedelta
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -74,7 +74,10 @@ def fetch_daily_fixtures(date: Optional[str] = None) -> Dict[str, Any]:
         response = requests.get(
             f"{BASE_URL}/matches",
             headers=headers,
-            params={"dateFrom": resolved_date, "dateTo": resolved_date},
+            params={
+                "dateFrom": resolved_date,
+                "dateTo": str(date_type.fromisoformat(resolved_date) + timedelta(days=1)),
+            },
             timeout=TIMEOUT,
         )
 
@@ -86,6 +89,7 @@ def fetch_daily_fixtures(date: Optional[str] = None) -> Dict[str, Any]:
 
         raw_matches: List[Dict[str, Any]] = response.json().get("matches", [])
 
+        # Filter to only matches on the requested date (API returns date+1 too)
         fixtures: List[Dict[str, Any]] = [
             {
                 "match_id": match.get("id"),
@@ -98,6 +102,7 @@ def fetch_daily_fixtures(date: Optional[str] = None) -> Dict[str, Any]:
                 "away_team_id": match.get("awayTeam", {}).get("id"),
             }
             for match in raw_matches
+            if (match.get("utcDate") or "").startswith(resolved_date)
         ]
 
         return {
