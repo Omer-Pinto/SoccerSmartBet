@@ -141,10 +141,10 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 | 1 | Verify state.py for LangGraph 1.x | 🟢 Done | LangGraph 1.0.3 — all imports, reducers, StateGraph compile OK |
 | 2 | Update structured_outputs.py | 🟢 Done | Added team_news to GameReport, league_position to TeamReport, removed key_players_status, fixed FotMob refs |
 | 3 | Create smart_game_picker.py | 🟢 Done | Cross-refs fixtures×winner odds, Israeli top-6 filter, gpt-5.4-mini LLM, review fixes applied |
-| 4 | Create persist_games.py | ⬜ Pending | |
-| 5 | Create combine_reports.py | ⬜ Pending | |
-| 6 | Create persist_reports.py | ⬜ Pending | |
-| 7 | Create graph_manager.py | ⬜ Pending | |
+| 4 | Create persist_games.py | 🟢 Done | psycopg2, single transaction, RETURNING game_id, tested against real DB |
+| 5 | Create combine_reports.py | 🟢 Done | Queries game_reports + team_reports, formats combined text per game |
+| 6 | Create persist_reports.py | 🟢 Done | Single UPDATE with ANY(), marks games ready_for_betting |
+| 7 | Create graph_manager.py | 🟢 Done | StateGraph compiled, conditional edge for 4B intelligence agents insertion |
 
 ### Agent 4B: Intelligence Agents + Orchestration
 | # | Task | Status | Notes |

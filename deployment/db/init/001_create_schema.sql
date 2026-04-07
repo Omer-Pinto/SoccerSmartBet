@@ -61,9 +61,9 @@ CREATE TABLE game_reports (
     game_id INTEGER NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
     
     h2h_insights TEXT,
-    atmosphere_summary TEXT,
     weather_risk TEXT,
-    venue_factors TEXT,
+    venue TEXT,
+    team_news TEXT,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
@@ -86,10 +86,7 @@ CREATE TABLE team_reports (
     recovery_days INTEGER CHECK (recovery_days >= 0),
     form_trend TEXT,
     injury_impact TEXT,
-    rotation_risk TEXT,
-    key_players_status TEXT,
-    morale_stability TEXT,
-    relevant_news TEXT,
+    league_position TEXT,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
