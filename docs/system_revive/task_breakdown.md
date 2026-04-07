@@ -224,20 +224,22 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 | 6 | Create `nodes/persist_reports.py` | DB insert for combined reports | Update game status to `ready_for_betting`. |
 | 7 | Create `graph_manager.py` | Wire full Pre-Gambling Flow | StateGraph with nodes, edges, conditional routing by Phase. |
 
-### Agent 4B: Intelligence Agents + Parallel Orchestration
+### Agent 4B: Intelligence Agents + Subgraph Orchestration
 **Type:** `python-pro`
-**Scope:** `src/soccersmartbet/pre_gambling_flow/agents/` (new directory)
+**Scope:** `src/soccersmartbet/pre_gambling_flow/agents/` (new directory), `src/soccersmartbet/pre_gambling_flow/nodes/analyze_game.py` (new)
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
-| 1 | Create `agents/game_intelligence.py` | Game analysis agent | Tools: fetch_h2h, fetch_venue, fetch_weather, fetch_team_news. 1-2 LLM calls. Writes GameReport to DB. |
-| 2 | Create `agents/team_intelligence.py` | Team analysis agent | Tools: fetch_form, fetch_injuries, fetch_league_position, calculate_recovery_time + enrichment tools. 1-2 LLM calls. Writes TeamReport to DB. |
-| 3 | Create `agents/parallel_orchestrator.py` | Fan-out/fan-in with Send() | For each game: spawn 1 game + 2 team agents. |
-| 4 | Add DB write utilities | Shared DB insert/update helpers | Used by agents for writing reports |
+| 1 | Create `agents/game_intelligence.py` | Game analysis utility | Tools: fetch_h2h, fetch_venue, fetch_weather, fetch_team_news. 1 LLM call (gpt-5.4). Writes GameReport to DB. |
+| 2 | Create `agents/team_intelligence.py` | Team analysis utility | Tools: fetch_form, fetch_injuries, fetch_league_position, calculate_recovery_time. 1 LLM call (gpt-5.4). Writes TeamReport to DB. |
+| 3 | Create `nodes/analyze_game.py` subgraph | LangGraph subgraph with Send() fan-out | Per-game subgraph: 3 parallel nodes (game_intelligence, team_intel_home, team_intel_away). Main graph fans out N subgraph invocations via Send(). Two-level parallelism: outer=games, inner=intelligence calls. |
+| 4 | Add DB write utilities | Shared DB insert/update helpers | `agents/db_utils.py`: insert_game_report, insert_team_report, update_game_status (upsert). |
 
 ### After Wave 4
+- Test smart_game_picker standalone against real APIs (football-data.org + winner.co.il)
+- Test game_intelligence + team_intelligence standalone with real FotMob + LLM
 - Run end-to-end Pre-Gambling Flow with real data
-- Check LangSmith traces for agent behavior
+- Check LangSmith traces for subgraph behavior (two-level parallelism)
 - **CHECKPOINT**: Pre-Gambling Flow works end-to-end
 
 ---

@@ -1,54 +1,31 @@
-"""Parallel Orchestrator for Pre-Gambling Flow intelligence agents.
+"""DEPRECATED: Parallel Orchestrator — replaced by LangGraph Send() fan-out.
 
-Runs sequentially through each game selected for analysis, invoking
-game intelligence and both team intelligence agents per game. Each
-agent writes its report directly to the DB — no results are collected
-here.
+The Python for-loop orchestration previously in this module has been replaced
+by proper LangGraph graph-level orchestration:
+
+- Fan-out: ``graph_manager.fan_out_to_analysis()`` uses ``Send()`` to dispatch
+  one ``analyze_game`` node invocation per game in parallel.
+- Fan-in: LangGraph's ``analyzed_game_ids`` reducer (``add`` list concatenation)
+  merges results from all parallel branches automatically.
+- Node: ``nodes/analyze_game.py`` is the LangGraph node that wraps the
+  intelligence agent calls for a single game.
+
+The intelligence agent utility functions (``run_game_intelligence``,
+``run_team_intelligence``) remain in ``agents/game_intelligence.py`` and
+``agents/team_intelligence.py`` respectively — they are called by the
+``analyze_game`` node.
+
+This file is kept to avoid import errors from any stale references.
+It should not be used in new code.
 """
 
-from soccersmartbet.pre_gambling_flow.state import PreGamblingState
-from soccersmartbet.pre_gambling_flow.agents.game_intelligence import run_game_intelligence
-from soccersmartbet.pre_gambling_flow.agents.team_intelligence import run_team_intelligence
-from soccersmartbet.pre_gambling_flow.agents.db_utils import update_game_status
+from __future__ import annotations
 
 
-def parallel_orchestrator(state: PreGamblingState) -> dict:
-    """Run intelligence agents for every game selected for analysis.
-
-    Iterates over ``games_to_analyze`` in order, running game intelligence
-    and both team intelligence agents for each. Each agent persists its
-    report to the DB independently. The orchestrator returns an empty dict
-    because no state mutations are needed.
-
-    Args:
-        state: Current Pre-Gambling Flow state. Must contain ``all_games``
-            and ``games_to_analyze`` in the same positional order as
-            produced by ``smart_game_picker`` and preserved by
-            ``persist_games``.
-
-    Returns:
-        Empty dict — all results are written directly to the DB by the
-        intelligence agents.
-    """
-    games = state["all_games"]
-    game_ids = state["games_to_analyze"]
-
-    if not game_ids:
-        return {}
-
-    for i, game_id in enumerate(game_ids):
-        game = games[i]
-        home_team = game["home_team"]
-        away_team = game["away_team"]
-        match_date = game["match_date"]
-        kickoff_time = game["kickoff_time"]
-
-        update_game_status(game_id, "processing")
-
-        run_game_intelligence(game_id, home_team, away_team, match_date, kickoff_time)
-
-        run_team_intelligence(game_id, home_team, match_date)
-
-        run_team_intelligence(game_id, away_team, match_date)
-
-    return {}
+def parallel_orchestrator(*args, **kwargs):
+    """Deprecated stub — raises if accidentally called."""
+    raise NotImplementedError(
+        "parallel_orchestrator has been replaced by LangGraph Send() fan-out. "
+        "Use graph_manager.build_pre_gambling_graph() which dispatches to "
+        "nodes/analyze_game.py via Send(). See graph_manager.fan_out_to_analysis()."
+    )

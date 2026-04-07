@@ -59,26 +59,60 @@ class Phase(Enum):
     COMPLETE = "complete"
 
 
+class AnalyzeGameState(TypedDict):
+    """
+    State schema for the analyze_game subgraph.
+
+    This subgraph is invoked once per game via Send() from the main
+    Pre-Gambling Flow graph.  The Send payload populates the input fields
+    (game_id through kickoff_time).  The subgraph's three internal nodes
+    (game_intelligence, team_intelligence_home, team_intelligence_away)
+    run in parallel, each writing reports directly to the DB.
+
+    After all three complete, the subgraph output includes
+    ``analyzed_game_ids`` which the parent graph's ``add`` reducer
+    merges into ``PreGamblingState.analyzed_game_ids`` for fan-in
+    tracking.
+
+    Input fields (set by Send payload):
+        game_id: DB primary key from the games table.
+        home_team: Home team name.
+        away_team: Away team name.
+        match_date: YYYY-MM-DD format.
+        kickoff_time: HH:MM format (24-hour).
+
+    Output field (returned to parent):
+        analyzed_game_ids: Single-element list ``[game_id]`` produced
+            by the game_intelligence node upon completion.
+    """
+    game_id: int
+    home_team: str
+    away_team: str
+    match_date: str
+    kickoff_time: str
+    analyzed_game_ids: Annotated[list[int], add]
+
+
 class GameContext(TypedDict):
     """
     Minimal game context stored in state for debugging/logging.
-    
+
     This is NOT the full game report - detailed analysis goes to DB tables
     (game_reports, team_reports). This lightweight context enables graph nodes
     to log/debug without DB calls.
-    
+
     Why TypedDict not Pydantic:
     ---------------------------
     State fields should be simple typed dicts per LangGraph conventions.
     Pydantic models are reserved for structured_outputs.py (node responses).
-    
+
     Field Sources:
     --------------
     - game_id: DB primary key from games.game_id (SERIAL)
     - home_team, away_team, league, venue: football-data.org API
     - match_date, kickoff_time: football-data.org API
     - n1, n2, n3: The Odds API (Israeli Toto notation: 1=home, 2=away, x=draw)
-    
+
     DB Schema Reference:
     --------------------
     Maps to `games` table columns (db/schema.sql):
@@ -100,66 +134,75 @@ class GameContext(TypedDict):
 class PreGamblingState(TypedDict):
     """
     Main state schema for Pre-Gambling Flow graph orchestration.
-    
+
     Design Principles:
     ------------------
     1. COORDINATION ONLY - No accumulated game/team analysis data
-    2. Parallel subgraphs write reports directly to DB (game_reports, team_reports)
-    3. State tracks: message history, game contexts, filtered IDs, flow phase
+    2. Parallel intelligence nodes write reports directly to DB
+       (game_reports, team_reports)
+    3. State tracks: message history, game contexts, filtered IDs, flow phase,
+       and analyzed-game IDs (for fan-in synchronisation)
     4. Uses standard LangGraph reducers (add_messages, add)
-    
+
     Field Purposes:
     ---------------
     messages:
         LLM conversation history required for agent nodes.
         Reducer: add_messages (LangGraph built-in for BaseMessage merging)
-        
+
     all_games:
         Full context for ALL games inserted to DB by Smart Picker + Filter nodes.
         Used for debugging, logging, and orchestration decisions.
         Reducer: add (custom list concatenation)
-        
+
     games_to_analyze:
         Filtered game IDs (DB PKs) that passed odds threshold.
-        These spawn parallel subgraphs (Game + Team Intelligence Agents).
+        These are fanned-out via LangGraph Send() to the ``analyze_game``
+        node — one invocation per game running in parallel.
         Reducer: add (custom list concatenation)
-        
+
+    analyzed_game_ids:
+        Game IDs whose intelligence analysis has completed.  Each
+        ``analyze_game`` fan-out invocation appends its game_id here.
+        The ``add`` reducer merges results from all parallel branches
+        so downstream nodes (combine_reports) can verify completeness.
+        Reducer: add (custom list concatenation)
+
     phase:
         Current flow phase enum for conditional routing.
         No reducer (single-value field, last write wins).
-        
-    Graph Flow Example:
-    -------------------
-    1. START → Smart Picker (phase=SELECTING)
+
+    Graph Flow (LangGraph Send() pattern):
+    ---------------------------------------
+    1. START -> smart_game_picker (phase=SELECTING)
        - Queries football-data.org for today's games
        - Inserts selected games to DB
        - Populates state.all_games with GameContext objects
        - Sets phase=FILTERING
-       
-    2. Router → Filter Node (phase=FILTERING)
-       - Fetches odds from The Odds API for games in state.all_games
-       - Applies min-odds threshold (configurable)
-       - Updates state.games_to_analyze with filtered game IDs (DB PKs)
-       - Sets phase=ANALYZING
-       
-    3. Router → Parallel Subgraph Orchestrator (phase=ANALYZING)
-       - For each game_id in state.games_to_analyze:
-           - Spawn Game Intelligence subgraph (writes to game_reports table)
-           - Spawn 2x Team Intelligence subgraphs (writes to team_reports table)
-       - Wait for all parallel subgraphs to complete
-       - Sets phase=COMPLETE
-       
-    4. Router → Trigger Gambling Flow (phase=COMPLETE)
-       - Publishes event to trigger next flow
-       - END
-    
+
+    2. smart_game_picker -> persist_games (phase=ANALYZING)
+       - Inserts games to DB, gets real PKs
+       - Sets state.games_to_analyze with DB PKs
+
+    3. persist_games -> [fan_out_to_analysis via Send()]
+       - For each game_id: Send("analyze_game", {game payload})
+       - LangGraph dispatches N parallel analyze_game invocations
+
+    4. analyze_game (N parallel invocations)
+       - Runs game intelligence + 2x team intelligence per game
+       - Writes reports to DB
+       - Returns {analyzed_game_ids: [game_id]} for fan-in
+
+    5. analyze_game -> combine_reports -> persist_reports -> END
+
     References:
     -----------
     - Pattern: StocksMarketRecommender state.py (Phase enum + TypedDict + reducers)
     - DB Schema: db/schema.sql (games, game_reports, team_reports tables)
-    - Architecture: agents.md (Section 5.1 - Pre-Gambling Flow)
+    - Architecture: README.md (Pre-Gambling Flow)
     """
     messages: Annotated[list[BaseMessage], add_messages]
     all_games: Annotated[list[GameContext], add]
     games_to_analyze: Annotated[list[int], add]
+    analyzed_game_ids: Annotated[list[int], add]
     phase: Phase

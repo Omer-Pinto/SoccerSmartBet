@@ -1,11 +1,11 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-06 | **Branch:** `revive`
+> **Last updated:** 2026-04-07 | **Branch:** `wave4/agent4a`
 
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 40%
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 56%
 ```
 
 | What | Status |
@@ -13,9 +13,9 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 | 11 data tools (FotMob, football-data.org, The Odds API, winner.co.il) | Working |
 | Team registry (83 teams, Hebrew, fuzzy match, Israeli league) | Working |
 | Web app tool tester (SSE streaming, concurrent, dual odds) | Working |
-| DB schema (5 tables) | Written, never tested against real DB |
-| State + prompts + structured outputs | Written, never wired |
-| Pre-Gambling LangGraph flow | **NOT BUILT** — zero flow code |
+| DB schema (6 tables) | Running on PostgreSQL (docker-compose, port 5433), pgweb on 8082 |
+| State + prompts + structured outputs | Updated and wired into graph |
+| Pre-Gambling LangGraph flow | **Code complete** — subgraph architecture, needs standalone node tests + E2E |
 | Gambling Flow (Telegram + AI bets) | **NOT BUILT** — directory doesn't exist |
 | Post-Games Flow (results + P&L) | **NOT BUILT** — directory doesn't exist |
 | Offline Analysis Flow | **NOT BUILT** — directory doesn't exist |
@@ -30,7 +30,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 | 1 | 🟢 Done | FotMob client, team registry, winner client. Heavy post-wave bug fixes. |
 | 2 | 🟢 Done | All 11 tools working against live APIs |
 | 3 | 🟡 Partial | Web app works (streaming, concurrent). Tests mostly deleted (4 kept of 10). |
-| 4 | 🟡 Needs Review | All 11 tasks done, needs E2E verification |
+| 4 | 🟡 Code Complete | All code written (subgraph architecture). Needs standalone node tests + E2E verification. |
 | 5 | ⬜ Not Started | Gambling + Post-Games + Offline — no code exists |
 | 6 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
@@ -128,12 +128,9 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 
 ---
 
-## Wave 4 — LangGraph Pre-Gambling Flow ⬜ NOT STARTED
+## Wave 4 — LangGraph Pre-Gambling Flow 🟡 Code Complete, Needs E2E Verification
 
-**Zero code exists.** Files that exist but aren't wired:
-- `state.py` — state schema written
-- `structured_outputs.py` — Pydantic models written
-- `prompts.py` — LLM prompts written (updated to remove phantom tools)
+**All code written.** Architecture: main graph fans out via Send() to analyze_game subgraph per game. Two-level parallelism (outer=games, inner=3 intelligence calls).
 
 ### Agent 4A: Core Flow + Pipeline Nodes
 | # | Task | Status | Notes |
@@ -146,15 +143,25 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 | 6 | Create persist_reports.py | 🟢 Done | Single UPDATE with ANY(), marks games ready_for_betting |
 | 7 | Create graph_manager.py | 🟢 Done | StateGraph compiled, conditional edge for 4B intelligence agents insertion |
 
-### Agent 4B: Intelligence Agents + Orchestration
+### Agent 4B: Intelligence Agents + Subgraph Orchestration
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 1 | Create game_intelligence.py | 🟢 Done | 4 tools pre-called, 1 LLM call (gpt-5.4), writes GameReport to DB, prompt updated |
 | 2 | Create team_intelligence.py | 🟢 Done | 4 tools pre-called, 1 LLM call (gpt-5.4), writes TeamReport to DB, prompt updated |
-| 3 | Create parallel_orchestrator.py | 🟢 Done | Sequential per game (3 agents each), wired into graph_manager |
+| 3 | Create analyze_game.py subgraph | 🟢 Done | Replaced parallel_orchestrator with proper LangGraph subgraph. 3 parallel nodes (game_intelligence, team_intel_home, team_intel_away). Main graph uses Send() fan-out. |
 | 4 | Add DB write utilities | 🟢 Done | insert_game_report, insert_team_report, update_game_status — upsert, tested against real DB |
 
-**Prerequisite**: DB must be running and tested before this wave.
+### Infrastructure
+- PostgreSQL staging DB on port 5433 (docker-compose project: soccer-smart-bet)
+- pgweb UI on port 8082
+- DB schema updated for new structured outputs (team_news, league_position)
+- psycopg2-binary + langchain-openai installed
+
+### Remaining before Wave 4 complete
+- ⬜ Test smart_game_picker standalone against real APIs
+- ⬜ Test game_intelligence + team_intelligence standalone with real FotMob + LLM
+- ⬜ Run end-to-end Pre-Gambling Flow
+- ⬜ Check LangSmith traces
 
 ---
 
