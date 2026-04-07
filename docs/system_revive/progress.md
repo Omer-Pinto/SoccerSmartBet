@@ -30,7 +30,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 | 1 | 🟢 Done | FotMob client, team registry, winner client. Heavy post-wave bug fixes. |
 | 2 | 🟢 Done | All 11 tools working against live APIs |
 | 3 | 🟡 Partial | Web app works (streaming, concurrent). Tests mostly deleted (4 kept of 10). |
-| 4 | ⬜ Not Started | Pre-Gambling LangGraph flow — no code exists |
+| 4 | 🟡 Needs Review | All 11 tasks done, needs E2E verification |
 | 5 | ⬜ Not Started | Gambling + Post-Games + Offline — no code exists |
 | 6 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
@@ -149,10 +149,10 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜�
 ### Agent 4B: Intelligence Agents + Orchestration
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create game_intelligence.py | ⬜ Pending | |
-| 2 | Create team_intelligence.py | ⬜ Pending | |
-| 3 | Create parallel_orchestrator.py | ⬜ Pending | |
-| 4 | Add DB write utilities | ⬜ Pending | |
+| 1 | Create game_intelligence.py | 🟢 Done | 4 tools pre-called, 1 LLM call (gpt-5.4), writes GameReport to DB, prompt updated |
+| 2 | Create team_intelligence.py | 🟢 Done | 4 tools pre-called, 1 LLM call (gpt-5.4), writes TeamReport to DB, prompt updated |
+| 3 | Create parallel_orchestrator.py | 🟢 Done | Sequential per game (3 agents each), wired into graph_manager |
+| 4 | Add DB write utilities | 🟢 Done | insert_game_report, insert_team_report, update_game_status — upsert, tested against real DB |
 
 **Prerequisite**: DB must be running and tested before this wave.
 

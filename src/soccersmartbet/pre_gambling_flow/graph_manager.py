@@ -5,12 +5,13 @@ Wires the full Pre-Gambling Flow as a LangGraph StateGraph.
 
 Flow phases: SELECTING → FILTERING → ANALYZING → COMPLETE
 
-Current graph structure (Agent 4B intelligence agents not yet built):
-    START → smart_game_picker → persist_games → [conditional] → combine_reports → persist_reports → END
+Graph structure:
+    START → smart_game_picker → persist_games → [conditional]
+          → parallel_orchestrator → combine_reports → persist_reports → END
 
-The conditional edge at 'persist_games' uses the 'analyze' routing key.
-Agent 4B will insert parallel_orchestrator at that key without restructuring
-the graph.
+The conditional edge at 'persist_games' maps 'analyze' to
+'parallel_orchestrator', which runs game and team intelligence agents
+sequentially before handing off to combine_reports.
 """
 
 from langgraph.graph import StateGraph, START, END
@@ -18,20 +19,19 @@ from langgraph.graph import StateGraph, START, END
 from soccersmartbet.pre_gambling_flow.state import PreGamblingState, Phase
 from soccersmartbet.pre_gambling_flow.nodes.smart_game_picker import smart_game_picker
 from soccersmartbet.pre_gambling_flow.nodes.persist_games import persist_games
+from soccersmartbet.pre_gambling_flow.agents.parallel_orchestrator import parallel_orchestrator
 from soccersmartbet.pre_gambling_flow.nodes.combine_reports import combine_reports
 from soccersmartbet.pre_gambling_flow.nodes.persist_reports import persist_reports
 
 
 def route_after_persist(state: PreGamblingState) -> str:
-    """Route after persist_games. Currently skips to combine_reports.
-
-    Agent 4B will add intelligence agents at the 'analyze' routing key.
+    """Route after persist_games to the parallel orchestrator.
 
     Args:
         state: Current Pre-Gambling Flow state.
 
     Returns:
-        Routing key string. Currently always 'analyze'.
+        Routing key string. Always 'analyze'.
     """
     return "analyze"
 
@@ -41,11 +41,11 @@ def build_pre_gambling_graph() -> StateGraph:
 
     Graph structure:
         START → smart_game_picker → persist_games → [route_after_persist]
-              → combine_reports → persist_reports → END
+              → parallel_orchestrator → combine_reports → persist_reports → END
 
-    The conditional edge at 'persist_games' maps 'analyze' to 'combine_reports'
-    today. Agent 4B will remap 'analyze' to 'parallel_orchestrator' once
-    intelligence agents are built.
+    The conditional edge at 'persist_games' maps 'analyze' to
+    'parallel_orchestrator', which drives all intelligence agents before
+    combine_reports assembles the final output.
 
     Returns:
         Compiled LangGraph Runnable ready to invoke.
@@ -54,6 +54,7 @@ def build_pre_gambling_graph() -> StateGraph:
 
     graph.add_node("smart_game_picker", smart_game_picker)
     graph.add_node("persist_games", persist_games)
+    graph.add_node("parallel_orchestrator", parallel_orchestrator)
     graph.add_node("combine_reports", combine_reports)
     graph.add_node("persist_reports", persist_reports)
 
@@ -62,8 +63,9 @@ def build_pre_gambling_graph() -> StateGraph:
     graph.add_conditional_edges(
         "persist_games",
         route_after_persist,
-        {"analyze": "combine_reports"},  # Will become: {"analyze": "parallel_orchestrator"} in 4B
+        {"analyze": "parallel_orchestrator"},
     )
+    graph.add_edge("parallel_orchestrator", "combine_reports")
     graph.add_edge("combine_reports", "persist_reports")
     graph.add_edge("persist_reports", END)
 
