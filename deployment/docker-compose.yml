@@ -1,15 +1,15 @@
-version: '3.8'
+name: soccer-smart-bet
 
 # ============================================================================
 # SoccerSmartBet Docker Compose - Database Environments
 # ============================================================================
 # Purpose: Provides isolated PostgreSQL instances for staging and production
-# Staging: Port 5432 (development/testing)
-# Production: Port 5433 (production deployment)
+# Staging: Port 5433 (development/testing)
+# Production: Port 5434 (production deployment)
 #
 # Usage:
 #   cd deployment
-#   docker-compose up -d postgres-staging
+#   docker compose --env-file ../.env up -d postgres-staging
 # ============================================================================
 
 services:
@@ -110,6 +110,23 @@ services:
     #     limits:
     #       cpus: '4'
     #       memory: 4G
+
+  # ==========================================================================
+  # PGWEB - Database Web UI
+  # ==========================================================================
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: soccersmartbet-pgweb
+    restart: unless-stopped
+    ports:
+      - "${PGWEB_PORT:-8082}:8081"
+    environment:
+      PGWEB_DATABASE_URL: "postgres://${POSTGRES_STAGING_USER:-postgres}:${POSTGRES_STAGING_PASSWORD}@postgres-staging:5432/${POSTGRES_STAGING_DB:-soccersmartbet_staging}?sslmode=disable"
+    depends_on:
+      postgres-staging:
+        condition: service_healthy
+    networks:
+      - staging-network
 
 # ============================================================================
 # NETWORKS
