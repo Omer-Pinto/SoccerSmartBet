@@ -288,6 +288,26 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 
 ---
 
+## Wave 5.5 — Daily Runs Tracking + Wall-Clock Scheduler (1 agent, ~3 files)
+
+### Agent 5.5A: daily_runs Table + Scheduler Fix
+**Type:** `python-pro`
+**Scope:** `deployment/db/init/001_create_schema.sql`, `src/soccersmartbet/telegram/triggers.py`, flow nodes
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Add `daily_runs` table to schema | Track daily pipeline lifecycle | `run_date DATE PK`, pre_gambling/gambling/post_games timestamps, `game_ids INTEGER[]`, `user_bet_completed BOOLEAN`, `ai_bet_completed BOOLEAN` |
+| 2 | Replace `job_queue.run_daily()` with wall-clock poller | Immune to macOS sleep suspending monotonic timers | 60s asyncio loop checking `datetime.now(ISR_TZ)`, fires if past 13:00 and no run today in `daily_runs` |
+| 3 | Add startup recovery to `start_scheduler()` | Catch missed runs on bot restart | Query `daily_runs` for today, if no pre-gambling run and past 13:00 → fire immediately |
+| 4 | Wire pre-gambling flow to write `daily_runs` | Audit trail | `smart_game_picker` writes started_at, `persist_reports`/`notify_telegram` writes completed_at + game_ids |
+
+### After Wave 5.5
+- Verify: close laptop lid at 12:55, wake at 13:10 → flow fires within 60s of wake
+- Verify: restart bot at 14:00 → startup recovery fires flow immediately
+- Verify: `daily_runs` table populated correctly after flow run
+
+---
+
 ## Wave 6 — Gambling Flow + Post-Games + Offline Analysis (3 agents, ~10 files)
 
 ### Agent 6A: Gambling Flow

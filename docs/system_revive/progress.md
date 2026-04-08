@@ -195,6 +195,18 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ---
 
+## Wave 5.5 — Daily Runs Tracking + Wall-Clock Scheduler ⬜ NOT STARTED
+
+### Agent 5.5A: daily_runs DB Table + Scheduler Fix
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Create `daily_runs` table in schema | ⬜ Pending | run_date PK, pre/gambling/post timestamps, game_ids, bet flags |
+| 2 | Replace APScheduler JobQueue with wall-clock poller | ⬜ Pending | 60s loop checking wall clock, immune to macOS sleep |
+| 3 | Add startup recovery | ⬜ Pending | On bot start, check if today's flow missed → fire immediately |
+| 4 | Wire flow nodes to write daily_runs | ⬜ Pending | Pre-gambling start/complete, gambling bets, post-games |
+
+---
+
 ## Wave 6 — Gambling + Post-Games + Offline Analysis ⬜ NOT STARTED
 
 ### Agent 6A: Gambling Flow
