@@ -1,11 +1,11 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-07 | **Branch:** `wave4/agent4a`
+> **Last updated:** 2026-04-08 | **Branch:** main
 
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜] 56%
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜⬜⬜⬜⬜] 68%
 ```
 
 | What | Status |
@@ -15,8 +15,9 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜
 | Web app tool tester (SSE streaming, concurrent, dual odds) | Working |
 | DB schema (6 tables) | Running on PostgreSQL (docker-compose, port 5433), pgweb on 8082 |
 | State + prompts + structured outputs | Updated and wired into graph |
-| Pre-Gambling LangGraph flow | **Code complete** — subgraph architecture, needs standalone node tests + E2E |
-| Gambling Flow (Telegram + AI bets) | **NOT BUILT** — directory doesn't exist |
+| Pre-Gambling LangGraph flow | **Working E2E** — verified on 2 CL games, subgraph architecture + expert summary |
+| Telegram bot + triggers + ISR time + game reports | **NOT BUILT** — new Wave 5 |
+| Gambling Flow (AI bets + validation) | **NOT BUILT** — directory doesn't exist |
 | Post-Games Flow (results + P&L) | **NOT BUILT** — directory doesn't exist |
 | Offline Analysis Flow | **NOT BUILT** — directory doesn't exist |
 
@@ -30,9 +31,10 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜
 | 1 | 🟢 Done | FotMob client, team registry, winner client. Heavy post-wave bug fixes. |
 | 2 | 🟢 Done | All 11 tools working against live APIs |
 | 3 | 🟡 Partial | Web app works (streaming, concurrent). Tests mostly deleted (4 kept of 10). |
-| 4 | 🟡 Code Complete | All code written (subgraph architecture). Needs standalone node tests + E2E verification. |
-| 5 | ⬜ Not Started | Gambling + Post-Games + Offline — no code exists |
-| 6 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
+| 4 | 🟢 Done | Subgraph architecture, E2E verified on 2 CL games with expert summary |
+| 5 | ⬜ Not Started | Telegram bot, triggers, game reports HTML, ISR timezone |
+| 6 | ⬜ Not Started | Gambling + Post-Games + Offline — no code exists |
+| 7 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
 ---
 
@@ -128,7 +130,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜
 
 ---
 
-## Wave 4 — LangGraph Pre-Gambling Flow 🟡 Code Complete, Needs E2E Verification
+## Wave 4 — LangGraph Pre-Gambling Flow ✅
 
 **All code written.** Architecture: main graph fans out via Send() to analyze_game subgraph per game. Two-level parallelism (outer=games, inner=3 intelligence calls).
 
@@ -157,25 +159,58 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜
 - DB schema updated for new structured outputs (team_news, league_position)
 - psycopg2-binary + langchain-openai installed
 
-### Remaining before Wave 4 complete
-- ⬜ Test smart_game_picker standalone against real APIs
-- ⬜ Test game_intelligence + team_intelligence standalone with real FotMob + LLM
-- ⬜ Run end-to-end Pre-Gambling Flow
-- ⬜ Check LangSmith traces
+### Remaining before Wave 4 complete ✅
+- 🟢 Test smart_game_picker standalone against real APIs
+- 🟢 Test game_intelligence + team_intelligence standalone with real FotMob + LLM
+- 🟢 Run end-to-end Pre-Gambling Flow (2 CL games, with expert summary LLM call)
+- 🟢 Check LangSmith traces
 
 ---
 
-## Wave 5 — Gambling + Post-Games + Offline Analysis ⬜ NOT STARTED
+## Wave 5 — Telegram Bot + Triggers + Game Reports + ISR Time ⬜ NOT STARTED
 
-### Agent 5A: Telegram Bot + Gambling Flow
+### Task 5.1: Telegram Bot
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create telegram_bot.py | ⬜ Pending | |
-| 2 | Create ai_betting_agent.py | ⬜ Pending | |
-| 3 | Create bet_validator.py | ⬜ Pending | |
-| 4 | Create gambling graph_manager.py | ⬜ Pending | |
+| 1 | Create dedicated Telegram bot | ⬜ Pending | Bot for all user-system communication |
+| 2 | Basic send/receive message interface | ⬜ Pending | Async, python-telegram-bot |
 
-### Agent 5B: Post-Games Flow
+### Task 5.2: Pre-Gambling Daily Trigger
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Cron trigger at 13:00 ISR daily | ⬜ Pending | Automatically starts Pre-Gambling Flow |
+
+### Task 5.3: Gambling Trigger
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Trigger Gambling Flow when Pre-Gambling completes | ⬜ Pending | Sends Telegram message with game report links |
+
+### Task 5.4: ISR Timezone Utility
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Create timezone utility (UTC → Israel time) | ⬜ Pending | `zoneinfo` based (Asia/Jerusalem), used across entire app |
+| 2 | Apply to game picker selected games | ⬜ Pending | Match kick-off times shown in ISR |
+| 3 | Apply to all existing time references | ⬜ Pending | Triggers, logs, DB timestamps |
+
+### Task 5.5: HTML Game Reports + Telegram Message
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Static HTML report page per game | ⬜ Pending | All tool data + expert summary, styled like web UI but improved |
+| 2 | Design Telegram "gambling time" message | ⬜ Pending | Bullets: teams, ISR time, stadium, competition + HTML link per game |
+| 3 | Serve HTML pages accessible from Telegram links | ⬜ Pending | Static files or lightweight endpoint |
+
+---
+
+## Wave 6 — Gambling + Post-Games + Offline Analysis ⬜ NOT STARTED
+
+### Agent 6A: Gambling Flow
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Create ai_betting_agent.py | ⬜ Pending | AI places bets using reports |
+| 2 | Create bet_validator.py | ⬜ Pending | Verify both bets before deadline |
+| 3 | Create gambling graph_manager.py | ⬜ Pending | Uses Telegram bot from Wave 5 |
+
+### Agent 6B: Post-Games Flow
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 1 | Create fetch_results.py | ⬜ Pending | |
@@ -183,7 +218,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜
 | 3 | Create daily_summary.py | ⬜ Pending | |
 | 4 | Create post-games graph_manager.py | ⬜ Pending | |
 
-### Agent 5C: Offline Analysis Flow
+### Agent 6C: Offline Analysis Flow
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 1 | Create query_stats.py | ⬜ Pending | |
@@ -192,7 +227,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜
 
 ---
 
-## Wave 6 — Expansion 🟡 PARTIALLY DONE
+## Wave 7 — Expansion 🟡 PARTIALLY DONE
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|

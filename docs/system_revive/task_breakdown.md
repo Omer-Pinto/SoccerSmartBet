@@ -244,20 +244,61 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 
 ---
 
-## Wave 5 — Gambling Flow + Post-Games + Offline Analysis (3 agents, ~12 files)
+## Wave 5 — Telegram Bot + Triggers + Game Reports + ISR Time (2-3 agents, ~8 files)
 
-### Agent 5A: Telegram Bot + Gambling Flow
+### Agent 5A: ISR Timezone Utility
+**Type:** `python-pro`
+**Scope:** `src/soccersmartbet/utils/timezone.py` (new)
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Create `utils/timezone.py` | UTC → Israel time conversion utility | `zoneinfo` based (Asia/Jerusalem). ISR = UTC+2 / UTC+3 (DST). Simple, used everywhere. |
+| 2 | Apply to `smart_game_picker.py` | Selected games show ISR kick-off times | Convert match times from football-data.org (UTC) to ISR |
+| 3 | Apply to all scheduling/logging | Consistent ISR timestamps | Triggers, logs, DB records |
+
+### Agent 5B: Telegram Bot + Flow Triggers
+**Type:** `python-pro`
+**Scope:** `src/soccersmartbet/telegram/` (new directory)
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Create `telegram/bot.py` | Dedicated Telegram bot | python-telegram-bot, async, send/receive messages |
+| 2 | Create Pre-Gambling daily trigger | Cron job at 13:00 ISR | Automatically triggers Pre-Gambling Flow every day |
+| 3 | Create Gambling trigger | Fires when Pre-Gambling Flow completes | Sends "gambling time" Telegram message with game report links |
+
+### Agent 5C: HTML Game Report Pages + Telegram Message Design
+**Type:** `fullstack-developer`
+**Scope:** `src/soccersmartbet/reports/` (new directory)
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Create static HTML report per game | All tool data + expert summary | Similar to web UI visualization but improved — no button/team selection |
+| 2 | Design Telegram "gambling time" message | Bullet per game: teams, ISR time, stadium, competition + HTML link | One link per game opens full game report page |
+| 3 | Serve HTML pages accessible via Telegram links | Static file serving or lightweight endpoint | Must be reachable from Telegram message URLs |
+
+### After Wave 5
+- Verify Telegram bot sends/receives messages
+- Verify daily cron trigger fires Pre-Gambling at 13:00 ISR
+- Verify Gambling trigger sends formatted message after Pre-Gambling completes
+- Verify HTML report pages render correctly with all tool data + expert summary
+- Verify all times in ISR throughout the system
+- **CHECKPOINT**: Daily automation + user communication working
+
+---
+
+## Wave 6 — Gambling Flow + Post-Games + Offline Analysis (3 agents, ~10 files)
+
+### Agent 6A: Gambling Flow
 **Type:** `python-pro`
 **Scope:** `src/soccersmartbet/gambling_flow/` (new directory)
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
-| 1 | Create `gambling_flow/telegram_bot.py` | Telegram bot for user bets | Present reports, collect 1/X/2 bets per game |
-| 2 | Create `gambling_flow/ai_betting_agent.py` | AI places bets | 1 LLM call per game with report context |
-| 3 | Create `gambling_flow/bet_validator.py` | Validate + persist bets | Check both arrived, insert into `bets` table |
-| 4 | Create `gambling_flow/graph_manager.py` | Wire Gambling Flow | LangGraph StateGraph |
+| 1 | Create `gambling_flow/ai_betting_agent.py` | AI places bets | 1 LLM call per game with report context |
+| 2 | Create `gambling_flow/bet_validator.py` | Validate + persist bets | Check both arrived, insert into `bets` table |
+| 3 | Create `gambling_flow/graph_manager.py` | Wire Gambling Flow | Uses Telegram bot from Wave 5 |
 
-### Agent 5B: Post-Games Flow
+### Agent 6B: Post-Games Flow
 **Type:** `python-pro`
 **Scope:** `src/soccersmartbet/post_games_flow/` (new directory)
 
@@ -268,7 +309,7 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 | 3 | Create `post_games_flow/daily_summary.py` | Send Telegram summary | Results + P&L for both user and AI |
 | 4 | Create `post_games_flow/graph_manager.py` | Wire Post-Games Flow | LangGraph StateGraph |
 
-### Agent 5C: Offline Analysis Flow
+### Agent 6C: Offline Analysis Flow
 **Type:** `python-pro`
 **Scope:** `src/soccersmartbet/offline_analysis_flow/` (new directory)
 
@@ -278,16 +319,16 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 | 2 | Create `offline_analysis_flow/ai_insights.py` | LLM-generated insights from stats | 1 LLM call with stats context, produces narrative |
 | 3 | Create `offline_analysis_flow/graph_manager.py` | Wire Offline Analysis Flow | On-demand trigger, query → analyze → display |
 
-### After Wave 5
+### After Wave 6
 - End-to-end test: Pre-Gambling → Gambling → Post-Games
 - Test Offline Analysis independently
 - **CHECKPOINT**: All 4 flows operational
 
 ---
 
-## Wave 6 — Competition Expansion + Polish (1 agent)
+## Wave 7 — Competition Expansion + Polish (1 agent)
 
-### Agent 6A: League Expansion + Final Polish
+### Agent 7A: League Expansion + Final Polish
 **Type:** `python-pro`
 **Scope:** `db/seeds/`, `src/soccersmartbet/team_registry.py`, documentation
 
@@ -299,6 +340,6 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 | 4 | Add FotMob IDs to team registry | Cross-reference FotMob team search | Enables direct FotMob lookups |
 | 5 | Final documentation update | Update README, ORCHESTRATION_STATE | Reflect current system state |
 
-### After Wave 6
+### After Wave 7
 - Full system test across multiple leagues
 - Verify: Israeli league, CL, name resolution across all sources
