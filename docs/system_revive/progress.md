@@ -186,12 +186,12 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 2 | Create Pre-Gambling daily trigger | ⬜ Pending | Cron at 13:00 ISR, automatically starts Pre-Gambling Flow |
 | 3 | Create Gambling trigger | ⬜ Pending | Fires when Pre-Gambling completes, sends Telegram message with game report links |
 
-### Agent 5C: HTML Game Report Pages + Telegram Message Design
+### Agent 5C: HTML Game Report Pages + Telegram Message Design ✅
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Static HTML report page per game | ⬜ Pending | All tool data + expert summary, styled like web UI but improved |
-| 2 | Design Telegram "gambling time" message | ⬜ Pending | Bullets: teams, ISR time, stadium, competition + HTML link per game |
-| 3 | Serve HTML pages accessible from Telegram links | ⬜ Pending | Static files or lightweight endpoint |
+| 1 | Static HTML report page per game | 🟢 Done | `reports/html_report.py` — self-contained HTML, dark theme, 3-column grid, responsive |
+| 2 | Design Telegram "gambling time" message | 🟢 Done | `reports/telegram_message.py` — bullets with teams, ISR time, venue, league + report link |
+| 3 | Serve HTML pages accessible from Telegram links | 🟢 Done | `reports/serve.py` — FastAPI router `GET /reports/{game_id}`, generates on-the-fly |
 
 ---
 
