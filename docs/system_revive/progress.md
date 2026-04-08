@@ -5,7 +5,7 @@
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜⬜⬜⬜⬜] 68%
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜⬜⬜] 78%
 ```
 
 | What | Status |
@@ -16,7 +16,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | DB schema (6 tables) | Running on PostgreSQL (docker-compose, port 5433), pgweb on 8082 |
 | State + prompts + structured outputs | Updated and wired into graph |
 | Pre-Gambling LangGraph flow | **Working E2E** — verified on 2 CL games, subgraph architecture + expert summary |
-| Telegram bot + triggers + ISR time + game reports | **NOT BUILT** — new Wave 5 |
+| Telegram bot + triggers + ISR time + game reports | **Working** — tested E2E, notify node in graph |
 | Gambling Flow (AI bets + validation) | **NOT BUILT** — directory doesn't exist |
 | Post-Games Flow (results + P&L) | **NOT BUILT** — directory doesn't exist |
 | Offline Analysis Flow | **NOT BUILT** — directory doesn't exist |
@@ -32,7 +32,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 2 | 🟢 Done | All 11 tools working against live APIs |
 | 3 | 🟡 Partial | Web app works (streaming, concurrent). Tests mostly deleted (4 kept of 10). |
 | 4 | 🟢 Done | Subgraph architecture, E2E verified on 2 CL games with expert summary |
-| 5 | ⬜ Not Started | Telegram bot, triggers, game reports HTML, ISR timezone |
+| 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone, notify node in graph |
 | 6 | ⬜ Not Started | Gambling + Post-Games + Offline — no code exists |
 | 7 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
@@ -167,7 +167,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ---
 
-## Wave 5 — Telegram Bot + Triggers + Game Reports + ISR Time ⬜ NOT STARTED
+## Wave 5 — Telegram Bot + Triggers + Game Reports + ISR Time ✅
 
 ### Agent 5A: ISR Timezone Utility ✅
 | # | Task | Status | Notes |
