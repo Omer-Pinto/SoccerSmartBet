@@ -236,11 +236,4 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ## Known Issues / Tech Debt
 
-- **The Odds API (international) odds missing from HTML reports and expert summary.** Winner.co.il odds are stored in DB and shown. The Odds API data is fetched by `fetch_odds` tool but not persisted or fed to expert LLM. Israeli odds lines are less professional and less profitable — international odds should be added to: (1) HTML game report page alongside winner.co.il odds, (2) expert summary LLM prompt for better analysis. Requires DB schema change (new columns or table) + flow update.
-- football-data.org free tier: 10 req/min. H2H + odds + fixtures share this budget.
-- winner.co.il: Incapsula WAF requires session cookies. Session may expire.
-- FotMob x-mas key: hardcoded. If rotated, all FotMob tools fail silently (return None).
-- Team news: empty for Israeli clubs (FotMob content gap).
-- Copa del Rey / domestic cups: not in football-data.org free tier, won't appear in H2H.
-- ~62 teams in major leagues on winner.co.il still don't resolve (smaller clubs).
-- Tests: only 4 meaningful test files remain. No test for H2H accuracy, odds matching, or Hebrew resolution.
+All tracked as GitHub issues: #45–#52, #44. See `gh issue list --repo Omer-Pinto/SoccerSmartBet`.
