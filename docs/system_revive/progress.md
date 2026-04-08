@@ -176,15 +176,15 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 2 | Apply to game picker selected games | 🟢 Done | `_parse_kickoff()` converts UTC→ISR, label changed to ISR |
 | 3 | Apply to all existing time references | 🟢 Done | fotmob cache, winner odds tagged ISR, DB schema → TIMESTAMPTZ |
 
-### Agent 5B: Telegram Bot + Flow Triggers
+### Agent 5B: Telegram Bot + Flow Triggers ✅
 **Prerequisite:** Omer creates bot via @BotFather → provides bot token in `.env`
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 0 | **[USER]** Create bot via @BotFather | ⬜ Pending | Get bot token, add to `.env` as `TELEGRAM_BOT_TOKEN` |
-| 1 | Create Telegram bot client code | ⬜ Pending | Async, python-telegram-bot, send/receive messages |
-| 2 | Create Pre-Gambling daily trigger | ⬜ Pending | Cron at 13:00 ISR, automatically starts Pre-Gambling Flow |
-| 3 | Create Gambling trigger | ⬜ Pending | Fires when Pre-Gambling completes, sends Telegram message with game report links |
+| 0 | **[USER]** Create bot via @BotFather | 🟢 Done | `@soccer_smart_bet_bot`, token + chat_id in `.env` |
+| 1 | Create Telegram bot client code | 🟢 Done | `telegram/bot.py` — async send, chat ID guard, owner-only |
+| 2 | Create Pre-Gambling daily trigger | 🟢 Done | `telegram/triggers.py` — daily job at 13:00 ISR via JobQueue |
+| 3 | Create Gambling trigger | 🟢 Done | `trigger_pre_gambling_and_notify()` — runs flow then sends gambling time message |
 
 ### Agent 5C: HTML Game Report Pages + Telegram Message Design ✅
 | # | Task | Status | Notes |
