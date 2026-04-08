@@ -259,10 +259,12 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 ### Agent 5B: Telegram Bot + Flow Triggers
 **Type:** `python-pro`
 **Scope:** `src/soccersmartbet/telegram/` (new directory)
+**Prerequisite:** Omer creates bot via @BotFather → provides bot token in `.env` as `TELEGRAM_BOT_TOKEN`
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
-| 1 | Create `telegram/bot.py` | Dedicated Telegram bot | python-telegram-bot, async, send/receive messages |
+| 0 | **[USER]** Create bot via @BotFather | Get bot token | Add to `.env` as `TELEGRAM_BOT_TOKEN` |
+| 1 | Create `telegram/bot.py` | Telegram bot client | python-telegram-bot, async, send/receive messages |
 | 2 | Create Pre-Gambling daily trigger | Cron job at 13:00 ISR | Automatically triggers Pre-Gambling Flow every day |
 | 3 | Create Gambling trigger | Fires when Pre-Gambling Flow completes | Sends "gambling time" Telegram message with game report links |
 

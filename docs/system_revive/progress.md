@@ -169,30 +169,24 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ## Wave 5 — Telegram Bot + Triggers + Game Reports + ISR Time ⬜ NOT STARTED
 
-### Task 5.1: Telegram Bot
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Create dedicated Telegram bot | ⬜ Pending | Bot for all user-system communication |
-| 2 | Basic send/receive message interface | ⬜ Pending | Async, python-telegram-bot |
-
-### Task 5.2: Pre-Gambling Daily Trigger
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Cron trigger at 13:00 ISR daily | ⬜ Pending | Automatically starts Pre-Gambling Flow |
-
-### Task 5.3: Gambling Trigger
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Trigger Gambling Flow when Pre-Gambling completes | ⬜ Pending | Sends Telegram message with game report links |
-
-### Task 5.4: ISR Timezone Utility
+### Agent 5A: ISR Timezone Utility
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 1 | Create timezone utility (UTC → Israel time) | ⬜ Pending | `zoneinfo` based (Asia/Jerusalem), used across entire app |
 | 2 | Apply to game picker selected games | ⬜ Pending | Match kick-off times shown in ISR |
 | 3 | Apply to all existing time references | ⬜ Pending | Triggers, logs, DB timestamps |
 
-### Task 5.5: HTML Game Reports + Telegram Message
+### Agent 5B: Telegram Bot + Flow Triggers
+**Prerequisite:** Omer creates bot via @BotFather → provides bot token in `.env`
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 0 | **[USER]** Create bot via @BotFather | ⬜ Pending | Get bot token, add to `.env` as `TELEGRAM_BOT_TOKEN` |
+| 1 | Create Telegram bot client code | ⬜ Pending | Async, python-telegram-bot, send/receive messages |
+| 2 | Create Pre-Gambling daily trigger | ⬜ Pending | Cron at 13:00 ISR, automatically starts Pre-Gambling Flow |
+| 3 | Create Gambling trigger | ⬜ Pending | Fires when Pre-Gambling completes, sends Telegram message with game report links |
+
+### Agent 5C: HTML Game Report Pages + Telegram Message Design
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 1 | Static HTML report page per game | ⬜ Pending | All tool data + expert summary, styled like web UI but improved |
