@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 import os
 
@@ -39,16 +40,49 @@ async def send_message(text: str) -> None:
     logger.info("Telegram message sent to chat_id=%s", TELEGRAM_CHAT_ID)
 
 
-async def send_gambling_time(game_ids: list[int], base_url: str) -> None:
-    """Format and send the gambling time message with report links.
+async def send_html_report(game_id: int, html_content: str, filename: str) -> None:
+    """Send an HTML report as a document attachment to the owner chat.
+
+    Args:
+        game_id: The game ID (used only for logging).
+        html_content: Complete self-contained HTML string to send as a file.
+        filename: Filename for the attachment, e.g. "Arsenal_vs_Chelsea.html".
+
+    Raises:
+        RuntimeError: If TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured.
+    """
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        raise RuntimeError(
+            "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set to send documents."
+        )
+
+    document = io.BytesIO(html_content.encode("utf-8"))
+
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    async with bot:
+        await bot.send_document(
+            chat_id=int(TELEGRAM_CHAT_ID),
+            document=document,
+            filename=filename,
+        )
+
+    logger.info(
+        "HTML report sent as document: game_id=%s filename=%s chat_id=%s",
+        game_id,
+        filename,
+        TELEGRAM_CHAT_ID,
+    )
+
+
+async def send_gambling_time(game_ids: list[int]) -> None:
+    """Format and send the gambling time message.
 
     Fetches game metadata from the database via format_gambling_time_message,
     then delivers the result to the owner chat.
 
     Args:
-        game_ids: List of game IDs whose reports should be linked.
-        base_url: Base URL for the report server (e.g. "http://localhost:8000").
+        game_ids: List of game IDs to include in the message.
     """
-    text = format_gambling_time_message(game_ids, base_url)
+    text = format_gambling_time_message(game_ids)
     await send_message(text)
     logger.info("Gambling time message sent for %d game(s)", len(game_ids))

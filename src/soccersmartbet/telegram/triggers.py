@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from datetime import time
 
 from telegram import Update
@@ -14,22 +13,29 @@ from telegram.ext import (
     filters,
 )
 
-from soccersmartbet.telegram.bot import TELEGRAM_BOT_TOKEN, is_owner, send_gambling_time
+from soccersmartbet.reports.html_report import generate_game_report_html
+from soccersmartbet.reports.telegram_message import get_games_info
+from soccersmartbet.telegram.bot import (
+    TELEGRAM_BOT_TOKEN,
+    is_owner,
+    send_gambling_time,
+    send_html_report,
+)
 from soccersmartbet.utils.timezone import ISR_TZ
 
 logger = logging.getLogger(__name__)
 
-REPORTS_BASE_URL: str = os.getenv("REPORTS_BASE_URL", "http://localhost:8000")
-
 
 async def trigger_pre_gambling_and_notify() -> None:
-    """Run the full Pre-Gambling Flow, then send gambling time message via Telegram.
+    """Run the full Pre-Gambling Flow, then notify via Telegram.
 
     Steps:
-        1. Runs run_pre_gambling_flow() (synchronous LangGraph call) in a thread
-           executor so the event loop is not blocked.
+        1. Runs run_pre_gambling_flow() in a thread executor so the event
+           loop is not blocked.
         2. Extracts game_ids from the result dict under key "games_to_analyze".
-        3. Sends the gambling time Telegram message with report links.
+        3. Sends the gambling time text message (bullet list of games).
+        4. For each game, generates the HTML report and sends it as a file
+           attachment named "{home}_vs_{away}.html".
     """
     from soccersmartbet.pre_gambling_flow.graph_manager import run_pre_gambling_flow  # noqa: PLC0415
 
@@ -40,8 +46,26 @@ async def trigger_pre_gambling_and_notify() -> None:
     game_ids: list[int] = result.get("games_to_analyze", [])
     logger.info("Pre-gambling flow completed, games_to_analyze=%s", game_ids)
 
-    await send_gambling_time(game_ids, REPORTS_BASE_URL)
+    await send_gambling_time(game_ids)
     logger.info("Gambling time notification dispatched for %d game(s)", len(game_ids))
+
+    games_info = get_games_info(game_ids)
+    info_by_id = {g["game_id"]: g for g in games_info}
+
+    for game_id in game_ids:
+        info = info_by_id.get(game_id)
+        if info is None:
+            logger.warning("No DB info for game_id=%s, skipping HTML report", game_id)
+            continue
+
+        home = info["home_team"].replace(" ", "_")
+        away = info["away_team"].replace(" ", "_")
+        filename = f"{home}_vs_{away}.html"
+
+        logger.info("Generating HTML report: game_id=%s filename=%s", game_id, filename)
+        html_content = await asyncio.to_thread(generate_game_report_html, game_id)
+
+        await send_html_report(game_id, html_content, filename)
 
 
 # ---------------------------------------------------------------------------
@@ -111,9 +135,6 @@ def start_scheduler() -> None:
         name="pre_gambling_daily",
     )
 
-    logger.info(
-        "SoccerSmartBet bot starting — daily job scheduled at 13:00 ISR, base_url=%s",
-        REPORTS_BASE_URL,
-    )
+    logger.info("SoccerSmartBet bot starting — daily job scheduled at 13:00 ISR")
 
     application.run_polling()

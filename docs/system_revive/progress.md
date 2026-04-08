@@ -236,6 +236,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ## Known Issues / Tech Debt
 
+- **The Odds API (international) odds missing from HTML reports and expert summary.** Winner.co.il odds are stored in DB and shown. The Odds API data is fetched by `fetch_odds` tool but not persisted or fed to expert LLM. Israeli odds lines are less professional and less profitable — international odds should be added to: (1) HTML game report page alongside winner.co.il odds, (2) expert summary LLM prompt for better analysis. Requires DB schema change (new columns or table) + flow update.
 - football-data.org free tier: 10 req/min. H2H + odds + fixtures share this budget.
 - winner.co.il: Incapsula WAF requires session cookies. Session may expire.
 - FotMob x-mas key: hardcoded. If rotated, all FotMob tools fail silently (return None).
