@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from soccersmartbet.team_registry import normalize_team_name
+from soccersmartbet.utils.timezone import ISR_TZ, now_isr
 
 FOTMOB_LEAGUES = {
     "Premier League": 47, "La Liga": 87, "Serie A": 55, "Bundesliga": 54,
@@ -22,6 +23,8 @@ FOTMOB_LEAGUES = {
 _league_cache: Dict[int, Dict[str, Any]] = {}
 _cache_time: Dict[int, datetime] = {}
 CACHE_TTL = timedelta(minutes=60)
+
+_CACHE_EPOCH = datetime(2000, 1, 1, tzinfo=ISR_TZ)
 
 
 def _generate_xmas_header(url: str) -> str:
@@ -94,8 +97,8 @@ class FotMobClient:
             return None
 
     def _load_league(self, league_id: int) -> Dict[str, Any]:
-        now = datetime.now()
-        if league_id in _league_cache and now - _cache_time.get(league_id, datetime.min) < CACHE_TTL:
+        now = now_isr()
+        if league_id in _league_cache and now - _cache_time.get(league_id, _CACHE_EPOCH) < CACHE_TTL:
             return _league_cache[league_id]
         try:
             data = self.get_league_table(league_id)

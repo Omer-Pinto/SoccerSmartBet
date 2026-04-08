@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -18,6 +17,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from soccersmartbet.pre_gambling_flow.prompts import SMART_GAME_PICKER_PROMPT
+from soccersmartbet.utils.timezone import utc_to_isr
 from soccersmartbet.pre_gambling_flow.state import GameContext, Phase, PreGamblingState
 from soccersmartbet.pre_gambling_flow.structured_outputs import SelectedGames
 from soccersmartbet.pre_gambling_flow.tools.fotmob_client import get_fotmob_client
@@ -45,13 +45,12 @@ def _canonical(name: str) -> str:
 
 
 def _parse_kickoff(iso_str: str | None) -> tuple[str, str]:
-    """Parse an ISO-8601 UTC datetime into (YYYY-MM-DD, HH:MM)."""
+    """Parse an ISO-8601 UTC datetime into (YYYY-MM-DD, HH:MM) in ISR time."""
     if not iso_str:
         return ("", "")
     try:
-        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        dt_utc = dt.astimezone(timezone.utc)
-        return (dt_utc.strftime("%Y-%m-%d"), dt_utc.strftime("%H:%M"))
+        dt_isr = utc_to_isr(iso_str)
+        return (dt_isr.strftime("%Y-%m-%d"), dt_isr.strftime("%H:%M"))
     except (ValueError, AttributeError):
         return ("", "")
 
@@ -110,7 +109,7 @@ def _format_eligible_games(
         lines.append(
             f"- {g['home_team']} vs {g['away_team']} "
             f"| {g['competition']} "
-            f"| {g['match_date']} {g['kickoff_time']} UTC "
+            f"| {g['match_date']} {g['kickoff_time']} ISR "
             f"| Odds: {odds_str}"
         )
     return "\n".join(lines)

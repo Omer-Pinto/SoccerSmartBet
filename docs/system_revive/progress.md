@@ -169,12 +169,12 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ## Wave 5 — Telegram Bot + Triggers + Game Reports + ISR Time ⬜ NOT STARTED
 
-### Agent 5A: ISR Timezone Utility
+### Agent 5A: ISR Timezone Utility ✅
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create timezone utility (UTC → Israel time) | ⬜ Pending | `zoneinfo` based (Asia/Jerusalem), used across entire app |
-| 2 | Apply to game picker selected games | ⬜ Pending | Match kick-off times shown in ISR |
-| 3 | Apply to all existing time references | ⬜ Pending | Triggers, logs, DB timestamps |
+| 1 | Create timezone utility (UTC → Israel time) | 🟢 Done | `utils/timezone.py` — ISR_TZ, utc_to_isr, now_isr, format helpers |
+| 2 | Apply to game picker selected games | 🟢 Done | `_parse_kickoff()` converts UTC→ISR, label changed to ISR |
+| 3 | Apply to all existing time references | 🟢 Done | fotmob cache, winner odds tagged ISR, DB schema → TIMESTAMPTZ |
 
 ### Agent 5B: Telegram Bot + Flow Triggers
 **Prerequisite:** Omer creates bot via @BotFather → provides bot token in `.env`
