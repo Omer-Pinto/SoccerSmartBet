@@ -40,7 +40,7 @@ CREATE TABLE games (
     away_score INTEGER CHECK (away_score >= 0),
     outcome VARCHAR(5) CHECK (outcome IN ('1', 'x', '2')),
     
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Minimal indexes
@@ -64,8 +64,8 @@ CREATE TABLE game_reports (
     weather_risk TEXT,
     venue TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT unique_game_report UNIQUE (game_id)
 );
 
@@ -88,8 +88,8 @@ CREATE TABLE team_reports (
     league_position TEXT,
     team_news TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT unique_team_game_report UNIQUE (game_id, team_name)
 );
 
@@ -107,7 +107,7 @@ CREATE TABLE expert_game_reports (
     report_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     game_id INTEGER NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
     expert_analysis TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_expert_game_report UNIQUE (game_id)
 );
 CREATE INDEX idx_expert_game_reports_game ON expert_game_reports(game_id);
@@ -143,7 +143,7 @@ CREATE TABLE bankroll (
     total_bankroll DECIMAL(10,2) NOT NULL DEFAULT 10000.00,
     games_played INTEGER NOT NULL DEFAULT 0,
     games_won INTEGER NOT NULL DEFAULT 0,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Initialize with 10,000 USD each
@@ -167,7 +167,7 @@ CREATE TABLE teams (
     winner_name_he VARCHAR(255),
     league VARCHAR(100),
     country VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_teams_canonical ON teams(canonical_name);

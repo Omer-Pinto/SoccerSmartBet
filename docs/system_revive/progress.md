@@ -5,7 +5,7 @@
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜⬜⬜⬜⬜] 68%
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜⬜⬜] 78%
 ```
 
 | What | Status |
@@ -16,7 +16,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | DB schema (6 tables) | Running on PostgreSQL (docker-compose, port 5433), pgweb on 8082 |
 | State + prompts + structured outputs | Updated and wired into graph |
 | Pre-Gambling LangGraph flow | **Working E2E** — verified on 2 CL games, subgraph architecture + expert summary |
-| Telegram bot + triggers + ISR time + game reports | **NOT BUILT** — new Wave 5 |
+| Telegram bot + triggers + ISR time + game reports | **Working** — tested E2E, notify node in graph |
 | Gambling Flow (AI bets + validation) | **NOT BUILT** — directory doesn't exist |
 | Post-Games Flow (results + P&L) | **NOT BUILT** — directory doesn't exist |
 | Offline Analysis Flow | **NOT BUILT** — directory doesn't exist |
@@ -32,7 +32,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 2 | 🟢 Done | All 11 tools working against live APIs |
 | 3 | 🟡 Partial | Web app works (streaming, concurrent). Tests mostly deleted (4 kept of 10). |
 | 4 | 🟢 Done | Subgraph architecture, E2E verified on 2 CL games with expert summary |
-| 5 | ⬜ Not Started | Telegram bot, triggers, game reports HTML, ISR timezone |
+| 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone, notify node in graph |
 | 6 | ⬜ Not Started | Gambling + Post-Games + Offline — no code exists |
 | 7 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
@@ -167,37 +167,43 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ---
 
-## Wave 5 — Telegram Bot + Triggers + Game Reports + ISR Time ⬜ NOT STARTED
+## Wave 5 — Telegram Bot + Triggers + Game Reports + ISR Time ✅
 
-### Task 5.1: Telegram Bot
+### Agent 5A: ISR Timezone Utility ✅
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create dedicated Telegram bot | ⬜ Pending | Bot for all user-system communication |
-| 2 | Basic send/receive message interface | ⬜ Pending | Async, python-telegram-bot |
+| 1 | Create timezone utility (UTC → Israel time) | 🟢 Done | `utils/timezone.py` — ISR_TZ, utc_to_isr, now_isr, format helpers |
+| 2 | Apply to game picker selected games | 🟢 Done | `_parse_kickoff()` converts UTC→ISR, label changed to ISR |
+| 3 | Apply to all existing time references | 🟢 Done | fotmob cache, winner odds tagged ISR, DB schema → TIMESTAMPTZ |
 
-### Task 5.2: Pre-Gambling Daily Trigger
+### Agent 5B: Telegram Bot + Flow Triggers ✅
+**Prerequisite:** Omer creates bot via @BotFather → provides bot token in `.env`
+
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Cron trigger at 13:00 ISR daily | ⬜ Pending | Automatically starts Pre-Gambling Flow |
+| 0 | **[USER]** Create bot via @BotFather | 🟢 Done | `@soccer_smart_bet_bot`, token + chat_id in `.env` |
+| 1 | Create Telegram bot client code | 🟢 Done | `telegram/bot.py` — async send, chat ID guard, owner-only |
+| 2 | Create Pre-Gambling daily trigger | 🟢 Done | `telegram/triggers.py` — daily job at 13:00 ISR via JobQueue |
+| 3 | Create Gambling trigger | 🟢 Done | `trigger_pre_gambling_and_notify()` — runs flow then sends gambling time message |
 
-### Task 5.3: Gambling Trigger
+### Agent 5C: HTML Game Report Pages + Telegram Message Design ✅
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Trigger Gambling Flow when Pre-Gambling completes | ⬜ Pending | Sends Telegram message with game report links |
+| 1 | Static HTML report page per game | 🟢 Done | `reports/html_report.py` — self-contained HTML, dark theme, 3-column grid, responsive |
+| 2 | Design Telegram "gambling time" message | 🟢 Done | `reports/telegram_message.py` — bullets with teams, ISR time, venue, league + report link |
+| 3 | Serve HTML pages accessible from Telegram links | 🟢 Done | `reports/serve.py` — FastAPI router `GET /reports/{game_id}`, generates on-the-fly |
 
-### Task 5.4: ISR Timezone Utility
+---
+
+## Wave 5.5 — Daily Runs Tracking + Wall-Clock Scheduler ⬜ NOT STARTED
+
+### Agent 5.5A: daily_runs DB Table + Scheduler Fix
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create timezone utility (UTC → Israel time) | ⬜ Pending | `zoneinfo` based (Asia/Jerusalem), used across entire app |
-| 2 | Apply to game picker selected games | ⬜ Pending | Match kick-off times shown in ISR |
-| 3 | Apply to all existing time references | ⬜ Pending | Triggers, logs, DB timestamps |
-
-### Task 5.5: HTML Game Reports + Telegram Message
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Static HTML report page per game | ⬜ Pending | All tool data + expert summary, styled like web UI but improved |
-| 2 | Design Telegram "gambling time" message | ⬜ Pending | Bullets: teams, ISR time, stadium, competition + HTML link per game |
-| 3 | Serve HTML pages accessible from Telegram links | ⬜ Pending | Static files or lightweight endpoint |
+| 1 | Create `daily_runs` table in schema | ⬜ Pending | run_date PK, pre/gambling/post timestamps, game_ids, bet flags |
+| 2 | Replace APScheduler JobQueue with wall-clock poller | ⬜ Pending | 60s loop checking wall clock, immune to macOS sleep |
+| 3 | Add startup recovery | ⬜ Pending | On bot start, check if today's flow missed → fire immediately |
+| 4 | Wire flow nodes to write daily_runs | ⬜ Pending | Pre-gambling start/complete, gambling bets, post-games |
 
 ---
 
@@ -242,10 +248,4 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ## Known Issues / Tech Debt
 
-- football-data.org free tier: 10 req/min. H2H + odds + fixtures share this budget.
-- winner.co.il: Incapsula WAF requires session cookies. Session may expire.
-- FotMob x-mas key: hardcoded. If rotated, all FotMob tools fail silently (return None).
-- Team news: empty for Israeli clubs (FotMob content gap).
-- Copa del Rey / domestic cups: not in football-data.org free tier, won't appear in H2H.
-- ~62 teams in major leagues on winner.co.il still don't resolve (smaller clubs).
-- Tests: only 4 meaningful test files remain. No test for H2H accuracy, odds matching, or Hebrew resolution.
+All tracked as GitHub issues: #45–#52, #44. See `gh issue list --repo Omer-Pinto/SoccerSmartBet`.

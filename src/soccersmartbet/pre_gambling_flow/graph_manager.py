@@ -9,7 +9,7 @@ Flow phases: SELECTING -> FILTERING -> ANALYZING -> COMPLETE
 Graph structure:
     START -> smart_game_picker -> persist_games -> [fan_out_to_analysis]
           -> analyze_game subgraph (N parallel via Send()) -> combine_reports
-          -> generate_expert_reports -> persist_reports -> END
+          -> generate_expert_reports -> persist_reports -> notify_telegram -> END
 
 The ``analyze_game`` node is a compiled subgraph with its own internal
 parallel topology (game_intelligence, team_intel_home, team_intel_away).
@@ -33,6 +33,7 @@ from soccersmartbet.pre_gambling_flow.nodes.analyze_game import build_analyze_ga
 from soccersmartbet.pre_gambling_flow.nodes.combine_reports import combine_reports
 from soccersmartbet.pre_gambling_flow.nodes.generate_expert_reports import generate_expert_reports
 from soccersmartbet.pre_gambling_flow.nodes.persist_reports import persist_reports
+from soccersmartbet.pre_gambling_flow.nodes.notify_telegram import notify_telegram
 
 
 def fan_out_to_analysis(state: PreGamblingState) -> list[Send]:
@@ -93,7 +94,7 @@ def build_pre_gambling_graph() -> StateGraph:
     Graph structure:
         START -> smart_game_picker -> persist_games -> [fan_out_to_analysis]
               -> analyze_game subgraph (N parallel) -> combine_reports
-              -> generate_expert_reports -> persist_reports -> END
+              -> generate_expert_reports -> persist_reports -> notify_telegram -> END
 
     The analyze_game node is a compiled subgraph (not a plain function).
     Internally it runs game_intelligence, team_intel_home, and
@@ -113,6 +114,7 @@ def build_pre_gambling_graph() -> StateGraph:
     graph.add_node("combine_reports", combine_reports)
     graph.add_node("generate_expert_reports", generate_expert_reports)
     graph.add_node("persist_reports", persist_reports)
+    graph.add_node("notify_telegram", notify_telegram)
 
     graph.add_edge(START, "smart_game_picker")
     graph.add_edge("smart_game_picker", "persist_games")
@@ -127,7 +129,8 @@ def build_pre_gambling_graph() -> StateGraph:
 
     graph.add_edge("combine_reports", "generate_expert_reports")
     graph.add_edge("generate_expert_reports", "persist_reports")
-    graph.add_edge("persist_reports", END)
+    graph.add_edge("persist_reports", "notify_telegram")
+    graph.add_edge("notify_telegram", END)
 
     return graph.compile()
 

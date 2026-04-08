@@ -259,10 +259,12 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 ### Agent 5B: Telegram Bot + Flow Triggers
 **Type:** `python-pro`
 **Scope:** `src/soccersmartbet/telegram/` (new directory)
+**Prerequisite:** Omer creates bot via @BotFather → provides bot token in `.env` as `TELEGRAM_BOT_TOKEN`
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
-| 1 | Create `telegram/bot.py` | Dedicated Telegram bot | python-telegram-bot, async, send/receive messages |
+| 0 | **[USER]** Create bot via @BotFather | Get bot token | Add to `.env` as `TELEGRAM_BOT_TOKEN` |
+| 1 | Create `telegram/bot.py` | Telegram bot client | python-telegram-bot, async, send/receive messages |
 | 2 | Create Pre-Gambling daily trigger | Cron job at 13:00 ISR | Automatically triggers Pre-Gambling Flow every day |
 | 3 | Create Gambling trigger | Fires when Pre-Gambling Flow completes | Sends "gambling time" Telegram message with game report links |
 
@@ -283,6 +285,26 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 - Verify HTML report pages render correctly with all tool data + expert summary
 - Verify all times in ISR throughout the system
 - **CHECKPOINT**: Daily automation + user communication working
+
+---
+
+## Wave 5.5 — Daily Runs Tracking + Wall-Clock Scheduler (1 agent, ~3 files)
+
+### Agent 5.5A: daily_runs Table + Scheduler Fix
+**Type:** `python-pro`
+**Scope:** `deployment/db/init/001_create_schema.sql`, `src/soccersmartbet/telegram/triggers.py`, flow nodes
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Add `daily_runs` table to schema | Track daily pipeline lifecycle | `run_date DATE PK`, pre_gambling/gambling/post_games timestamps, `game_ids INTEGER[]`, `user_bet_completed BOOLEAN`, `ai_bet_completed BOOLEAN` |
+| 2 | Replace `job_queue.run_daily()` with wall-clock poller | Immune to macOS sleep suspending monotonic timers | 60s asyncio loop checking `datetime.now(ISR_TZ)`, fires if past 13:00 and no run today in `daily_runs` |
+| 3 | Add startup recovery to `start_scheduler()` | Catch missed runs on bot restart | Query `daily_runs` for today, if no pre-gambling run and past 13:00 → fire immediately |
+| 4 | Wire pre-gambling flow to write `daily_runs` | Audit trail | `smart_game_picker` writes started_at, `persist_reports`/`notify_telegram` writes completed_at + game_ids |
+
+### After Wave 5.5
+- Verify: close laptop lid at 12:55, wake at 13:10 → flow fires within 60s of wake
+- Verify: restart bot at 14:00 → startup recovery fires flow immediately
+- Verify: `daily_runs` table populated correctly after flow run
 
 ---
 
