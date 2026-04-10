@@ -34,7 +34,8 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 4 | 🟢 Done | Subgraph architecture, E2E verified on 2 CL games with expert summary |
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone, notify node in graph |
 | 6 | ⬜ Not Started | Gambling + Post-Games + Offline — no code exists |
-| 7 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
+| 7 | ⬜ Not Started | daily_runs table, wall-clock scheduler, startup recovery |
+| 8 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
 ---
 
@@ -195,18 +196,6 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ---
 
-## Wave 5.5 — Daily Runs Tracking + Wall-Clock Scheduler ⬜ NOT STARTED
-
-### Agent 5.5A: daily_runs DB Table + Scheduler Fix
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Create `daily_runs` table in schema | ⬜ Pending | run_date PK, pre/gambling/post timestamps, game_ids, bet flags |
-| 2 | Replace APScheduler JobQueue with wall-clock poller | ⬜ Pending | 60s loop checking wall clock, immune to macOS sleep |
-| 3 | Add startup recovery | ⬜ Pending | On bot start, check if today's flow missed → fire immediately |
-| 4 | Wire flow nodes to write daily_runs | ⬜ Pending | Pre-gambling start/complete, gambling bets, post-games |
-
----
-
 ## Wave 6 — Gambling + Post-Games + Offline Analysis ⬜ NOT STARTED
 
 ### Agent 6A: Gambling Flow
@@ -233,7 +222,19 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ---
 
-## Wave 7 — Expansion 🟡 PARTIALLY DONE
+## Wave 7 — Daily Runs Tracking + Wall-Clock Scheduler ⬜ NOT STARTED
+
+### Agent 7A: daily_runs DB Table + Scheduler Fix
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Create `daily_runs` table in schema | ⬜ Pending | run_date PK, pre/gambling/post timestamps, game_ids, bet flags |
+| 2 | Replace APScheduler JobQueue with wall-clock poller | ⬜ Pending | 60s loop checking wall clock, immune to macOS sleep |
+| 3 | Add startup recovery | ⬜ Pending | On bot start, check if today's flow missed → fire immediately |
+| 4 | Wire flow nodes to write daily_runs | ⬜ Pending | Pre-gambling start/complete, gambling bets, post-games |
+
+---
+
+## Wave 8 — Expansion 🟡 PARTIALLY DONE
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
