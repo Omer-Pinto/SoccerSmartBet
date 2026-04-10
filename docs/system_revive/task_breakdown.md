@@ -290,15 +290,21 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 
 ## Wave 6 — Gambling Flow + Post-Games + Offline Analysis (3 agents, ~10 files)
 
-### Agent 6A: Gambling Flow
+### Agent 6A: Gambling Flow (Hybrid: Telegram handlers + LangGraph)
 **Type:** `python-pro`
-**Scope:** `src/soccersmartbet/gambling_flow/` (new directory)
+**Scope:** `src/soccersmartbet/gambling_flow/` (new directory), `src/soccersmartbet/pre_gambling_flow/nodes/notify_telegram.py`, `src/soccersmartbet/telegram/triggers.py`
+
+Trigger chain: pre-gambling `notify_telegram` → "Want to bet?" message → user taps Yes → betting UI → SEND BET → gambling LangGraph flow (AI bet + verify + persist)
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
-| 1 | Create `gambling_flow/ai_betting_agent.py` | AI places bets | 1 LLM call per game with report context |
-| 2 | Create `gambling_flow/bet_validator.py` | Validate + persist bets | Check both arrived, insert into `bets` table |
-| 3 | Create `gambling_flow/graph_manager.py` | Wire Gambling Flow | Uses Telegram bot from Wave 5 |
+| 1 | Update `notify_telegram.py` | Add "Want to bet? [Yes] [No]" with deadline | Deadline = min(kickoff_time) - 30min |
+| 2 | Create `gambling_flow/__init__.py` | Package marker | |
+| 3 | Create `gambling_flow/handlers.py` | Telegram callback handlers | Yes/No, per-game 1/X/2 + stake, SEND BET, lock after send |
+| 4 | Create `gambling_flow/ai_betting_agent.py` | AI places bets | Query reports + AI balance, 1 LLM call, structured output per game |
+| 5 | Create `gambling_flow/bet_verifier.py` | Validate + persist bets | Check predictions valid (1/x/2), stake numeric. No balance check. Insert `bets` table. |
+| 6 | Create `gambling_flow/graph_manager.py` | LangGraph: ai_bet → verify → persist → notify | LangSmith traced. Invoked by handlers.py after user SEND BET. |
+| 7 | Register handlers in `triggers.py` | Wire gambling callbacks into bot Application | Add CallbackQueryHandler for bet_* / stake_* / send_bet patterns |
 
 ### Agent 6B: Post-Games Flow
 **Type:** `python-pro`

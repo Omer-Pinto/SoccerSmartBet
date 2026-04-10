@@ -198,12 +198,16 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ## Wave 6 — Gambling + Post-Games + Offline Analysis ⬜ NOT STARTED
 
-### Agent 6A: Gambling Flow
+### Agent 6A: Gambling Flow (Hybrid: Telegram handlers + LangGraph)
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create ai_betting_agent.py | ⬜ Pending | AI places bets using reports |
-| 2 | Create bet_validator.py | ⬜ Pending | Verify both bets before deadline |
-| 3 | Create gambling graph_manager.py | ⬜ Pending | Uses Telegram bot from Wave 5 |
+| 1 | Update notify_telegram to send "Want to bet?" with Yes/No + deadline | ⬜ Pending | Min kickoff - 30min as deadline |
+| 2 | Create gambling_flow/handlers.py | ⬜ Pending | Telegram callback handlers: yes/no, 1/X/2, stake, send bet |
+| 3 | Create gambling_flow/ai_betting_agent.py | ⬜ Pending | LLM places bets using reports + balance, structured output |
+| 4 | Create gambling_flow/bet_verifier.py | ⬜ Pending | Validate user + AI bets, insert to DB |
+| 5 | Create gambling_flow/graph_manager.py | ⬜ Pending | LangGraph: ai_bet → verify → persist → notify (LangSmith traced) |
+| 6 | Register gambling handlers in bot application | ⬜ Pending | Wire handlers into triggers.py start_scheduler |
+| 7 | E2E test: manual pre-gambling → gambling UI → AI bet → DB | ⬜ Pending | Full cycle with real data |
 
 ### Agent 6B: Post-Games Flow
 | # | Task | Status | Notes |
