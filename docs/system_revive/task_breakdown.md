@@ -308,14 +308,17 @@ Trigger chain: pre-gambling `notify_telegram` → "Want to bet?" message → use
 
 ### Agent 6B: Post-Games Flow
 **Type:** `python-pro`
-**Scope:** `src/soccersmartbet/post_games_flow/` (new directory)
+**Scope:** `src/soccersmartbet/post_games_flow/` (new directory), `deployment/db/init/001_create_schema.sql`
+
+No AI calls — pure data pipeline. Trigger: max(kickoff_time) + 3 hours.
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
-| 1 | Create `post_games_flow/fetch_results.py` | Get match results | football-data.org `/v4/matches?status=FINISHED` |
-| 2 | Create `post_games_flow/pnl_calculator.py` | Compute P&L | Win: (odds-1)*100, Loss: -100. Update bankroll. |
-| 3 | Create `post_games_flow/daily_summary.py` | Send Telegram summary | Results + P&L for both user and AI |
-| 4 | Create `post_games_flow/graph_manager.py` | Wire Post-Games Flow | LangGraph StateGraph |
+| 1 | Schema changes | Add columns to bets + bankroll | `bets`: add `result VARCHAR(5)` (actual 1/x/2) + `pnl DECIMAL(10,2)`. `bankroll`: add `games_lost INTEGER DEFAULT 0`. |
+| 2 | Create `post_games_flow/fetch_results.py` | LangGraph node: fetch final scores | football-data.org `/v4/matches?dateFrom=X&dateTo=X&status=FINISHED`. Match to games in DB by teams + date. Update `games.home_score`, `games.away_score`, `games.outcome`. |
+| 3 | Create `post_games_flow/pnl_calculator.py` | LangGraph node: calculate P&L per bet | Won: `pnl = stake * (odds - 1)`. Lost: `pnl = -stake`. Write `result` + `pnl` to bets. Update bankroll: `total_bankroll += sum(pnl)`, `games_played += N`, `games_won += wins`, `games_lost += losses`. |
+| 4 | Create `post_games_flow/notify_summary.py` | LangGraph node: Telegram daily summary | Per-game: score, user bet + AI bet + who won. Bottom: bankroll totals for both. HTML formatting. |
+| 5 | Create `post_games_flow/graph_manager.py` | Wire Post-Games graph | `START → fetch_results → pnl_calculator → notify_summary → END`. Entry: `run_post_games_flow(game_ids)`. |
 
 ### Agent 6C: Offline Analysis Flow
 **Type:** `python-pro`

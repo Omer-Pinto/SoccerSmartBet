@@ -212,10 +212,11 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 ### Agent 6B: Post-Games Flow
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create fetch_results.py | ⬜ Pending | |
-| 2 | Create pnl_calculator.py | ⬜ Pending | |
-| 3 | Create daily_summary.py | ⬜ Pending | |
-| 4 | Create post-games graph_manager.py | ⬜ Pending | |
+| 1 | Schema: add `result` + `pnl` to bets, `games_lost` to bankroll | ⬜ Pending | |
+| 2 | Create fetch_results.py | ⬜ Pending | football-data.org finished matches → update games table |
+| 3 | Create pnl_calculator.py | ⬜ Pending | Per-bet: won = stake*(odds-1), lost = -stake. Update bets + bankroll |
+| 4 | Create notify_daily_summary.py | ⬜ Pending | Telegram: per-game results, who won, running bankroll totals |
+| 5 | Create post_games/graph_manager.py | ⬜ Pending | LangGraph: fetch_results → pnl → notify. Trigger: max(kickoff) + 3h |
 
 ### Agent 6C: Offline Analysis Flow
 | # | Task | Status | Notes |
