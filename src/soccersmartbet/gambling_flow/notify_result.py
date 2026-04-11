@@ -26,10 +26,10 @@ FROM games
 WHERE game_id = ANY(%(game_ids)s)
 """
 
-_PREDICTION_LABELS = {
-    "1": "Home",
-    "x": "Draw",
-    "2": "Away",
+_PREDICTION_ICONS = {
+    "1": "1\ufe0f\u20e3",
+    "x": "\u274c",
+    "2": "2\ufe0f\u20e3",
 }
 
 
@@ -52,10 +52,11 @@ def _format_bet_line(
 ) -> str:
     """Format a single bet line for the Telegram HTML message."""
     team_label = _team_for_prediction(prediction, home_team, away_team)
+    icon = _PREDICTION_ICONS.get(prediction, prediction)
     returns = odds * stake
     profit = returns - stake
     return (
-        f"  <b>{label}</b>: {team_label} ({prediction}) @ {odds:.2f} "
+        f"  <b>{label}</b>: {team_label} {icon} @ {odds:.2f} "
         f"\u2014 {stake:.0f} NIS \u2192 returns <b>{returns:.0f}</b> (profit <b>{profit:.0f}</b>)"
     )
 
@@ -116,8 +117,9 @@ def notify_gambling_result(state: GamblingState) -> dict:
 
         if user_bet and ai_bet and user_bet["prediction"] == ai_bet["prediction"]:
             pick = _team_for_prediction(user_bet["prediction"], home_team, away_team)
+            icon = _PREDICTION_ICONS.get(user_bet["prediction"], user_bet["prediction"])
             lines.append(
-                f"  Both picked <b>{pick}</b> ({user_bet['prediction']}) @ {user_bet['odds']:.2f}"
+                f"  Both picked <b>{pick}</b> {icon} @ {user_bet['odds']:.2f}"
                 f" \u2014 <b>You</b>: {user_bet['stake']:.0f} NIS / <b>AI</b>: {ai_bet['stake']:.0f} NIS"
             )
         else:

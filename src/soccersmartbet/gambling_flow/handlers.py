@@ -264,7 +264,7 @@ async def send_want_to_bet(game_ids: list[int], bot: Bot) -> None:
 
     earliest = _fetch_min_kickoff(game_ids)
     if earliest is not None:
-        deadline_dt: datetime | None = earliest - timedelta(minutes=30)
+        deadline_dt: datetime | None = earliest - timedelta(minutes=15)
         deadline_str = deadline_dt.strftime("%H:%M")
     else:
         deadline_dt = None
@@ -505,13 +505,13 @@ async def handle_gamble_callback(
             stake = stakes.get(gid, _DEFAULT_STAKE)
 
             if sel == "1":
-                pick_label = f"<b>{g['home_team']}</b> (1)"
+                pick_label = f"<b>{g['home_team']}</b> 1\ufe0f\u20e3"
                 odds = g["h_odd"]
             elif sel == "x":
-                pick_label = "<b>Draw</b> (X)"
+                pick_label = "<b>Draw</b> \u274c"
                 odds = g["d_odd"]
             else:
-                pick_label = f"<b>{g['away_team']}</b> (2)"
+                pick_label = f"<b>{g['away_team']}</b> 2\ufe0f\u20e3"
                 odds = g["a_odd"]
 
             returns = round(stake * odds, 2)
