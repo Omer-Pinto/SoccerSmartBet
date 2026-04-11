@@ -124,7 +124,7 @@ CREATE TABLE bets (
     bettor VARCHAR(10) NOT NULL CHECK (bettor IN ('user', 'ai')),
     prediction VARCHAR(5) NOT NULL CHECK (prediction IN ('1', 'x', '2')),
     odds DECIMAL(5,2) NOT NULL CHECK (odds > 1.0),
-    stake DECIMAL(10,2) NOT NULL DEFAULT 100.00 CHECK (stake = 100.00),
+    stake DECIMAL(10,2) NOT NULL DEFAULT 100.00 CHECK (stake > 0),
     justification TEXT,
     
     CONSTRAINT unique_bet_per_game UNIQUE (game_id, bettor)

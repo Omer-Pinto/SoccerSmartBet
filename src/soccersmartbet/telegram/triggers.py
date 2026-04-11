@@ -7,12 +7,14 @@ from datetime import time
 from telegram import Update
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
     MessageHandler,
     filters,
 )
 
+from soccersmartbet.gambling_flow.handlers import handle_gamble_callback
 from soccersmartbet.reports.html_report import generate_game_report_html
 from soccersmartbet.reports.telegram_message import get_games_info
 from soccersmartbet.telegram.bot import (
@@ -125,6 +127,7 @@ def start_scheduler() -> None:
 
     # Register command and fallback handlers
     application.add_handler(CommandHandler("start", _cmd_start))
+    application.add_handler(CallbackQueryHandler(handle_gamble_callback))
     application.add_handler(MessageHandler(filters.ALL, _handle_unknown))
 
     # Schedule daily job at 13:00 ISR
