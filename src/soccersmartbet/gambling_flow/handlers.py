@@ -19,7 +19,7 @@ from telegram.ext import ContextTypes
 
 from soccersmartbet.reports.telegram_message import get_games_info
 from soccersmartbet.telegram.bot import TELEGRAM_CHAT_ID, is_owner
-from soccersmartbet.utils.timezone import ISR_TZ
+from soccersmartbet.utils.timezone import ISR_TZ, now_isr
 
 logger = logging.getLogger(__name__)
 
@@ -161,11 +161,14 @@ def _fetch_user_balance() -> float:
 def _build_betting_ui(chat_id: int) -> tuple[str, InlineKeyboardMarkup]:
     """Build the betting message text and inline keyboard for the given session.
 
+    Returns HTML-formatted text (use parse_mode="HTML" when sending).
+
     Args:
         chat_id: The owner's chat ID used to look up the active session.
 
     Returns:
-        (text, InlineKeyboardMarkup) ready to pass to send_message / edit_message_text.
+        (text, InlineKeyboardMarkup) ready to pass to send_message / edit_message_text
+        with parse_mode="HTML".
     """
     session = _sessions[chat_id]
     games: list[dict] = session["games"]
@@ -173,46 +176,54 @@ def _build_betting_ui(chat_id: int) -> tuple[str, InlineKeyboardMarkup]:
     stakes: dict[int, int] = session["stakes"]
 
     balance = _fetch_user_balance()
-    lines: list[str] = [f"\U0001f4b0 Balance: {balance:,.0f} NIS", ""]
+    lines: list[str] = [f"\U0001f4b0 <b>Balance: {balance:,.0f} NIS</b>", ""]
 
     for g in games:
         gid = g["game_id"]
         sel = selections.get(gid)
         pick = ""
         if sel == "1":
-            pick = f"  \u2192 {g['home_team']}"
+            pick = f"  \u2192 <b>{g['home_team']}</b>"
         elif sel == "x":
-            pick = "  \u2192 Draw"
+            pick = "  \u2192 <b>Draw</b>"
         elif sel == "2":
-            pick = f"  \u2192 {g['away_team']}"
+            pick = f"  \u2192 <b>{g['away_team']}</b>"
         lines.append(
-            f"\u26bd {g['home_team']} vs {g['away_team']}"
+            f"\u26bd <b>{g['home_team']}</b> vs <b>{g['away_team']}</b>"
             f" \u2014 {g['kickoff_time']} ISR"
-            f" \u2014 {g['league']}"
+            f" \u2014 <i>{g['league']}</i>"
             f"{pick}"
         )
     lines.append("")
 
     rows: list[list[InlineKeyboardButton]] = []
 
-    for i, g in enumerate(games):
+    for g in games:
         gid = g["game_id"]
         sel = selections.get(gid)
         h_odd, d_odd, a_odd = g["h_odd"], g["d_odd"], g["a_odd"]
         stake = stakes.get(gid, _DEFAULT_STAKE)
 
-        # 1 / X / 2 outcome row
+        # Game header row (Fix C: replaces the old divider, appears before every game)
         rows.append([
             InlineKeyboardButton(
-                f"{'✅ ' if sel == '1' else ''}1 \u2014 {h_odd:.2f}",
+                f"\u26bd {g['home_team']} vs {g['away_team']} \u2014 {g['kickoff_time']}",
+                callback_data="gnoop",
+            )
+        ])
+
+        # 1 / X / 2 outcome row with number emojis
+        rows.append([
+            InlineKeyboardButton(
+                f"{'✅ ' if sel == '1' else ''}1\ufe0f\u20e3 \u2014 {h_odd:.2f}",
                 callback_data=f"gbet_{gid}_1",
             ),
             InlineKeyboardButton(
-                f"{'✅ ' if sel == 'x' else ''}X \u2014 {d_odd:.2f}",
+                f"{'✅ ' if sel == 'x' else ''}\u274c \u2014 {d_odd:.2f}",
                 callback_data=f"gbet_{gid}_x",
             ),
             InlineKeyboardButton(
-                f"{'✅ ' if sel == '2' else ''}2 \u2014 {a_odd:.2f}",
+                f"{'✅ ' if sel == '2' else ''}2\ufe0f\u20e3 \u2014 {a_odd:.2f}",
                 callback_data=f"gbet_{gid}_2",
             ),
         ])
@@ -225,12 +236,6 @@ def _build_betting_ui(chat_id: int) -> tuple[str, InlineKeyboardMarkup]:
             )
             for s in _STAKE_OPTIONS
         ])
-
-        # Divider between games (not after the last game)
-        if i < len(games) - 1:
-            rows.append([
-                InlineKeyboardButton("\u2500" * 25, callback_data="gnoop")
-            ])
 
     all_selected = all(selections.get(g["game_id"]) is not None for g in games)
     send_label = "\U0001f4e9 SEND BET" if all_selected else "\u26a0\ufe0f Select all games first"
@@ -259,20 +264,21 @@ async def send_want_to_bet(game_ids: list[int], bot: Bot) -> None:
 
     earliest = _fetch_min_kickoff(game_ids)
     if earliest is not None:
-        deadline_dt = earliest - timedelta(minutes=30)
+        deadline_dt: datetime | None = earliest - timedelta(minutes=30)
         deadline_str = deadline_dt.strftime("%H:%M")
     else:
+        deadline_dt = None
         deadline_str = "TBD"
 
     text = (
-        "Gambling Time!\n\n"
+        "\U0001f3c6 <b>Gambling Time!</b>\n\n"
         "Today's games are ready. Want to place your bets?\n"
-        f"Deadline: {deadline_str} ISR"
+        f"\u23f0 <b>Deadline: {deadline_str} ISR</b>"
     )
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("Yes", callback_data="gamble_yes"),
-            InlineKeyboardButton("No", callback_data="gamble_no"),
+            InlineKeyboardButton("\u2705 Yes", callback_data="gamble_yes"),
+            InlineKeyboardButton("\u274c No", callback_data="gamble_no"),
         ]
     ])
 
@@ -280,6 +286,7 @@ async def send_want_to_bet(game_ids: list[int], bot: Bot) -> None:
         chat_id=int(TELEGRAM_CHAT_ID),
         text=text,
         reply_markup=keyboard,
+        parse_mode="HTML",
     )
     logger.info(
         "send_want_to_bet: prompt sent for %d game(s), deadline=%s",
@@ -294,6 +301,7 @@ async def send_want_to_bet(game_ids: list[int], bot: Bot) -> None:
         "selections": {},
         "stakes": {},
         "locked": False,
+        "deadline": deadline_dt,
     }
 
 
@@ -350,6 +358,20 @@ async def handle_gamble_callback(
 
     # ---------------------------------------------------------------- gamble_yes
     if data == "gamble_yes":
+        # Enforce deadline: check before opening the betting UI
+        existing_session = _sessions.get(chat_id, {})
+        existing_deadline: datetime | None = existing_session.get("deadline")
+        if existing_deadline is not None and now_isr() > existing_deadline:
+            await query.edit_message_text(
+                "\u26d4 <b>Betting deadline has passed!</b>",
+                parse_mode="HTML",
+            )
+            logger.info(
+                "handle_gamble_callback: gamble_yes rejected — past deadline %s",
+                existing_deadline.strftime("%H:%M"),
+            )
+            return
+
         # Query DB for today's ready_for_betting games (works across processes)
         game_ids: list[int] = _fetch_todays_game_ids()
 
@@ -368,16 +390,20 @@ async def handle_gamble_callback(
             h_odd, d_odd, a_odd = odds_map.get(gid, (0.0, 0.0, 0.0))
             enriched.append({**g, "h_odd": h_odd, "d_odd": d_odd, "a_odd": a_odd})
 
+        # Preserve deadline stored by send_want_to_bet (if present)
+        existing_deadline = _sessions.get(chat_id, {}).get("deadline")
+
         _sessions[chat_id] = {
             "game_ids": game_ids,
             "games": enriched,
             "selections": {g["game_id"]: None for g in enriched},
             "stakes": {g["game_id"]: _DEFAULT_STAKE for g in enriched},
             "locked": False,
+            "deadline": existing_deadline,
         }
 
         text, kb = _build_betting_ui(chat_id)
-        await query.edit_message_text(text=text, reply_markup=kb)
+        await query.edit_message_text(text=text, reply_markup=kb, parse_mode="HTML")
         logger.info(
             "handle_gamble_callback: betting UI initialised for %d game(s)", len(game_ids)
         )
@@ -404,7 +430,7 @@ async def handle_gamble_callback(
         session["selections"][game_id] = pick
 
         text, kb = _build_betting_ui(chat_id)
-        await query.edit_message_text(text=text, reply_markup=kb)
+        await query.edit_message_text(text=text, reply_markup=kb, parse_mode="HTML")
         logger.info(
             "handle_gamble_callback: game_id=%s selection=%s", game_id, pick
         )
@@ -431,7 +457,7 @@ async def handle_gamble_callback(
         session["stakes"][game_id] = amount
 
         text, kb = _build_betting_ui(chat_id)
-        await query.edit_message_text(text=text, reply_markup=kb)
+        await query.edit_message_text(text=text, reply_markup=kb, parse_mode="HTML")
         logger.info(
             "handle_gamble_callback: game_id=%s stake=%s", game_id, amount
         )
@@ -441,6 +467,19 @@ async def handle_gamble_callback(
     if data == "gsend_bet":
         session = _sessions.get(chat_id)
         if session is None or session["locked"]:
+            return
+
+        # Enforce deadline
+        deadline: datetime | None = session.get("deadline")
+        if deadline is not None and now_isr() > deadline:
+            await query.edit_message_text(
+                "\u26d4 <b>Betting deadline has passed!</b>",
+                parse_mode="HTML",
+            )
+            logger.info(
+                "handle_gamble_callback: gsend_bet rejected — past deadline %s",
+                deadline.strftime("%H:%M"),
+            )
             return
 
         selections: dict[int, str | None] = session["selections"]
@@ -456,7 +495,7 @@ async def handle_gamble_callback(
         # Build the user_bets payload for the gambling flow
         user_bets: list[dict] = []
         lines: list[str] = [
-            "\u2705 Bets accepted, passing forward to gambling flow to match with AI's bet.",
+            "\u2705 <b>Bets accepted</b> — passing to gambling flow to match with AI's bet.",
             "",
         ]
 
@@ -466,22 +505,22 @@ async def handle_gamble_callback(
             stake = stakes.get(gid, _DEFAULT_STAKE)
 
             if sel == "1":
-                pick_label = f"{g['home_team']} (1)"
+                pick_label = f"<b>{g['home_team']}</b> (1)"
                 odds = g["h_odd"]
             elif sel == "x":
-                pick_label = "Draw (X)"
+                pick_label = "<b>Draw</b> (X)"
                 odds = g["d_odd"]
             else:
-                pick_label = f"{g['away_team']} (2)"
+                pick_label = f"<b>{g['away_team']}</b> (2)"
                 odds = g["a_odd"]
 
             returns = round(stake * odds, 2)
             profit = round(returns - stake, 2)
 
-            lines.append(f"\u26bd {g['home_team']} vs {g['away_team']}")
+            lines.append(f"\u26bd <b>{g['home_team']}</b> vs <b>{g['away_team']}</b>")
             lines.append(
                 f"    {pick_label} @ {odds:.2f} \u2014 {stake} NIS"
-                f" \u2192 returns {returns} NIS (profit {profit} NIS)"
+                f" \u2192 returns <b>{returns} NIS</b> (profit <b>{profit} NIS</b>)"
             )
             lines.append("")
 
@@ -497,7 +536,11 @@ async def handle_gamble_callback(
         locked_kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("\U0001f512 Bets locked", callback_data="gnoop")]
         ])
-        await query.edit_message_text(text="\n".join(lines), reply_markup=locked_kb)
+        await query.edit_message_text(
+            text="\n".join(lines),
+            reply_markup=locked_kb,
+            parse_mode="HTML",
+        )
 
         logger.info(
             "handle_gamble_callback: bets locked for %d game(s), invoking gambling flow",

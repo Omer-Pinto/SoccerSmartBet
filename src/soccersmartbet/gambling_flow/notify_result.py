@@ -50,13 +50,13 @@ def _format_bet_line(
     home_team: str,
     away_team: str,
 ) -> str:
-    """Format a single bet line for the Telegram message."""
+    """Format a single bet line for the Telegram HTML message."""
     team_label = _team_for_prediction(prediction, home_team, away_team)
     returns = odds * stake
     profit = returns - stake
     return (
-        f"  {label}: {team_label} ({prediction}) @ {odds:.2f} "
-        f"-- {stake:.0f} NIS -> returns {returns:.0f} (profit {profit:.0f})"
+        f"  <b>{label}</b>: {team_label} ({prediction}) @ {odds:.2f} "
+        f"\u2014 {stake:.0f} NIS \u2192 returns <b>{returns:.0f}</b> (profit <b>{profit:.0f}</b>)"
     )
 
 
@@ -76,8 +76,8 @@ def notify_gambling_result(state: GamblingState) -> dict:
 
     if verification == "rejected":
         reason = state.get("rejection_reason", "Unknown reason")
-        text = f"Bets rejected!\n\nReason: {reason}"
-        asyncio.run(send_message(text))
+        text = f"\u274c <b>Bets rejected!</b>\n\nReason: {reason}"
+        asyncio.run(send_message(text, parse_mode="HTML"))
         logger.info("notify_gambling_result: sent rejection notification")
         return {}
 
@@ -104,12 +104,12 @@ def notify_gambling_result(state: GamblingState) -> dict:
     for bet in state.get("ai_bets", []):
         ai_bets_map[bet["game_id"]] = bet
 
-    # Build message
-    lines: list[str] = ["\u2705 All bets placed!", ""]
+    # Build HTML message
+    lines: list[str] = ["\u2705 <b>All bets placed!</b>", ""]
 
     for game_id in game_ids:
         home_team, away_team = game_names.get(game_id, ("Unknown", "Unknown"))
-        lines.append(f"\u26bd {home_team} vs {away_team}")
+        lines.append(f"\u26bd <b>{home_team}</b> vs <b>{away_team}</b>")
 
         user_bet = user_bets_map.get(game_id)
         ai_bet = ai_bets_map.get(game_id)
@@ -117,8 +117,8 @@ def notify_gambling_result(state: GamblingState) -> dict:
         if user_bet and ai_bet and user_bet["prediction"] == ai_bet["prediction"]:
             pick = _team_for_prediction(user_bet["prediction"], home_team, away_team)
             lines.append(
-                f"  Both picked {pick} ({user_bet['prediction']}) @ {user_bet['odds']:.2f}"
-                f" \u2014 You: {user_bet['stake']:.0f} NIS / AI: {ai_bet['stake']:.0f} NIS"
+                f"  Both picked <b>{pick}</b> ({user_bet['prediction']}) @ {user_bet['odds']:.2f}"
+                f" \u2014 <b>You</b>: {user_bet['stake']:.0f} NIS / <b>AI</b>: {ai_bet['stake']:.0f} NIS"
             )
         else:
             if user_bet:
@@ -133,12 +133,12 @@ def notify_gambling_result(state: GamblingState) -> dict:
                 ))
 
         if ai_bet and ai_bet.get("justification"):
-            lines.append(f"  AI reasoning: \"{ai_bet['justification']}\"")
+            lines.append(f"  <i>\"{ai_bet['justification']}\"</i>")
 
         lines.append("")
 
     text = "\n".join(lines).rstrip()
 
-    asyncio.run(send_message(text))
+    asyncio.run(send_message(text, parse_mode="HTML"))
     logger.info("notify_gambling_result: sent summary for %d game(s)", len(game_ids))
     return {}

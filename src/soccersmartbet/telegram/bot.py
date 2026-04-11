@@ -19,11 +19,12 @@ def is_owner(chat_id: int) -> bool:
     return str(chat_id) == TELEGRAM_CHAT_ID
 
 
-async def send_message(text: str) -> None:
+async def send_message(text: str, parse_mode: str | None = None) -> None:
     """Send a text message to the owner chat.
 
     Args:
         text: The message body to send.
+        parse_mode: Optional Telegram parse mode, e.g. ``"HTML"`` or ``"Markdown"``.
 
     Raises:
         RuntimeError: If TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured.
@@ -35,7 +36,11 @@ async def send_message(text: str) -> None:
 
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
     async with bot:
-        await bot.send_message(chat_id=int(TELEGRAM_CHAT_ID), text=text)
+        await bot.send_message(
+            chat_id=int(TELEGRAM_CHAT_ID),
+            text=text,
+            parse_mode=parse_mode,
+        )
 
     logger.info("Telegram message sent to chat_id=%s", TELEGRAM_CHAT_ID)
 
