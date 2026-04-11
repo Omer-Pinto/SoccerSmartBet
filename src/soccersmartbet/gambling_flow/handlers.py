@@ -44,6 +44,25 @@ _DEFAULT_STAKE: int = 100
 # DB helpers
 # ---------------------------------------------------------------------------
 
+def _fetch_todays_game_ids() -> list[int]:
+    """Query DB for today's games with status 'ready_for_betting'."""
+    if not DATABASE_URL:
+        return []
+    today = datetime.now(tz=ISR_TZ).date()
+    sql = """
+        SELECT game_id FROM games
+        WHERE match_date = %(today)s AND status = 'ready_for_betting'
+        ORDER BY kickoff_time ASC
+    """
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, {"today": today})
+                return [row[0] for row in cur.fetchall()]
+    finally:
+        conn.close()
+
 def _fetch_min_kickoff(game_ids: list[int]) -> datetime | None:
     """Return the earliest kickoff_time for the given game IDs as a datetime.
 
@@ -331,12 +350,12 @@ async def handle_gamble_callback(
 
     # ---------------------------------------------------------------- gamble_yes
     if data == "gamble_yes":
-        session = _sessions.get(chat_id, {})
-        game_ids: list[int] = session.get("game_ids", [])
+        # Query DB for today's ready_for_betting games (works across processes)
+        game_ids: list[int] = _fetch_todays_game_ids()
 
         if not game_ids:
             await query.edit_message_text("No games found for today.")
-            logger.warning("handle_gamble_callback: gamble_yes but no game_ids in session")
+            logger.warning("handle_gamble_callback: gamble_yes but no ready games in DB")
             return
 
         games_info = get_games_info(game_ids)

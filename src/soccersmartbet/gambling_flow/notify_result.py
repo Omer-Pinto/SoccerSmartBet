@@ -105,26 +105,32 @@ def notify_gambling_result(state: GamblingState) -> dict:
         ai_bets_map[bet["game_id"]] = bet
 
     # Build message
-    lines: list[str] = ["All bets placed!"]
-    lines.append("")
+    lines: list[str] = ["\u2705 All bets placed!", ""]
 
     for game_id in game_ids:
         home_team, away_team = game_names.get(game_id, ("Unknown", "Unknown"))
-        lines.append(f"  {home_team} vs {away_team}")
+        lines.append(f"\u26bd {home_team} vs {away_team}")
 
         user_bet = user_bets_map.get(game_id)
-        if user_bet:
-            lines.append(_format_bet_line(
-                "You", user_bet["prediction"], user_bet["odds"],
-                user_bet["stake"], home_team, away_team,
-            ))
-
         ai_bet = ai_bets_map.get(game_id)
-        if ai_bet:
-            lines.append(_format_bet_line(
-                "AI", ai_bet["prediction"], ai_bet["odds"],
-                ai_bet["stake"], home_team, away_team,
-            ))
+
+        if user_bet and ai_bet and user_bet["prediction"] == ai_bet["prediction"]:
+            pick = _team_for_prediction(user_bet["prediction"], home_team, away_team)
+            lines.append(
+                f"  Both picked {pick} ({user_bet['prediction']}) @ {user_bet['odds']:.2f}"
+                f" \u2014 You: {user_bet['stake']:.0f} NIS / AI: {ai_bet['stake']:.0f} NIS"
+            )
+        else:
+            if user_bet:
+                lines.append(_format_bet_line(
+                    "You", user_bet["prediction"], user_bet["odds"],
+                    user_bet["stake"], home_team, away_team,
+                ))
+            if ai_bet:
+                lines.append(_format_bet_line(
+                    "AI", ai_bet["prediction"], ai_bet["odds"],
+                    ai_bet["stake"], home_team, away_team,
+                ))
 
         lines.append("")
 
