@@ -209,14 +209,14 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 6 | Register gambling handlers in bot application | 🟢 Done | CallbackQueryHandler in triggers.py |
 | 7 | E2E test: manual pre-gambling → gambling UI → AI bet → DB | 🟢 Done | Full cycle tested with 6 live games |
 
-### Agent 6B: Post-Games Flow
+### Agent 6B: Post-Games Flow ✅
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Schema: add `result` + `pnl` to bets, `games_lost` to bankroll | ⬜ Pending | |
-| 2 | Create fetch_results.py | ⬜ Pending | football-data.org finished matches → update games table |
-| 3 | Create pnl_calculator.py | ⬜ Pending | Per-bet: won = stake*(odds-1), lost = -stake. Update bets + bankroll |
-| 4 | Create notify_daily_summary.py | ⬜ Pending | Telegram: per-game results, who won, running bankroll totals |
-| 5 | Create post_games/graph_manager.py | ⬜ Pending | LangGraph: fetch_results → pnl → notify. Trigger: max(kickoff) + 3h |
+| 1 | Schema: add `result` + `pnl` to bets, `games_lost` to bankroll | 🟢 Done | Applied to schema + live DB |
+| 2 | Create fetch_results.py | 🟢 Done | football-data.org → resolve_team matching → update games |
+| 3 | Create pnl_calculator.py | 🟢 Done | Won: stake*(odds-1), Lost: -stake. Atomic bets + bankroll update |
+| 4 | Create notify_daily_summary.py | 🟢 Done | HTML Telegram: scores, bet outcomes, bankroll totals |
+| 5 | Create post_games/graph_manager.py | 🟢 Done | LangGraph: fetch_results → pnl → notify. Entry: run_post_games_flow(game_ids) |
 
 ### Agent 6C: Offline Analysis Flow
 | # | Task | Status | Notes |
