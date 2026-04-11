@@ -10,13 +10,14 @@ from __future__ import annotations
 from typing import TypedDict
 
 
-class BetSelection(TypedDict):
+class BetSelection(TypedDict, total=False):
     """A single bet placed by either the user or the AI."""
 
     game_id: int
     prediction: str  # "1", "x", or "2"
     odds: float
     stake: float
+    justification: str  # AI only — brief reasoning for the bet
 
 
 class GamblingState(TypedDict):

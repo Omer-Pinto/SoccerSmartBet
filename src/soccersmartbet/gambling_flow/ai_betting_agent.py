@@ -37,6 +37,7 @@ class AIBetDecision(BaseModel):
 
     game_id: int
     prediction: str = Field(description="'1' for home win, 'x' for draw, '2' for away win")
+    stake: int = Field(description="Stake in NIS. Must be one of: 50, 100, 200, 500")
     justification: str = Field(description="Brief reasoning for this bet")
 
 
@@ -97,6 +98,7 @@ place bets on every game presented to you.
 Rules:
 - You MUST bet on EVERY game. No skipping.
 - For each game, choose exactly one prediction: '1' (home win), 'x' (draw), or '2' (away win).
+- For each game, choose a stake from: 50, 100, 200, or 500 NIS. Higher stakes for higher confidence.
 - Provide a brief justification for each bet.
 - Base your decisions on the analysis data provided (form, injuries, H2H, expert analysis, odds).
 - Consider value betting: look for predictions where the true probability exceeds what the odds imply.
@@ -107,7 +109,7 @@ def _build_games_prompt(games_data: list[dict[str, Any]], ai_bankroll: float) ->
     """Build the human message content with all game analysis data."""
     lines: list[str] = [
         f"Your current bankroll: {ai_bankroll:.2f} NIS",
-        f"Stake per game: {DEFAULT_STAKE:.0f} NIS",
+        "Available stakes: 50, 100, 200, or 500 NIS per game (choose based on confidence)",
         "",
         "=== GAMES TO BET ON ===",
         "",
@@ -282,11 +284,12 @@ def ai_betting_agent(state: GamblingState) -> dict:
         game_odds = odds_map.get(bet.game_id, {})
         selected_odds = game_odds.get(prediction, 0.0)
 
+        stake = bet.stake if bet.stake in (50, 100, 200, 500) else 100
         ai_bets.append({
             "game_id": bet.game_id,
             "prediction": prediction,
             "odds": selected_odds,
-            "stake": DEFAULT_STAKE,
+            "stake": float(stake),
             "justification": bet.justification,
         })
 

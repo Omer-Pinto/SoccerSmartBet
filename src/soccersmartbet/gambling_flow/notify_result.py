@@ -132,6 +132,9 @@ def notify_gambling_result(state: GamblingState) -> dict:
                     ai_bet["stake"], home_team, away_team,
                 ))
 
+        if ai_bet and ai_bet.get("justification"):
+            lines.append(f"  AI reasoning: \"{ai_bet['justification']}\"")
+
         lines.append("")
 
     text = "\n".join(lines).rstrip()
