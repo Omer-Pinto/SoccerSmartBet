@@ -24,6 +24,10 @@ When changing schema:
 3. If the bot is running, restart it after code changes
 4. NEVER delete the Docker volume or database — data must survive
 
+## GIT: Never rewrite history
+
+No `--amend`, no `--force-push`, no squashing, no interactive rebase. Ever. Unless explicitly asked. Honest commit history, even if it shows mistakes.
+
 ## DB: PostgreSQL timezone is Asia/Jerusalem
 
 Set via `ALTER DATABASE`. All `created_at` columns are `TIMESTAMPTZ`. All timestamps display in ISR. Do not change this.
