@@ -5,7 +5,7 @@
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜] 85%
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜] 90%
 ```
 
 | What | Status |
@@ -18,7 +18,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | Pre-Gambling LangGraph flow | **Working E2E** — verified on 2 CL games, subgraph architecture + expert summary |
 | Telegram bot + triggers + ISR time + game reports | **Working** — tested E2E, notify node in graph |
 | Gambling Flow (AI bets + validation) | **Working E2E** — Telegram UI + LangGraph AI betting + verification |
-| Post-Games Flow (results + P&L) | **NOT BUILT** — directory doesn't exist |
+| Post-Games Flow (results + P&L) | **Working E2E** — FotMob results, PnL calculator, Telegram summary |
 | Offline Analysis Flow | **NOT BUILT** — directory doesn't exist |
 
 ---
@@ -33,7 +33,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 3 | 🟡 Partial | Web app works (streaming, concurrent). Tests mostly deleted (4 kept of 10). |
 | 4 | 🟢 Done | Subgraph architecture, E2E verified on 2 CL games with expert summary |
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone, notify node in graph |
-| 6 | 🟡 In Progress | Gambling flow done (6A). Post-Games + Offline pending (6B, 6C). |
+| 6 | 🟡 In Progress | Gambling (6A) + Post-Games (6B) done. Offline Analysis pending (6C). |
 | 7 | ⬜ Not Started | daily_runs table, wall-clock scheduler, startup recovery |
 | 8 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
