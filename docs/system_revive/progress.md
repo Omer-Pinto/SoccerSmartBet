@@ -1,11 +1,11 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-08 | **Branch:** main
+> **Last updated:** 2026-04-13 | **Branch:** main
 
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜] 90%
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜] 96%
 ```
 
 | What | Status |
@@ -13,12 +13,13 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 11 data tools (FotMob, football-data.org, The Odds API, winner.co.il) | Working |
 | Team registry (83 teams, Hebrew, fuzzy match, Israeli league) | Working |
 | Web app tool tester (SSE streaming, concurrent, dual odds) | Working |
-| DB schema (6 tables) | Running on PostgreSQL (docker-compose, port 5433), pgweb on 8082 |
+| DB schema (7 tables) | Running on PostgreSQL (docker-compose, port 5433, TZ=Asia/Jerusalem), pgweb on 8082 |
 | State + prompts + structured outputs | Updated and wired into graph |
-| Pre-Gambling LangGraph flow | **Working E2E** — verified on 2 CL games, subgraph architecture + expert summary |
+| Pre-Gambling LangGraph flow | **Working E2E** — wall-clock scheduler, daily automation |
 | Telegram bot + triggers + ISR time + game reports | **Working** — tested E2E, notify node in graph |
 | Gambling Flow (AI bets + validation) | **Working E2E** — Telegram UI + LangGraph AI betting + verification |
-| Post-Games Flow (results + P&L) | **Working E2E** — FotMob results, PnL calculator, Telegram summary |
+| Post-Games Flow (results + P&L) | **Working E2E** — FotMob results, PnL calculator, Telegram summary, auto-triggered |
+| Daily automation (wall-clock scheduler) | **Working E2E** — full cycle proven 2026-04-12: pre-gambling→gambling→post-games |
 | Offline Analysis Flow | **NOT BUILT** — directory doesn't exist |
 
 ---
@@ -34,7 +35,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 4 | 🟢 Done | Subgraph architecture, E2E verified on 2 CL games with expert summary |
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone, notify node in graph |
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
-| 7 | 🟡 Needs Review | daily_runs table, wall-clock scheduler, startup recovery, full automation |
+| 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation. E2E proven 2026-04-12. |
 | 8 | ⬜ Not Started | Offline analysis — deferred until enough data accumulated |
 | 9 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
@@ -221,17 +222,17 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ---
 
-## Wave 7 — Daily Runs Tracking + Wall-Clock Scheduler 🟡 Needs Review
+## Wave 7 — Daily Runs Tracking + Wall-Clock Scheduler ✅
 
 ### Agent 7A: daily_runs DB Table + Scheduler Fix
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create `daily_runs` table in schema | 🟢 Done | run_date PK, pre/gambling/post timestamps, game_ids, bet flags |
+| 1 | Create `daily_runs` table in schema | 🟢 Done | run_date PK, timestamps, game_ids, trigger_at, bet flags, no_games_confirmed |
 | 2 | Replace APScheduler JobQueue with wall-clock poller | 🟢 Done | 60s asyncio loop via post_init, immune to macOS sleep |
-| 3 | Add startup recovery | 🟢 Done | First poller iteration fires if past 13:00 with no run. Crash mid-run logs warning (no auto-refire to avoid duplicate games) |
-| 4 | Wire flow nodes to write daily_runs | 🟢 Done | Pre-gambling start/complete in triggers.py, gambling_completed in handlers.py, post_games in poller |
-| 5 | Post-games auto-trigger | 🟢 Done | max(kickoff) + 3h wall-clock check, fires run_post_games_flow |
-| 6 | No-games day handling | 🟢 Done | Sends "No interesting games today" message, marks daily_runs complete |
+| 3 | Add startup recovery | 🟢 Done | First poller iteration fires if past trigger time with no run |
+| 4 | Wire flow nodes to write daily_runs | 🟢 Done | Pre-gambling start/complete in triggers.py, gambling_completed + post_games_trigger_at in handlers.py |
+| 5 | Post-games auto-trigger | 🟢 Done | post_games_trigger_at calculated once (max kickoff + 3h), stored in daily_runs, midnight-crossing safe |
+| 6 | No-games day handling | 🟢 Done | Interactive Yes/No Telegram prompt, answer stored in daily_runs |
 
 ---
 
