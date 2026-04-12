@@ -328,6 +328,21 @@ No AI calls — pure data pipeline. Trigger: max(kickoff_time) + 3 hours.
 
 ## Wave 7 — Daily Runs Tracking + Full Automation (1-2 agents, ~5 files)
 
+### Critical context: macOS scheduler problem
+
+APScheduler's `AsyncIOScheduler` (used by python-telegram-bot's `JobQueue`) relies on `CLOCK_MONOTONIC` which **freezes when macOS sleeps**. A job scheduled for 13:00 can silently skip if the Mac sleeps. `misfire_grace_time` drops late jobs with no error and no retry.
+
+**Solution: wall-clock polling.** Replace `job_queue.run_daily()` with an asyncio background task that loops every 60 seconds, checking `datetime.now(ISR_TZ)` (wall clock, not monotonic). After system resume, the first iteration sees wall-clock already past the target and fires immediately. macOS DarkWakes every ~15 min but only 2 seconds — Docker VM may not fully resume, so expect variable delay (not instant).
+
+**Process architecture:**
+- Bot runs as long-lived process: `run_bot.py` → `start_scheduler()` → `application.run_polling()`
+- Pre-gambling flow runs inside bot process via `asyncio.to_thread(run_pre_gambling_flow)`
+- Gambling UI is callback-driven (Telegram inline buttons → `handlers.py` in same bot process)
+- Post-games trigger: wall-clock poller checks if `max(kickoff_time) + 3h` has passed
+- `_sessions` dict in `handlers.py` is in-memory — `gamble_yes` handler queries DB directly as fallback
+- Betting deadline = `min(kickoff_time) - 15 minutes` (enforced in handlers)
+- `daily_runs` table prevents double-runs and enables startup recovery
+
 ### Agent 7A: daily_runs Table + Scheduler Fix
 **Type:** `python-pro`
 **Scope:** `deployment/db/init/001_create_schema.sql`, `src/soccersmartbet/telegram/triggers.py`, flow nodes
