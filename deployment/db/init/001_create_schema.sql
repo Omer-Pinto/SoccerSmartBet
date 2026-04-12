@@ -126,7 +126,9 @@ CREATE TABLE bets (
     odds DECIMAL(5,2) NOT NULL CHECK (odds > 1.0),
     stake DECIMAL(10,2) NOT NULL DEFAULT 100.00 CHECK (stake > 0),
     justification TEXT,
-    
+    result VARCHAR(5) CHECK (result IN ('1', 'x', '2')),
+    pnl DECIMAL(10,2),
+
     CONSTRAINT unique_bet_per_game UNIQUE (game_id, bettor)
 );
 
@@ -143,6 +145,7 @@ CREATE TABLE bankroll (
     total_bankroll DECIMAL(10,2) NOT NULL DEFAULT 10000.00,
     games_played INTEGER NOT NULL DEFAULT 0,
     games_won INTEGER NOT NULL DEFAULT 0,
+    games_lost INTEGER NOT NULL DEFAULT 0,
     last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

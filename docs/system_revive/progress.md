@@ -5,7 +5,7 @@
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜⬜⬜⬜] 78%
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟡⬜⬜] 90%
 ```
 
 | What | Status |
@@ -17,8 +17,8 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | State + prompts + structured outputs | Updated and wired into graph |
 | Pre-Gambling LangGraph flow | **Working E2E** — verified on 2 CL games, subgraph architecture + expert summary |
 | Telegram bot + triggers + ISR time + game reports | **Working** — tested E2E, notify node in graph |
-| Gambling Flow (AI bets + validation) | **NOT BUILT** — directory doesn't exist |
-| Post-Games Flow (results + P&L) | **NOT BUILT** — directory doesn't exist |
+| Gambling Flow (AI bets + validation) | **Working E2E** — Telegram UI + LangGraph AI betting + verification |
+| Post-Games Flow (results + P&L) | **Working E2E** — FotMob results, PnL calculator, Telegram summary |
 | Offline Analysis Flow | **NOT BUILT** — directory doesn't exist |
 
 ---
@@ -33,7 +33,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 3 | 🟡 Partial | Web app works (streaming, concurrent). Tests mostly deleted (4 kept of 10). |
 | 4 | 🟢 Done | Subgraph architecture, E2E verified on 2 CL games with expert summary |
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone, notify node in graph |
-| 6 | ⬜ Not Started | Gambling + Post-Games + Offline — no code exists |
+| 6 | 🟡 In Progress | Gambling (6A) + Post-Games (6B) done. Offline Analysis pending (6C). |
 | 7 | ⬜ Not Started | daily_runs table, wall-clock scheduler, startup recovery |
 | 8 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
@@ -196,26 +196,27 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ---
 
-## Wave 6 — Gambling + Post-Games + Offline Analysis ⬜ NOT STARTED
+## Wave 6 — Gambling + Post-Games + Offline Analysis 🟡 IN PROGRESS
 
-### Agent 6A: Gambling Flow (Hybrid: Telegram handlers + LangGraph)
+### Agent 6A: Gambling Flow (Hybrid: Telegram handlers + LangGraph) ✅
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Update notify_telegram to send "Want to bet?" with Yes/No + deadline | ⬜ Pending | Min kickoff - 30min as deadline |
-| 2 | Create gambling_flow/handlers.py | ⬜ Pending | Telegram callback handlers: yes/no, 1/X/2, stake, send bet |
-| 3 | Create gambling_flow/ai_betting_agent.py | ⬜ Pending | LLM places bets using reports + balance, structured output |
-| 4 | Create gambling_flow/bet_verifier.py | ⬜ Pending | Validate user + AI bets, insert to DB |
-| 5 | Create gambling_flow/graph_manager.py | ⬜ Pending | LangGraph: ai_bet → verify → persist → notify (LangSmith traced) |
-| 6 | Register gambling handlers in bot application | ⬜ Pending | Wire handlers into triggers.py start_scheduler |
-| 7 | E2E test: manual pre-gambling → gambling UI → AI bet → DB | ⬜ Pending | Full cycle with real data |
+| 1 | Update notify_telegram to send "Want to bet?" with Yes/No + deadline | 🟢 Done | Deadline = min(kickoff) - 15min, enforced in handlers |
+| 2 | Create gambling_flow/handlers.py | 🟢 Done | Full UI: game labels, 1️⃣/❌/2️⃣ buttons, per-game stakes, HTML formatting |
+| 3 | Create gambling_flow/ai_betting_agent.py | 🟢 Done | Variable stakes (50/100/200/500), justifications, independent from user |
+| 4 | Create gambling_flow/bet_verifier.py | 🟢 Done | Validates + upserts to bets table, no balance check |
+| 5 | Create gambling_flow/graph_manager.py | 🟢 Done | LangGraph: ai_bet → verify → persist → notify (LangSmith traced) |
+| 6 | Register gambling handlers in bot application | 🟢 Done | CallbackQueryHandler in triggers.py |
+| 7 | E2E test: manual pre-gambling → gambling UI → AI bet → DB | 🟢 Done | Full cycle tested with 6 live games |
 
-### Agent 6B: Post-Games Flow
+### Agent 6B: Post-Games Flow ✅
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create fetch_results.py | ⬜ Pending | |
-| 2 | Create pnl_calculator.py | ⬜ Pending | |
-| 3 | Create daily_summary.py | ⬜ Pending | |
-| 4 | Create post-games graph_manager.py | ⬜ Pending | |
+| 1 | Schema: add `result` + `pnl` to bets, `games_lost` to bankroll | 🟢 Done | Applied to schema + live DB |
+| 2 | Create fetch_results.py | 🟢 Done | football-data.org → resolve_team matching → update games |
+| 3 | Create pnl_calculator.py | 🟢 Done | Won: stake*(odds-1), Lost: -stake. Atomic bets + bankroll update |
+| 4 | Create notify_daily_summary.py | 🟢 Done | HTML Telegram: scores, bet outcomes, bankroll totals |
+| 5 | Create post_games/graph_manager.py | 🟢 Done | LangGraph: fetch_results → pnl → notify. Entry: run_post_games_flow(game_ids) |
 
 ### Agent 6C: Offline Analysis Flow
 | # | Task | Status | Notes |
