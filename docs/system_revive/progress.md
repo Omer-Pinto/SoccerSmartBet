@@ -33,9 +33,10 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 3 | 🟡 Partial | Web app works (streaming, concurrent). Tests mostly deleted (4 kept of 10). |
 | 4 | 🟢 Done | Subgraph architecture, E2E verified on 2 CL games with expert summary |
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone, notify node in graph |
-| 6 | 🟡 In Progress | Gambling (6A) + Post-Games (6B) done. Offline Analysis pending (6C). |
-| 7 | ⬜ Not Started | daily_runs table, wall-clock scheduler, startup recovery |
-| 8 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
+| 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
+| 7 | ⬜ Not Started | daily_runs table, wall-clock scheduler, startup recovery, full automation |
+| 8 | ⬜ Not Started | Offline analysis — deferred until enough data accumulated |
+| 9 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
 
 ---
 
@@ -196,7 +197,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ---
 
-## Wave 6 — Gambling + Post-Games + Offline Analysis 🟡 IN PROGRESS
+## Wave 6 — Gambling + Post-Games ✅
 
 ### Agent 6A: Gambling Flow (Hybrid: Telegram handlers + LangGraph) ✅
 | # | Task | Status | Notes |
@@ -218,13 +219,6 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | 4 | Create notify_daily_summary.py | 🟢 Done | HTML Telegram: scores, bet outcomes, bankroll totals |
 | 5 | Create post_games/graph_manager.py | 🟢 Done | LangGraph: fetch_results → pnl → notify. Entry: run_post_games_flow(game_ids) |
 
-### Agent 6C: Offline Analysis Flow
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Create query_stats.py | ⬜ Pending | |
-| 2 | Create ai_insights.py | ⬜ Pending | |
-| 3 | Create offline graph_manager.py | ⬜ Pending | |
-
 ---
 
 ## Wave 7 — Daily Runs Tracking + Wall-Clock Scheduler ⬜ NOT STARTED
@@ -239,7 +233,21 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ---
 
-## Wave 8 — Expansion 🟡 PARTIALLY DONE
+## Wave 8 — Offline Analysis Flow ⬜ NOT STARTED
+
+Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML dashboards. Deferred until enough betting data accumulated (need weeks of daily bets, not 1 day).
+
+### Agent 8A: Offline Analysis
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Design analysis queries + HTML dashboard | ⬜ Pending | Per-user, per-league, per-team, date-range filters |
+| 2 | Create query_stats.py | ⬜ Pending | SQL aggregations on bets + games |
+| 3 | Create analysis HTML reports | ⬜ Pending | Rich interactive UI, not basic text |
+| 4 | Create offline graph_manager.py | ⬜ Pending | On-demand trigger |
+
+---
+
+## Wave 9 — Expansion 🟡 PARTIALLY DONE
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|

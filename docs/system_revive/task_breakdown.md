@@ -320,24 +320,13 @@ No AI calls — pure data pipeline. Trigger: max(kickoff_time) + 3 hours.
 | 4 | Create `post_games_flow/notify_summary.py` | LangGraph node: Telegram daily summary | Per-game: score, user bet + AI bet + who won. Bottom: bankroll totals for both. HTML formatting. |
 | 5 | Create `post_games_flow/graph_manager.py` | Wire Post-Games graph | `START → fetch_results → pnl_calculator → notify_summary → END`. Entry: `run_post_games_flow(game_ids)`. |
 
-### Agent 6C: Offline Analysis Flow
-**Type:** `python-pro`
-**Scope:** `src/soccersmartbet/offline_analysis_flow/` (new directory)
-
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | Create `offline_analysis_flow/query_stats.py` | Query P&L, success rates, team/league breakdowns | SQL queries on games + bets + bankroll tables |
-| 2 | Create `offline_analysis_flow/ai_insights.py` | LLM-generated insights from stats | 1 LLM call with stats context, produces narrative |
-| 3 | Create `offline_analysis_flow/graph_manager.py` | Wire Offline Analysis Flow | On-demand trigger, query → analyze → display |
-
 ### After Wave 6
-- End-to-end test: Pre-Gambling → Gambling → Post-Games
-- Test Offline Analysis independently
-- **CHECKPOINT**: All 4 flows operational
+- End-to-end test: Pre-Gambling → Gambling → Post-Games ✅
+- **CHECKPOINT**: 3 core flows operational
 
 ---
 
-## Wave 7 — Daily Runs Tracking + Wall-Clock Scheduler (1 agent, ~3 files)
+## Wave 7 — Daily Runs Tracking + Full Automation (1-2 agents, ~5 files)
 
 ### Agent 7A: daily_runs Table + Scheduler Fix
 **Type:** `python-pro`
@@ -349,17 +338,38 @@ No AI calls — pure data pipeline. Trigger: max(kickoff_time) + 3 hours.
 | 2 | Replace `job_queue.run_daily()` with wall-clock poller | Immune to macOS sleep suspending monotonic timers | 60s asyncio loop checking `datetime.now(ISR_TZ)`, fires if past 13:00 and no run today in `daily_runs` |
 | 3 | Add startup recovery to `start_scheduler()` | Catch missed runs on bot restart | Query `daily_runs` for today, if no pre-gambling run and past 13:00 → fire immediately |
 | 4 | Wire pre-gambling flow to write `daily_runs` | Audit trail | `smart_game_picker` writes started_at, `persist_reports`/`notify_telegram` writes completed_at + game_ids |
+| 5 | Schedule post-games trigger | Auto-fire post-games flow | max(kickoff_time) + 3h, wall-clock based |
+| 6 | Handle no-games days gracefully | Picker returns 0 games | Send "No games today" Telegram message, skip gambling + post-games, mark daily_runs as complete |
 
 ### After Wave 7
 - Verify: close laptop lid at 12:55, wake at 13:10 → flow fires within 60s of wake
 - Verify: restart bot at 14:00 → startup recovery fires flow immediately
 - Verify: `daily_runs` table populated correctly after flow run
+- Verify: no-games day doesn't crash or leave orphan state
+- **CHECKPOINT**: System runs daily without manual intervention
 
 ---
 
-## Wave 8 — Competition Expansion + Polish (1 agent)
+## Wave 8 — Offline Analysis Flow ⬜ NOT STARTED
 
-### Agent 8A: League Expansion + Final Polish
+Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML dashboards. Deferred until enough betting data accumulated.
+
+### Agent 8A: Offline Analysis
+**Type:** `fullstack-developer`
+**Scope:** `src/soccersmartbet/offline_analysis_flow/` (new directory)
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Design analysis queries + HTML dashboard | Per-user, per-league, per-team, date-range filters | Rich interactive UI, not basic text |
+| 2 | Create `query_stats.py` | SQL aggregations on bets + games | Breakdowns by bettor, league, team, date range |
+| 3 | Create analysis HTML reports | Detailed visual reports | Similar quality to game report pages |
+| 4 | Create `graph_manager.py` | On-demand trigger | Telegram command or scheduled weekly |
+
+---
+
+## Wave 9 — Competition Expansion + Polish (1 agent)
+
+### Agent 9A: League Expansion + Final Polish
 **Type:** `python-pro`
 **Scope:** `db/seeds/`, `src/soccersmartbet/team_registry.py`, documentation
 
@@ -371,6 +381,6 @@ No AI calls — pure data pipeline. Trigger: max(kickoff_time) + 3 hours.
 | 4 | Add FotMob IDs to team registry | Cross-reference FotMob team search | Enables direct FotMob lookups |
 | 5 | Final documentation update | Update README, ORCHESTRATION_STATE | Reflect current system state |
 
-### After Wave 8
+### After Wave 9
 - Full system test across multiple leagues
 - Verify: Israeli league, CL, name resolution across all sources
