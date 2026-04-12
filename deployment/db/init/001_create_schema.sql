@@ -180,3 +180,29 @@ CREATE INDEX idx_teams_football_data ON teams(football_data_id);
 COMMENT ON TABLE teams IS 'Canonical team registry — maps team names across FotMob, football-data.org, winner.co.il (Hebrew)';
 COMMENT ON COLUMN teams.aliases IS 'JSON array of alternative names: ["Atletico", "Atlético de Madrid", "Club Atlético de Madrid"]';
 COMMENT ON COLUMN teams.winner_name_he IS 'Hebrew team name as used by winner.co.il';
+
+-- ============================================================================
+-- TABLE: daily_runs
+-- Purpose: Idempotency guard and startup recovery for the wall-clock scheduler
+-- ============================================================================
+CREATE TABLE daily_runs (
+    run_date DATE PRIMARY KEY,
+    pre_gambling_started_at TIMESTAMPTZ,
+    pre_gambling_completed_at TIMESTAMPTZ,
+    gambling_completed_at TIMESTAMPTZ,
+    post_games_trigger_at TIMESTAMPTZ,
+    post_games_completed_at TIMESTAMPTZ,
+    game_ids INTEGER[],
+    games_found INTEGER,
+    user_bet_completed BOOLEAN DEFAULT FALSE,
+    ai_bet_completed BOOLEAN DEFAULT FALSE,
+    no_games_user_confirmed BOOLEAN
+);
+
+COMMENT ON TABLE daily_runs IS 'One row per day — tracks scheduler flow state for idempotency and crash recovery';
+COMMENT ON COLUMN daily_runs.pre_gambling_started_at IS 'Set before run_pre_gambling_flow(); NULL means not yet started';
+COMMENT ON COLUMN daily_runs.pre_gambling_completed_at IS 'Set after flow finishes; NULL with started_at set means crashed mid-run';
+COMMENT ON COLUMN daily_runs.game_ids IS 'game_ids selected today; empty array means no-games day';
+COMMENT ON COLUMN daily_runs.post_games_trigger_at IS 'max(kickoff_time) + 3h — calculated once when gambling completes';
+COMMENT ON COLUMN daily_runs.games_found IS 'Number of games the pre-gambling picker found (before LLM selection)';
+COMMENT ON COLUMN daily_runs.no_games_user_confirmed IS 'User response to no-games-day prompt: TRUE = expected, FALSE = suspicious';

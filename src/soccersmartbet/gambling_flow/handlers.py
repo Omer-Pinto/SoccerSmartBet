@@ -48,7 +48,7 @@ def _fetch_todays_game_ids() -> list[int]:
     """Query DB for today's games with status 'ready_for_betting'."""
     if not DATABASE_URL:
         return []
-    today = datetime.now(tz=ISR_TZ).date()
+    today = now_isr().date()
     sql = """
         SELECT game_id FROM games
         WHERE match_date = %(today)s AND status = 'ready_for_betting'
@@ -95,7 +95,7 @@ def _fetch_min_kickoff(game_ids: list[int]) -> datetime | None:
         return None
 
     kt = row[0]  # datetime.time from psycopg2
-    today = datetime.now(tz=ISR_TZ).date()
+    today = now_isr().date()
     return datetime(today.year, today.month, today.day, kt.hour, kt.minute, tzinfo=ISR_TZ)
 
 
@@ -552,12 +552,35 @@ async def handle_gamble_callback(
 
         async def _run_flow() -> None:
             from soccersmartbet.gambling_flow.graph_manager import run_gambling_flow  # noqa: PLC0415
+            from soccersmartbet.daily_runs import get_max_kickoff_for_games, upsert_daily_run  # noqa: PLC0415
+            from datetime import timedelta  # noqa: PLC0415
 
-            result = await asyncio.to_thread(run_gambling_flow, game_ids, user_bets)
-            logger.info(
-                "handle_gamble_callback: gambling flow completed — verification=%s",
-                result.get("verification_result", "unknown"),
-            )
+            try:
+                result = await asyncio.to_thread(run_gambling_flow, game_ids, user_bets)
+                logger.info(
+                    "handle_gamble_callback: gambling flow completed — verification=%s",
+                    result.get("verification_result", "unknown"),
+                )
+                today = now_isr().date()
+
+                # Calculate post-games trigger: max(kickoff) + 3h — stored once, polled cheaply
+                max_kickoff = get_max_kickoff_for_games(game_ids)
+                post_trigger = max_kickoff + timedelta(hours=3) if max_kickoff else None
+
+                upsert_daily_run(
+                    today,
+                    gambling_completed_at=now_isr(),
+                    post_games_trigger_at=post_trigger,
+                    user_bet_completed=True,
+                    ai_bet_completed=True,
+                )
+                logger.info(
+                    "handle_gamble_callback: daily_runs updated — gambling_completed_at set, "
+                    "post_games_trigger_at=%s",
+                    post_trigger.strftime("%H:%M") if post_trigger else "none",
+                )
+            except Exception:
+                logger.exception("handle_gamble_callback: gambling flow failed — daily_runs NOT updated")
 
         asyncio.create_task(_run_flow())
         return
