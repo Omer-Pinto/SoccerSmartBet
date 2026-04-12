@@ -72,13 +72,13 @@ def get_games_info(game_ids: list[int]) -> list[dict]:
 
 
 def format_gambling_time_message(game_ids: list[int]) -> str:
-    """Generate the 'Gambling Time!' Telegram message with game bullets.
+    """Generate the 'Gambling Time!' Telegram message with HTML formatting.
 
     Args:
         game_ids: List of game IDs to include in the message.
 
     Returns:
-        Formatted multi-line string ready to send as a Telegram message.
+        HTML-formatted multi-line string ready to send with parse_mode="HTML".
     """
     if not game_ids:
         return "No games today."
@@ -87,14 +87,13 @@ def format_gambling_time_message(game_ids: list[int]) -> str:
     if not games:
         return "No games today."
 
-    lines: list[str] = ["Gambling Time!", ""]
+    lines: list[str] = ["\U0001f3c6 <b>Gambling Time!</b>", ""]
 
     for game in games:
         lines.append(
-            f"\u2022 {game['home_team']} vs {game['away_team']}"
+            f"\u26bd <b>{game['home_team']}</b> vs <b>{game['away_team']}</b>"
             f" \u2014 {game['kickoff_time']} ISR"
-            f" \u2014 {game['venue']}"
-            f" \u2014 {game['league']}"
+            f" \u2014 <i>{game['league']}</i>"
         )
 
     return "\n".join(lines)

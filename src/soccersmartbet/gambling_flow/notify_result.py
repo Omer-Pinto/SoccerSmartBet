@@ -28,7 +28,7 @@ WHERE game_id = ANY(%(game_ids)s)
 
 _PREDICTION_ICONS = {
     "1": "1\ufe0f\u20e3",
-    "x": "\u274c",
+    "x": "\U0001D54F",
     "2": "2\ufe0f\u20e3",
 }
 

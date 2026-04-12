@@ -41,13 +41,13 @@ WHERE bettor IN ('user', 'ai')
 
 _PREDICTION_ICONS = {
     "1": "1\ufe0f\u20e3",
-    "x": "\u274c",
+    "x": "\U0001D54F",
     "2": "2\ufe0f\u20e3",
 }
 
 _OUTCOME_LABELS = {
     "1": "1\ufe0f\u20e3 Home win",
-    "x": "\u274c Draw",
+    "x": "\U0001D54F Draw",
     "2": "2\ufe0f\u20e3 Away win",
 }
 

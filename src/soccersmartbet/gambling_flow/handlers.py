@@ -219,7 +219,7 @@ def _build_betting_ui(chat_id: int) -> tuple[str, InlineKeyboardMarkup]:
                 callback_data=f"gbet_{gid}_1",
             ),
             InlineKeyboardButton(
-                f"{'✅ ' if sel == 'x' else ''}\u274c \u2014 {d_odd:.2f}",
+                f"{'✅ ' if sel == 'x' else ''}\U0001D54F \u2014 {d_odd:.2f}",
                 callback_data=f"gbet_{gid}_x",
             ),
             InlineKeyboardButton(
@@ -508,7 +508,7 @@ async def handle_gamble_callback(
                 pick_label = f"<b>{g['home_team']}</b> 1\ufe0f\u20e3"
                 odds = g["h_odd"]
             elif sel == "x":
-                pick_label = "<b>Draw</b> \u274c"
+                pick_label = "<b>Draw</b> \U0001D54F"
                 odds = g["d_odd"]
             else:
                 pick_label = f"<b>{g['away_team']}</b> 2\ufe0f\u20e3"
