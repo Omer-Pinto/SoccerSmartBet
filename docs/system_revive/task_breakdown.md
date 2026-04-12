@@ -395,7 +395,9 @@ Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML das
 | 3 | Add Euro / World Cup national team support | football-data.org EC/WC | Seasonal activation |
 | 4 | Add FotMob IDs to team registry | Cross-reference FotMob team search | Enables direct FotMob lookups |
 | 5 | Final documentation update | Update README, ORCHESTRATION_STATE | Reflect current system state |
+| 6 | Database backup to disk | Automated pg_dump to a local backup directory | Cron or script that dumps the staging DB to `~/backups/soccersmartbet/` with date-stamped filenames. Must survive docker-compose restarts. |
 
 ### After Wave 9
 - Full system test across multiple leagues
 - Verify: Israeli league, CL, name resolution across all sources
+- Verify: DB backup file exists and is restorable
