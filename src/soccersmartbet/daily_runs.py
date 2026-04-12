@@ -109,6 +109,41 @@ def upsert_daily_run(run_date: date, **fields: object) -> None:
     logger.debug("upsert_daily_run: %s → %s", run_date, list(filtered))
 
 
+def get_pending_post_games() -> dict | None:
+    """Find a daily_runs row with a pending post-games trigger.
+
+    Returns the most recent row where post_games_trigger_at is set but
+    post_games_completed_at is NULL. Handles midnight-crossing triggers
+    (e.g. trigger at 01:00 on Apr 13 stored on the Apr 12 row).
+    """
+    sql = """
+        SELECT
+            run_date, post_games_trigger_at, game_ids
+        FROM daily_runs
+        WHERE post_games_trigger_at IS NOT NULL
+          AND post_games_completed_at IS NULL
+        ORDER BY run_date DESC
+        LIMIT 1
+    """
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if row is None:
+        return None
+
+    return {
+        "run_date": row[0],
+        "post_games_trigger_at": row[1],
+        "game_ids": list(row[2]) if row[2] is not None else [],
+    }
+
+
 def get_max_kickoff_for_games(game_ids: list[int]) -> datetime | None:
     """Return the latest kickoff as a timezone-aware ISR datetime, or None.
 

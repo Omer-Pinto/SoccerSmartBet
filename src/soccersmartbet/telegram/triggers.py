@@ -14,7 +14,7 @@ from telegram.ext import (
     filters,
 )
 
-from soccersmartbet.daily_runs import get_daily_run, upsert_daily_run
+from soccersmartbet.daily_runs import get_daily_run, get_pending_post_games, upsert_daily_run
 from soccersmartbet.gambling_flow.handlers import handle_gamble_callback
 from soccersmartbet.telegram.bot import (
     TELEGRAM_BOT_TOKEN,
@@ -148,20 +148,18 @@ async def _wall_clock_poller(application: Application) -> None:
                     )
 
             # ---- post-games check ------------------------------------------
-            # post_games_trigger_at is calculated once when gambling completes
-            # (max kickoff + 3h). No repeated DB queries needed.
-            if (
-                daily is not None
-                and daily["post_games_trigger_at"] is not None
-                and daily["post_games_completed_at"] is None
-                and now >= daily["post_games_trigger_at"]
-            ):
+            # Query for ANY pending post-games trigger (not just today's row),
+            # because late games cross midnight (e.g. trigger at 01:00 Apr 13
+            # is stored on the Apr 12 row).
+            pending = get_pending_post_games()
+            if pending is not None and now >= pending["post_games_trigger_at"]:
                 logger.info(
-                    "Wall-clock poller: firing post-games (now=%s, trigger_at=%s)",
+                    "Wall-clock poller: firing post-games (now=%s, trigger_at=%s, run_date=%s)",
                     now.strftime("%H:%M"),
-                    daily["post_games_trigger_at"].strftime("%H:%M"),
+                    pending["post_games_trigger_at"].strftime("%H:%M"),
+                    pending["run_date"],
                 )
-                await _fire_post_games(daily["game_ids"], today)
+                await _fire_post_games(pending["game_ids"], pending["run_date"])
 
         except Exception:
             logger.exception("Wall-clock poller: unhandled error in polling loop")
