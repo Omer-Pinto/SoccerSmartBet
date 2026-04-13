@@ -89,5 +89,5 @@ async def send_gambling_time(game_ids: list[int]) -> None:
         game_ids: List of game IDs to include in the message.
     """
     text = format_gambling_time_message(game_ids)
-    await send_message(text)
+    await send_message(text, parse_mode="HTML")
     logger.info("Gambling time message sent for %d game(s)", len(game_ids))

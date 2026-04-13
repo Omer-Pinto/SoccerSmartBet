@@ -104,7 +104,7 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
             response = requests.get(
                 url,
                 headers=headers,
-                params={"status": "SCHEDULED"},
+                params={"status": "TIMED,SCHEDULED"},
                 timeout=TIMEOUT
             )
 
@@ -114,7 +114,7 @@ def fetch_h2h(home_team_name: str, away_team_name: str, limit: int = 5) -> Dict[
                 response = requests.get(
                     url,
                     headers=headers,
-                    params={"status": "SCHEDULED"},
+                    params={"status": "TIMED,SCHEDULED"},
                     timeout=TIMEOUT
                 )
 
