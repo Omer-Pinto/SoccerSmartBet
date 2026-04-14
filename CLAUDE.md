@@ -28,6 +28,10 @@ When changing schema:
 
 No `--amend`, no `--force-push`, no squashing, no interactive rebase. Ever. Unless explicitly asked. Honest commit history, even if it shows mistakes.
 
+## BOT: Restart after ANY DB data change
+
+The team registry caches in memory on first load. If you insert/update teams, the running bot won't see them. ALWAYS restart the bot after DB changes. This has caused 3 incidents.
+
 ## DB: PostgreSQL timezone is Asia/Jerusalem
 
 Set via `ALTER DATABASE`. All `created_at` columns are `TIMESTAMPTZ`. All timestamps display in ISR. Do not change this.
