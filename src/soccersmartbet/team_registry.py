@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import unicodedata
 from typing import Optional
 
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 _teams: list[dict] = []
 _index: dict[str, str] = {}
 _loaded: bool = False
+_lock: threading.Lock = threading.Lock()
 
 
 def _load_from_db() -> list[dict]:
@@ -90,23 +92,41 @@ def _load_from_db() -> list[dict]:
 
 
 def _ensure_loaded() -> None:
-    """Load teams from DB into module cache if not already loaded."""
+    """Load teams from DB into module cache if not already loaded.
+
+    Uses double-checked locking so that once ``_loaded`` is True the fast path
+    (no lock acquisition) is taken by every subsequent caller.
+    """
     global _teams, _index, _loaded
     if _loaded:
         return
-    _teams = _load_from_db()
-    _index = _build_index()
-    _loaded = True
+    with _lock:
+        # Second check inside the lock: a concurrent thread may have completed
+        # the load between the outer check and acquiring the lock.
+        if _loaded:
+            return
+        new_teams = _load_from_db()
+        new_index = _build_index(new_teams)
+        _teams = new_teams
+        _index = new_index
+        _loaded = True
     logger.info("team_registry: loaded %d teams from DB", len(_teams))
 
 
 def reload_registry() -> None:
-    """Force-reload teams from DB. Call at the start of each flow run."""
+    """Force-reload teams from DB. Call at the start of each flow run.
+
+    The slow DB round-trip is performed *outside* the lock so other reads are
+    not blocked for its duration.  All three globals are then swapped atomically
+    under the lock so no reader ever sees a partially-updated state.
+    """
     global _teams, _index, _loaded
-    _loaded = False
-    _teams = _load_from_db()
-    _index = _build_index()
-    _loaded = True
+    new_teams = _load_from_db()
+    new_index = _build_index(new_teams)
+    with _lock:
+        _teams = new_teams
+        _index = new_index
+        _loaded = True
     logger.info("team_registry: reloaded %d teams from DB", len(_teams))
 
 
@@ -145,9 +165,9 @@ def normalize_team_name(name: str) -> str:
     return n.strip()
 
 
-def _build_index() -> dict[str, str]:
+def _build_index(teams: list[dict]) -> dict[str, str]:
     idx: dict[str, str] = {}
-    for team in _teams:
+    for team in teams:
         canonical = team["canonical_name"]
         # Index the canonical name itself
         idx[normalize_team_name(canonical)] = canonical
