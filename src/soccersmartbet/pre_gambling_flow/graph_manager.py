@@ -144,6 +144,9 @@ def run_pre_gambling_flow():
     Returns:
         Final PreGamblingState after the full flow completes.
     """
+    from soccersmartbet.team_registry import reload_registry  # noqa: PLC0415
+
+    reload_registry()
     graph = build_pre_gambling_graph()
     initial_state = {
         "messages": [],

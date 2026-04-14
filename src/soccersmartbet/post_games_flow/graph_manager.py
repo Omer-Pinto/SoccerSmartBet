@@ -58,6 +58,9 @@ def run_post_games_flow(game_ids: list[int]) -> dict:
     Returns:
         Final PostGamesState after the flow completes.
     """
+    from soccersmartbet.team_registry import reload_registry  # noqa: PLC0415
+
+    reload_registry()
     logger.info("run_post_games_flow: starting for %d game(s)", len(game_ids))
 
     graph = build_post_games_graph()

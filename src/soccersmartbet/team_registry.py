@@ -100,6 +100,16 @@ def _ensure_loaded() -> None:
     logger.info("team_registry: loaded %d teams from DB", len(_teams))
 
 
+def reload_registry() -> None:
+    """Force-reload teams from DB. Call at the start of each flow run."""
+    global _teams, _index, _loaded
+    _loaded = False
+    _teams = _load_from_db()
+    _index = _build_index()
+    _loaded = True
+    logger.info("team_registry: reloaded %d teams from DB", len(_teams))
+
+
 # ---------------------------------------------------------------------------
 # Normalization
 # ---------------------------------------------------------------------------
