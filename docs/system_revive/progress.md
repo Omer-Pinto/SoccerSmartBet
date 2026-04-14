@@ -5,7 +5,7 @@
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜] 96%
+Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 7/11 waves done
 ```
 
 | What | Status |
@@ -19,8 +19,8 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | Telegram bot + triggers + ISR time + game reports | **Working** — tested E2E, notify node in graph |
 | Gambling Flow (AI bets + validation) | **Working E2E** — Telegram UI + LangGraph AI betting + verification |
 | Post-Games Flow (results + P&L) | **Working E2E** — FotMob overviewFixtures results, PnL calculator, Telegram summary, auto-triggered |
-| Daily automation (wall-clock scheduler) | **Working E2E** — full cycle proven 2026-04-12: pre-gambling→gambling→post-games |
-| Offline Analysis Flow | **NOT BUILT** — directory doesn't exist |
+| Daily automation (wall-clock scheduler) | **Working E2E** — full cycle proven daily since 2026-04-12 |
+| Offline Analysis Flow | **NOT BUILT** — deferred to Wave 9 |
 
 ---
 
@@ -29,15 +29,17 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | Wave | Status | Notes |
 |------|--------|-------|
 | 0 | 🟢 Done | Setup, curation, schema, enrichment verification |
-| 1 | 🟢 Done | FotMob client, team registry, winner client. Heavy post-wave bug fixes. |
+| 1 | 🟢 Done | FotMob client, team registry, winner client |
 | 2 | 🟢 Done | All 11 tools working against live APIs |
-| 3 | 🟡 Partial | Web app works (streaming, concurrent). Tests mostly deleted (4 kept of 10). |
-| 4 | 🟢 Done | Subgraph architecture, E2E verified on 2 CL games with expert summary |
-| 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone, notify node in graph |
+| 3 | 🟢 Done | Web app works. Tests obsolete — deleted, deferred to Wave 11. |
+| 4 | 🟢 Done | Subgraph architecture, E2E verified with expert summary |
+| 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone |
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
-| 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation. E2E proven 2026-04-12. |
-| 8 | ⬜ Not Started | Offline analysis — deferred until enough data accumulated |
-| 9 | 🟡 Partial | Israeli league done. 83 teams. Euro/WC search lists added. Final docs pending. |
+| 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
+| 8 | ⬜ Not Started | Pre-gambling report refinement (LLM prompts + tool quality) |
+| 9 | ⬜ Not Started | Offline analysis — deferred until enough data accumulated |
+| 10 | 🟡 Partial | Expansion: Israeli league + CL/EL done. Euro/WC + backup pending. |
+| 11 | ⬜ TBD | Testing scheme — to be planned separately |
 
 ---
 
@@ -52,215 +54,208 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 
 ---
 
-## Wave 1 — Core Infrastructure ✅ (with major post-wave fixes)
+## Wave 1 — Core Infrastructure ✅
 
 ### Agent 1A: FotMob Client
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 1 | Rewrite fotmob_client.py | 🟢 Done | x-mas signing, direct requests |
-| 2 | get_league_table | 🟢 Done | Fixed post-wave: response is list not dict |
+| 2 | get_league_table | 🟢 Done | |
 | 3 | get_team_data / get_match_data | 🟢 Done | |
 | 4 | get_team_news | 🟢 Done | |
-| 5 | find_team | 🟢 Done | Fixed post-wave: registry lookup for Bayern/PSG |
+| 5 | find_team | 🟢 Done | |
 
 ### Agent 1B: Team Name Registry
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | team_registry.py + fuzzy matching | 🟢 Done | Levenshtein + substring + exact |
-| 2 | teams_registry.json | 🟢 Done | 83 teams (was 29, expanded during bug fixes) |
+| 1 | team_registry.py + fuzzy matching | 🟢 Done | Levenshtein + substring + exact, thread-safe |
+| 2 | teams in DB | 🟢 Done | 107 teams with Hebrew names, FotMob IDs |
 | 3 | teams_seed.py | 🟢 Done | football-data.org bulk seeder |
-| 4 | Israeli Premier League (14 teams) | 🟢 Done | Originally Wave 6, done during bug fixes |
-| 5 | Hebrew name corrections | 🟢 Done | AC Milan=מילאן, Inter=אינטר, 38 teams added |
-| 6 | Hyphen/accent normalization | 🟢 Done | Saint-Germain vs Saint Germain etc. |
+| 4 | Israeli Premier League (14 teams) | 🟢 Done | |
+| 5 | Hebrew name mappings | 🟢 Done | All top-5 league teams mapped |
 
 ### Agent 1C: winner.co.il Odds Client
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | fetch_winner_odds.py | 🟢 Done | **Fully rewritten** post-wave |
-| 2 | API endpoint | 🟢 Done | www.winner.co.il/api/v2/publicapi/ (GET, session cookies) |
-| 3 | Market parsing | 🟢 Done | Flat markets list, 1X2 by mp field |
-| 4 | League filtering | 🟢 Done | Hebrew→English league map |
-| 5 | fetch_all_winner_odds | 🟢 Done | Bulk fetch with optional league filter |
-
-**Post-wave lessons**: winner.co.il API was built without testing (Incapsula WAF blocked original endpoint). Entire client was rewritten after live investigation found the real API at www.winner.co.il/api/v2/publicapi/.
+| 1 | fetch_winner_odds.py | 🟢 Done | |
+| 2 | API endpoint | 🟢 Done | www.winner.co.il/api/v2/publicapi/ |
+| 3 | Market parsing | 🟢 Done | |
+| 4 | League filtering | 🟢 Done | |
+| 5 | fetch_all_winner_odds | 🟢 Done | |
 
 ---
 
 ## Wave 2 — Fix Existing + New Tools ✅
 
 ### Agent 2A: Fix FotMob Game Tools
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Fix fetch_venue.py | 🟢 Done | Capacity from statPairs, lat/lon from widget |
-| 2 | Fix fetch_weather.py | 🟢 Done | Direct lat/lon, no geocoding needed |
+| # | Task | Status |
+|---|------|--------|
+| 1 | Fix fetch_venue.py | 🟢 Done |
+| 2 | Fix fetch_weather.py | 🟢 Done |
 
 ### Agent 2B: Fix FotMob Team Tools
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Fix fetch_form.py | 🟢 Done | teamForm data verified |
-| 2 | Fix fetch_injuries.py | 🟢 Done | Rewritten: uses squad data not match lineup |
-| 3 | Fix fetch_league_position.py | 🟢 Done | |
-| 4 | Fix calculate_recovery_time.py | 🟢 Done | |
-| 5 | Create fetch_team_news.py | 🟢 Done | FotMob news (empty for Israeli clubs) |
+| # | Task | Status |
+|---|------|--------|
+| 1 | Fix fetch_form.py | 🟢 Done |
+| 2 | Fix fetch_injuries.py | 🟢 Done |
+| 3 | Fix fetch_league_position.py | 🟢 Done |
+| 4 | Fix calculate_recovery_time.py | 🟢 Done |
+| 5 | Create fetch_team_news.py | 🟢 Done |
 
 ### Agent 2C: Daily Fixtures
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Create fetch_daily_fixtures.py | 🟢 Done | football-data.org, 30s timeout |
-
-**Post-wave fixes**: H2H crash on None names, accent matching (Atlético), CL-first search order, 429 rate limit handling, earliest match selection, win attribution relative to queried teams.
+| # | Task | Status |
+|---|------|--------|
+| 1 | Create fetch_daily_fixtures.py | 🟢 Done |
 
 ---
 
-## Wave 3 — Web App + Tests 🟡
+## Wave 3 — Web App + Cleanup ✅
 
 ### Agent 3A: Web App
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Wire new tools | 🟢 Done | winner_odds, team_news added |
-| 2 | Winner odds display | 🟢 Done | Israeli Toto section |
-| 3 | Team news display | 🟢 Done | News cards in team columns |
-| 4 | SSE streaming | 🟢 Done | Results appear as tools complete (post-wave fix) |
-| 5 | Concurrent execution | 🟢 Done | ThreadPoolExecutor + cache pre-warm (post-wave fix) |
-| 6 | E2E verify | 🟡 Partial | Works but bugs found by manual QA, not automated tests |
+| # | Task | Status |
+|---|------|--------|
+| 1 | Wire new tools | 🟢 Done |
+| 2 | Winner odds display | 🟢 Done |
+| 3 | Team news display | 🟢 Done |
+| 4 | SSE streaming | 🟢 Done |
+| 5 | Concurrent execution | 🟢 Done |
 
-### Agent 3B: Tests + Cleanup
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Tests | 🔴 Failed | 6/10 test files deleted as worthless (only checked dict keys) |
-| 2 | 4 surviving tests | 🟢 Done | venue_live, weather_live, fixtures_live, team_tools_live |
-| 3 | ORCHESTRATION_STATE.md | 🟢 Done | |
+> Tests (former Agent 3B) were obsolete — hardcoded dates, brittle assertions, zero coverage of Waves 4-7. Deleted. Testing redesign deferred to Wave 11.
 
 ---
 
 ## Wave 4 — LangGraph Pre-Gambling Flow ✅
 
-**All code written.** Architecture: main graph fans out via Send() to analyze_game subgraph per game. Two-level parallelism (outer=games, inner=3 intelligence calls).
-
 ### Agent 4A: Core Flow + Pipeline Nodes
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Verify state.py for LangGraph 1.x | 🟢 Done | LangGraph 1.0.3 — all imports, reducers, StateGraph compile OK |
-| 2 | Update structured_outputs.py | 🟢 Done | Added team_news to GameReport, league_position to TeamReport, removed key_players_status, fixed FotMob refs |
-| 3 | Create smart_game_picker.py | 🟢 Done | Cross-refs fixtures×winner odds, Israeli top-6 filter, gpt-5.4-mini LLM, review fixes applied |
-| 4 | Create persist_games.py | 🟢 Done | psycopg2, single transaction, RETURNING game_id, tested against real DB |
-| 5 | Create combine_reports.py | 🟢 Done | Queries game_reports + team_reports, formats combined text per game |
-| 6 | Create persist_reports.py | 🟢 Done | Single UPDATE with ANY(), marks games ready_for_betting |
-| 7 | Create graph_manager.py | 🟢 Done | StateGraph compiled, conditional edge for 4B intelligence agents insertion |
+| # | Task | Status |
+|---|------|--------|
+| 1 | Verify state.py for LangGraph 1.x | 🟢 Done |
+| 2 | Update structured_outputs.py | 🟢 Done |
+| 3 | Create smart_game_picker.py | 🟢 Done |
+| 4 | Create persist_games.py | 🟢 Done |
+| 5 | Create combine_reports.py | 🟢 Done |
+| 6 | Create persist_reports.py | 🟢 Done |
+| 7 | Create graph_manager.py | 🟢 Done |
 
 ### Agent 4B: Intelligence Agents + Subgraph Orchestration
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Create game_intelligence.py | 🟢 Done | 4 tools pre-called, 1 LLM call (gpt-5.4), writes GameReport to DB, prompt updated |
-| 2 | Create team_intelligence.py | 🟢 Done | 4 tools pre-called, 1 LLM call (gpt-5.4), writes TeamReport to DB, prompt updated |
-| 3 | Create analyze_game.py subgraph | 🟢 Done | Replaced parallel_orchestrator with proper LangGraph subgraph. 3 parallel nodes (game_intelligence, team_intel_home, team_intel_away). Main graph uses Send() fan-out. |
-| 4 | Add DB write utilities | 🟢 Done | insert_game_report, insert_team_report, update_game_status — upsert, tested against real DB |
-
-### Infrastructure
-- PostgreSQL staging DB on port 5433 (docker-compose project: soccer-smart-bet)
-- pgweb UI on port 8082
-- DB schema updated for new structured outputs (team_news, league_position)
-- psycopg2-binary + langchain-openai installed
-
-### Remaining before Wave 4 complete ✅
-- 🟢 Test smart_game_picker standalone against real APIs
-- 🟢 Test game_intelligence + team_intelligence standalone with real FotMob + LLM
-- 🟢 Run end-to-end Pre-Gambling Flow (2 CL games, with expert summary LLM call)
-- 🟢 Check LangSmith traces
+| # | Task | Status |
+|---|------|--------|
+| 1 | Create game_intelligence.py | 🟢 Done |
+| 2 | Create team_intelligence.py | 🟢 Done |
+| 3 | Create analyze_game.py subgraph | 🟢 Done |
+| 4 | Add DB write utilities | 🟢 Done |
 
 ---
 
 ## Wave 5 — Telegram Bot + Triggers + Game Reports + ISR Time ✅
 
-### Agent 5A: ISR Timezone Utility ✅
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Create timezone utility (UTC → Israel time) | 🟢 Done | `utils/timezone.py` — ISR_TZ, utc_to_isr, now_isr, format helpers |
-| 2 | Apply to game picker selected games | 🟢 Done | `_parse_kickoff()` converts UTC→ISR, label changed to ISR |
-| 3 | Apply to all existing time references | 🟢 Done | fotmob cache, winner odds tagged ISR, DB schema → TIMESTAMPTZ |
+### Agent 5A: ISR Timezone Utility
+| # | Task | Status |
+|---|------|--------|
+| 1 | Create timezone utility | 🟢 Done |
+| 2 | Apply to game picker | 🟢 Done |
+| 3 | Apply to all time references | 🟢 Done |
 
-### Agent 5B: Telegram Bot + Flow Triggers ✅
-**Prerequisite:** Omer creates bot via @BotFather → provides bot token in `.env`
+### Agent 5B: Telegram Bot + Flow Triggers
+| # | Task | Status |
+|---|------|--------|
+| 1 | Create Telegram bot client | 🟢 Done |
+| 2 | Create Pre-Gambling daily trigger | 🟢 Done |
+| 3 | Create Gambling trigger | 🟢 Done |
 
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 0 | **[USER]** Create bot via @BotFather | 🟢 Done | `@soccer_smart_bet_bot`, token + chat_id in `.env` |
-| 1 | Create Telegram bot client code | 🟢 Done | `telegram/bot.py` — async send, chat ID guard, owner-only |
-| 2 | Create Pre-Gambling daily trigger | 🟢 Done | `telegram/triggers.py` — wall-clock poller (replaced JobQueue in Wave 7) |
-| 3 | Create Gambling trigger | 🟢 Done | `trigger_pre_gambling_and_notify()` — runs flow then sends gambling time message |
-
-### Agent 5C: HTML Game Report Pages + Telegram Message Design ✅
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Static HTML report page per game | 🟢 Done | `reports/html_report.py` — self-contained HTML, dark theme, 3-column grid, responsive |
-| 2 | Design Telegram "gambling time" message | 🟢 Done | `reports/telegram_message.py` — bullets with teams, ISR time, venue, league + report link |
-| 3 | Serve HTML pages accessible from Telegram links | 🟢 Done | `reports/serve.py` — FastAPI router `GET /reports/{game_id}`, generates on-the-fly |
+### Agent 5C: HTML Game Report Pages
+| # | Task | Status |
+|---|------|--------|
+| 1 | Static HTML report per game | 🟢 Done |
+| 2 | Design Telegram gambling time message | 🟢 Done |
+| 3 | Serve HTML pages | 🟢 Done |
 
 ---
 
 ## Wave 6 — Gambling + Post-Games ✅
 
-### Agent 6A: Gambling Flow (Hybrid: Telegram handlers + LangGraph) ✅
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Update notify_telegram to send "Want to bet?" with Yes/No + deadline | 🟢 Done | Deadline = min(kickoff) - 15min, enforced in handlers |
-| 2 | Create gambling_flow/handlers.py | 🟢 Done | Full UI: game labels, 1️⃣/❌/2️⃣ buttons, per-game stakes, HTML formatting |
-| 3 | Create gambling_flow/ai_betting_agent.py | 🟢 Done | Variable stakes (50/100/200/500), justifications, independent from user |
-| 4 | Create gambling_flow/bet_verifier.py | 🟢 Done | Validates + upserts to bets table, no balance check |
-| 5 | Create gambling_flow/graph_manager.py | 🟢 Done | LangGraph: ai_bet → verify → persist → notify (LangSmith traced) |
-| 6 | Register gambling handlers in bot application | 🟢 Done | CallbackQueryHandler in triggers.py |
-| 7 | E2E test: manual pre-gambling → gambling UI → AI bet → DB | 🟢 Done | Full cycle tested with 6 live games |
+### Agent 6A: Gambling Flow
+| # | Task | Status |
+|---|------|--------|
+| 1 | "Want to bet?" with Yes/No + deadline | 🟢 Done |
+| 2 | Betting UI (1️⃣/𝕏/2️⃣ + variable stakes) | 🟢 Done |
+| 3 | AI betting agent | 🟢 Done |
+| 4 | Bet verifier | 🟢 Done |
+| 5 | Gambling graph_manager.py | 🟢 Done |
+| 6 | Register handlers in bot | 🟢 Done |
 
-### Agent 6B: Post-Games Flow ✅
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Schema: add `result` + `pnl` to bets, `games_lost` to bankroll | 🟢 Done | Applied to schema + live DB |
-| 2 | Create fetch_results.py | 🟢 Done | FotMob overviewFixtures → resolve_team matching → update games |
-| 3 | Create pnl_calculator.py | 🟢 Done | Won: stake*(odds-1), Lost: -stake. Atomic bets + bankroll update |
-| 4 | Create notify_daily_summary.py | 🟢 Done | HTML Telegram: scores, bet outcomes, bankroll totals |
-| 5 | Create post_games/graph_manager.py | 🟢 Done | LangGraph: fetch_results → pnl → notify. Entry: run_post_games_flow(game_ids) |
+### Agent 6B: Post-Games Flow
+| # | Task | Status |
+|---|------|--------|
+| 1 | Schema: result + pnl columns | 🟢 Done |
+| 2 | fetch_results.py (FotMob) | 🟢 Done |
+| 3 | pnl_calculator.py | 🟢 Done |
+| 4 | notify_daily_summary.py | 🟢 Done |
+| 5 | post_games graph_manager.py | 🟢 Done |
 
 ---
 
 ## Wave 7 — Daily Runs Tracking + Wall-Clock Scheduler ✅
 
 ### Agent 7A: daily_runs DB Table + Scheduler Fix
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Create `daily_runs` table in schema | 🟢 Done | run_date PK, timestamps, game_ids, trigger_at, bet flags, no_games_confirmed |
-| 2 | Replace APScheduler JobQueue with wall-clock poller | 🟢 Done | 60s asyncio loop via post_init, immune to macOS sleep |
-| 3 | Add startup recovery | 🟢 Done | First poller iteration fires if past trigger time with no run |
-| 4 | Wire flow nodes to write daily_runs | 🟢 Done | Pre-gambling start/complete in triggers.py, gambling_completed + post_games_trigger_at in handlers.py |
-| 5 | Post-games auto-trigger | 🟢 Done | post_games_trigger_at calculated once (max kickoff + 3h), stored in daily_runs, midnight-crossing safe |
-| 6 | No-games day handling | 🟢 Done | Interactive Yes/No Telegram prompt, answer stored in daily_runs |
+| # | Task | Status |
+|---|------|--------|
+| 1 | Create daily_runs table | 🟢 Done |
+| 2 | Wall-clock poller (replace APScheduler) | 🟢 Done |
+| 3 | Startup recovery | 🟢 Done |
+| 4 | Wire flow nodes to daily_runs | 🟢 Done |
+| 5 | Post-games auto-trigger (midnight-crossing safe) | 🟢 Done |
+| 6 | No-games day interactive prompt | 🟢 Done |
 
 ---
 
-## Wave 8 — Offline Analysis Flow ⬜ NOT STARTED
+## Wave 8 — Pre-Gambling Report Refinement ⬜ NOT STARTED
 
-Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML dashboards. Deferred until enough betting data accumulated (need weeks of daily bets, not 1 day).
+### Agent 8A: Refine Intelligence LLM Prompts
+| # | Task | Status |
+|---|------|--------|
+| 1 | Improve game_intelligence prompt | ⬜ Pending |
+| 2 | Improve team_intelligence prompt | ⬜ Pending |
+| 3 | Improve expert_report prompt | ⬜ Pending |
+| 4 | Verify no-games day robustness | ⬜ Pending |
+| 5 | Verify startup recovery | ⬜ Pending |
 
-### Agent 8A: Offline Analysis
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Design analysis queries + HTML dashboard | ⬜ Pending | Per-user, per-league, per-team, date-range filters |
-| 2 | Create query_stats.py | ⬜ Pending | SQL aggregations on bets + games |
-| 3 | Create analysis HTML reports | ⬜ Pending | Rich interactive UI, not basic text |
-| 4 | Create offline graph_manager.py | ⬜ Pending | On-demand trigger |
+### Agent 8B: Fix Tool Report Quality
+| # | Task | Status |
+|---|------|--------|
+| 1 | Review all tool outputs for completeness | ⬜ Pending |
+| 2 | Fix tools returning generic/empty data | ⬜ Pending |
 
 ---
 
-## Wave 9 — Expansion 🟡 PARTIALLY DONE
+## Wave 9 — Offline Analysis Flow ⬜ NOT STARTED
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Design analysis queries + HTML dashboard | ⬜ Pending |
+| 2 | Create query_stats.py | ⬜ Pending |
+| 3 | Create analysis HTML reports | ⬜ Pending |
+| 4 | Create offline graph_manager.py | ⬜ Pending |
+
+---
+
+## Wave 10 — Competition Expansion + Polish 🟡 PARTIALLY DONE
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Israeli Premier League | 🟢 Done | 14 teams, FotMob IDs, Hebrew names — done during bug fixes |
-| 2 | CL/EL teams | 🟢 Done | Sporting CP + main CL teams in registry |
-| 3 | Euro/WC support | 🟡 Partial | Search lists added (EC, WC), no national teams in registry |
-| 4 | FotMob IDs in registry | 🟢 Done | 104/107 teams have FotMob IDs (3 small Israeli clubs without) |
-| 5 | Full league coverage | 🟢 Done | 107 teams. All top-5 leagues fully covered with Hebrew names. |
+| 1 | Israeli Premier League | 🟢 Done | 14 teams, FotMob IDs, Hebrew names |
+| 2 | CL/EL teams | 🟢 Done | Main CL teams in registry |
+| 3 | Euro/WC national teams | ⬜ Pending | Search lists added, no national teams in registry |
+| 4 | FotMob IDs in registry | 🟢 Done | 104/107 teams have FotMob IDs |
+| 5 | Full league coverage | 🟢 Done | 107 teams, all top-5 leagues with Hebrew names |
 | 6 | Final documentation | ⬜ Pending | |
-| 7 | Database backup to disk | ⬜ Pending | pg_dump to ~/backups/soccersmartbet/ with date-stamped filenames |
+| 7 | Database backup to disk | ⬜ Pending | |
+
+---
+
+## Wave 11 — Testing Scheme ⬜ TBD
+
+To be planned separately.
 
 ---
 

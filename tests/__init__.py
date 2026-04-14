@@ -1,1 +1,0 @@
-"""SoccerSmartBet test suite"""
