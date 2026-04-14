@@ -1,6 +1,6 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-13 | **Branch:** main
+> **Last updated:** 2026-04-14 | **Branch:** main
 
 ## Summary
 
@@ -11,14 +11,14 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | What | Status |
 |------|--------|
 | 11 data tools (FotMob, football-data.org, The Odds API, winner.co.il) | Working |
-| Team registry (83 teams, Hebrew, fuzzy match, Israeli league) | Working |
+| Team registry (107 teams, Hebrew, fuzzy match, top-5 leagues + Israeli) | Working, thread-safe with reload |
 | Web app tool tester (SSE streaming, concurrent, dual odds) | Working |
 | DB schema (7 tables) | Running on PostgreSQL (docker-compose, port 5433, TZ=Asia/Jerusalem), pgweb on 8082 |
 | State + prompts + structured outputs | Updated and wired into graph |
 | Pre-Gambling LangGraph flow | **Working E2E** — wall-clock scheduler, daily automation |
 | Telegram bot + triggers + ISR time + game reports | **Working** — tested E2E, notify node in graph |
 | Gambling Flow (AI bets + validation) | **Working E2E** — Telegram UI + LangGraph AI betting + verification |
-| Post-Games Flow (results + P&L) | **Working E2E** — FotMob results, PnL calculator, Telegram summary, auto-triggered |
+| Post-Games Flow (results + P&L) | **Working E2E** — FotMob overviewFixtures results, PnL calculator, Telegram summary, auto-triggered |
 | Daily automation (wall-clock scheduler) | **Working E2E** — full cycle proven 2026-04-12: pre-gambling→gambling→post-games |
 | Offline Analysis Flow | **NOT BUILT** — directory doesn't exist |
 
@@ -186,7 +186,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 |---|------|--------|-------|
 | 0 | **[USER]** Create bot via @BotFather | 🟢 Done | `@soccer_smart_bet_bot`, token + chat_id in `.env` |
 | 1 | Create Telegram bot client code | 🟢 Done | `telegram/bot.py` — async send, chat ID guard, owner-only |
-| 2 | Create Pre-Gambling daily trigger | 🟢 Done | `telegram/triggers.py` — daily job at 13:00 ISR via JobQueue |
+| 2 | Create Pre-Gambling daily trigger | 🟢 Done | `telegram/triggers.py` — wall-clock poller (replaced JobQueue in Wave 7) |
 | 3 | Create Gambling trigger | 🟢 Done | `trigger_pre_gambling_and_notify()` — runs flow then sends gambling time message |
 
 ### Agent 5C: HTML Game Report Pages + Telegram Message Design ✅
@@ -215,7 +215,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 1 | Schema: add `result` + `pnl` to bets, `games_lost` to bankroll | 🟢 Done | Applied to schema + live DB |
-| 2 | Create fetch_results.py | 🟢 Done | football-data.org → resolve_team matching → update games |
+| 2 | Create fetch_results.py | 🟢 Done | FotMob overviewFixtures → resolve_team matching → update games |
 | 3 | Create pnl_calculator.py | 🟢 Done | Won: stake*(odds-1), Lost: -stake. Atomic bets + bankroll update |
 | 4 | Create notify_daily_summary.py | 🟢 Done | HTML Telegram: scores, bet outcomes, bankroll totals |
 | 5 | Create post_games/graph_manager.py | 🟢 Done | LangGraph: fetch_results → pnl → notify. Entry: run_post_games_flow(game_ids) |
@@ -257,8 +257,8 @@ Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML das
 | 1 | Israeli Premier League | 🟢 Done | 14 teams, FotMob IDs, Hebrew names — done during bug fixes |
 | 2 | CL/EL teams | 🟢 Done | Sporting CP + main CL teams in registry |
 | 3 | Euro/WC support | 🟡 Partial | Search lists added (EC, WC), no national teams in registry |
-| 4 | FotMob IDs in registry | 🟢 Done | All 83 teams have FotMob IDs where known |
-| 5 | Full league coverage | 🟡 Partial | 83 teams. ~62 winner.co.il teams in major leagues still unresolved. |
+| 4 | FotMob IDs in registry | 🟢 Done | 104/107 teams have FotMob IDs (3 small Israeli clubs without) |
+| 5 | Full league coverage | 🟢 Done | 107 teams. All top-5 leagues fully covered with Hebrew names. |
 | 6 | Final documentation | ⬜ Pending | |
 | 7 | Database backup to disk | ⬜ Pending | pg_dump to ~/backups/soccersmartbet/ with date-stamped filenames |
 
@@ -266,4 +266,4 @@ Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML das
 
 ## Known Issues / Tech Debt
 
-All tracked as GitHub issues: #45–#52, #44. See `gh issue list --repo Omer-Pinto/SoccerSmartBet`.
+All tracked as GitHub issues: #44–#56. See `gh issue list --repo Omer-Pinto/SoccerSmartBet`.
