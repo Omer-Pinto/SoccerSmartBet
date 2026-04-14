@@ -36,7 +36,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 7/11 waves done
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone |
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
-| 8 | ⬜ Not Started | Pre-gambling report refinement (LLM prompts + tool quality) |
+| 8 | ⏳ Waiting | Pre-gambling report refinement + robustness — waiting for Omer input |
 | 9 | ⬜ Not Started | Offline analysis — deferred until enough data accumulated |
 | 10 | 🟡 Partial | Expansion: Israeli league + CL/EL done. Euro/WC + backup pending. |
 | 11 | ⬜ TBD | Testing scheme — to be planned separately |
@@ -209,22 +209,14 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 7/11 waves done
 
 ---
 
-## Wave 8 — Pre-Gambling Report Refinement ⬜ NOT STARTED
+## Wave 8 — Pre-Gambling Report Refinement + Robustness ⏳ WAITING FOR OMER INPUT
 
-### Agent 8A: Refine Intelligence LLM Prompts
-| # | Task | Status |
-|---|------|--------|
-| 1 | Improve game_intelligence prompt | ⬜ Pending |
-| 2 | Improve team_intelligence prompt | ⬜ Pending |
-| 3 | Improve expert_report prompt | ⬜ Pending |
-| 4 | Verify no-games day robustness | ⬜ Pending |
-| 5 | Verify startup recovery | ⬜ Pending |
-
-### Agent 8B: Fix Tool Report Quality
-| # | Task | Status |
-|---|------|--------|
-| 1 | Review all tool outputs for completeness | ⬜ Pending |
-| 2 | Fix tools returning generic/empty data | ⬜ Pending |
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Alert on missing post-games results (#55) | ⬜ Pending | Bot silently skips — must alert |
+| 2 | Verify no-games day robustness | ⬜ Pending | From Wave 7 |
+| 3 | Verify startup recovery | ⬜ Pending | From Wave 7 |
+| — | Report refinement tasks | ⏳ Waiting | Omer will define |
 
 ---
 

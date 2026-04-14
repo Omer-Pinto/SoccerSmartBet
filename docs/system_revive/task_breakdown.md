@@ -352,34 +352,16 @@ APScheduler's `AsyncIOScheduler` (used by python-telegram-bot's `JobQueue`) reli
 
 ---
 
-## Wave 8 — Pre-Gambling Report Refinement (1-2 agents)
+## Wave 8 — Pre-Gambling Report Refinement + Robustness ⏳ WAITING FOR OMER INPUT
 
-Refine the quality of pre-gambling analysis reports sent to the user.
+Scope and tasks to be defined by Omer. Known items so far:
 
-### Agent 8A: Refine Intelligence LLM Prompts
-**Type:** `python-pro`
-**Scope:** `src/soccersmartbet/pre_gambling_flow/agents/`, `src/soccersmartbet/pre_gambling_flow/prompts.py`
-
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | Improve game_intelligence prompt | More actionable betting insights | Current output too generic for an expert user |
-| 2 | Improve team_intelligence prompt | Focus on what Omer doesn't already know | Injury impact, tactical changes, not basic stats |
-| 3 | Improve expert_report prompt | Sharper pre-match verdict | Clear recommendation with confidence, not wishy-washy |
-| 4 | Verify no-games day doesn't crash or leave orphan state | Robustness check | Moved from Wave 7 |
-| 5 | Verify startup recovery fires flow on bot restart | Robustness check | Moved from Wave 7 |
-
-### Agent 8B: Fix Tool Report Quality
-**Type:** `python-pro`
-**Scope:** `src/soccersmartbet/pre_gambling_flow/tools/`
-
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | Review all tool outputs for completeness | Ensure tools return rich data, not stubs | Some tools may return shallow data |
-| 2 | Fix any tools returning generic/empty data | Better error messages, richer responses | Team news empty for some clubs, H2H rate limited |
-
-### After Wave 8
-- Compare report quality before/after on the same games
-- **CHECKPOINT**: Reports provide genuine betting edge to an expert user
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Post-games must alert on missing results (issue #55) | ⬜ Pending | Bot silently skips games with no FotMob match — must alert, not swallow |
+| 2 | Verify no-games day doesn't crash or leave orphan state | ⬜ Pending | Moved from Wave 7 |
+| 3 | Verify startup recovery fires flow on bot restart | ⬜ Pending | Moved from Wave 7 |
+| — | Report refinement tasks | ⏳ Waiting | Omer will define scope |
 
 ---
 
