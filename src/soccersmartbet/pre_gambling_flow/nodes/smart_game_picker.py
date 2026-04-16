@@ -33,6 +33,10 @@ PICKER_MODEL = os.getenv("SMART_PICKER_MODEL", "gpt-5.4-mini")
 
 _ISRAELI_LEAGUE_ID = 127
 
+# Hebrew league names on winner.co.il that correspond to UEFA competitions not
+# covered by the football-data.org free tier.
+_WINNER_EUROPEAN_LEAGUES = {"הליגה האירופית", "ליגת הועידה"}  # Europa League, Conference League
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -90,6 +94,82 @@ def _build_winner_index(
         key = (_canonical(event["home_team"]), _canonical(event["away_team"]))
         index[key] = event
     return index
+
+
+def _parse_winner_kickoff(commence_str: str) -> tuple[str, str]:
+    """Parse winner.co.il commence_time (ISO with +03:00 offset) into (YYYY-MM-DD, HH:MM).
+
+    Args:
+        commence_str: ISO-8601 string, e.g. ``"2026-04-16T19:44:00+03:00"``.
+
+    Returns:
+        A ``(date, time)`` tuple in ISR wall-clock time, or ``("", "")`` on failure.
+    """
+    if not commence_str:
+        return ("", "")
+    try:
+        dt = utc_to_isr(commence_str)
+        return (dt.strftime("%Y-%m-%d"), dt.strftime("%H:%M"))
+    except (ValueError, AttributeError):
+        return ("", "")
+
+
+def _fallback_winner_european(
+    winner_events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Extract EL/ECL games directly from winner events when cross-ref yields nothing.
+
+    Only includes events where both team names resolve to English canonical names
+    via :func:`resolve_team`, so downstream LLM prompts receive consistent names.
+
+    Args:
+        winner_events: Raw event dicts from :func:`fetch_all_winner_odds`.
+
+    Returns:
+        List of eligible-game dicts in the same shape produced by the normal
+        cross-reference loop, with ``match_id`` set to ``None``.
+    """
+    eligible: list[dict[str, Any]] = []
+    for event in winner_events:
+        league_he: str = event.get("league", "")
+        if league_he not in _WINNER_EUROPEAN_LEAGUES:
+            continue
+
+        home_canonical = resolve_team(event["home_team"])
+        away_canonical = resolve_team(event["away_team"])
+
+        if not home_canonical or not away_canonical:
+            logger.info(
+                "smart_game_picker: EL/ECL skip — unresolved team(s): %s [%s] vs %s [%s]",
+                event["home_team"],
+                home_canonical,
+                event["away_team"],
+                away_canonical,
+            )
+            continue
+
+        match_date, kickoff_time = _parse_winner_kickoff(event.get("commence_time", ""))
+        league_en = (
+            "Europa League" if league_he == "הליגה האירופית" else "Conference League"
+        )
+
+        eligible.append(
+            {
+                "match_id": None,
+                "home_team": home_canonical,
+                "away_team": away_canonical,
+                "competition": league_en,
+                "match_date": match_date,
+                "kickoff_time": kickoff_time,
+                "venue": "",
+                "odds_home": event["odds_home"],
+                "odds_draw": event["odds_draw"],
+                "odds_away": event["odds_away"],
+                "winner_event": event,
+            }
+        )
+
+    return eligible
 
 
 def _is_israeli_league(competition: str) -> bool:
@@ -186,6 +266,16 @@ def smart_game_picker(state: PreGamblingState) -> dict:  # noqa: ARG001
         )
 
     logger.info("smart_game_picker: %d eligible games", len(eligible))
+
+    # Fallback: football-data.org free tier excludes EL/ECL; on those days
+    # the cross-ref loop produces nothing even though winner has the events.
+    if not eligible:
+        eligible = _fallback_winner_european(winner_events)
+        if eligible:
+            logger.info(
+                "smart_game_picker: %d eligible games from winner EL/ECL fallback",
+                len(eligible),
+            )
 
     # Assemble top-6 names for the prompt
     top6_display = ", ".join(sorted(top6_israeli)) if top6_israeli else "unavailable"

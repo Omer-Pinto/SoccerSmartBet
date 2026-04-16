@@ -175,7 +175,7 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 
 ---
 
-## Wave 3 — Web App + Tests + Cleanup (2 agents, ~12 files)
+## Wave 3 — Web App + Cleanup (1 agent)
 
 ### Agent 3A: Fix Web App Tool Tester
 **Type:** `fullstack-developer`
@@ -189,20 +189,9 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 | 4 | Add enrichment data display | Show any new tools from curation | New sections as needed |
 | 5 | Verify end-to-end | Test with real teams at localhost:8000 | |
 
-### Agent 3B: Update Tests + Cleanup
-**Type:** `test-automator`
-**Scope:** `tests/`, `.env.example`, `status/`
-
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | Update all existing tool tests | Adapt to new FotMob client | test_venue, test_weather, test_form, test_injuries, test_recovery |
-| 2 | Create tests for new tools | winner odds, daily fixtures, team news | One test file per tool |
-| 3 | Update `test_all_tools.py` | Add all new tools to integration test | Test all tool calls |
-| 4 | Clean `.env.example` | Remove dead `APIFOOTBALL_API_KEY` | |
-| 5 | Update `ORCHESTRATION_STATE.md` | Mark Batch 6 as REVERTED, add revival status | |
+> **Tests**: Original Wave 3B (test suite) was obsolete — hardcoded dates, brittle assertions, no coverage of Waves 4-7. All tests deleted. Testing redesign deferred to Wave 11.
 
 ### After Wave 3
-- Run full integration test: `uv run python tests/pre_gambling_flow/tools/integration/test_all_tools.py "Arsenal" "Chelsea"`
 - Start web app: `uv run python src/web_app/main.py` and test at localhost:8000
 - **CHECKPOINT**: All tools working, web app live. Everything below this wave needs working tools.
 
@@ -357,19 +346,30 @@ APScheduler's `AsyncIOScheduler` (used by python-telegram-bot's `JobQueue`) reli
 | 6 | Handle no-games days gracefully | Picker returns 0 games | Send "No games today" Telegram message, skip gambling + post-games, mark daily_runs as complete |
 
 ### After Wave 7
-- Verify: close laptop lid at 12:55, wake at 13:10 → flow fires within 60s of wake
-- Verify: restart bot at 14:00 → startup recovery fires flow immediately
-- Verify: `daily_runs` table populated correctly after flow run
-- Verify: no-games day doesn't crash or leave orphan state
-- **CHECKPOINT**: System runs daily without manual intervention
+- 🟢 Verify: close laptop lid, wake after trigger → flow fires within 60s (proven 2026-04-12)
+- 🟢 Verify: `daily_runs` table populated correctly after flow run (proven daily since 2026-04-12)
+- Remaining verification items moved to Wave 8.
 
 ---
 
-## Wave 8 — Offline Analysis Flow ⬜ NOT STARTED
+## Wave 8 — Pre-Gambling Report Refinement + Robustness ⏳ WAITING FOR OMER INPUT
+
+Scope and tasks to be defined by Omer. Known items so far:
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1 | Post-games must alert on missing results (issue #55) | ⬜ Pending | Bot silently skips games with no FotMob match — must alert, not swallow |
+| 2 | Verify no-games day doesn't crash or leave orphan state | ⬜ Pending | Moved from Wave 7 |
+| 3 | Verify startup recovery fires flow on bot restart | ⬜ Pending | Moved from Wave 7 |
+| — | Report refinement tasks | ⏳ Waiting | Omer will define scope |
+
+---
+
+## Wave 9 — Offline Analysis Flow ⬜ NOT STARTED
 
 Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML dashboards. Deferred until enough betting data accumulated.
 
-### Agent 8A: Offline Analysis
+### Agent 9A: Offline Analysis
 **Type:** `fullstack-developer`
 **Scope:** `src/soccersmartbet/offline_analysis_flow/` (new directory)
 
@@ -382,22 +382,24 @@ Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML das
 
 ---
 
-## Wave 9 — Competition Expansion + Polish (1 agent)
+## Wave 10 — Competition Expansion + Polish (1 agent)
 
-### Agent 9A: League Expansion + Final Polish
+### Agent 10A: League Expansion + Final Polish
 **Type:** `python-pro`
 **Scope:** `db/seeds/`, `src/soccersmartbet/team_registry.py`, documentation
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
-| 1 | Seed Israeli Premier League teams | winner.co.il "ליגת Winner" teams | Hebrew↔English mapping |
-| 2 | Seed Champions League / Europa League teams | football-data.org CL/EL | Team IDs + aliases |
-| 3 | Add Euro / World Cup national team support | football-data.org EC/WC | Seasonal activation |
-| 4 | Add FotMob IDs to team registry | Cross-reference FotMob team search | Enables direct FotMob lookups |
-| 5 | Final documentation update | Update README, ORCHESTRATION_STATE | Reflect current system state |
-| 6 | Database backup to disk | Automated pg_dump to a local backup directory | Cron or script that dumps the staging DB to `~/backups/soccersmartbet/` with date-stamped filenames. Must survive docker-compose restarts. |
+| 1 | Add Euro / World Cup national team support | football-data.org EC/WC | Seasonal activation |
+| 2 | Final documentation update | Update README, ORCHESTRATION_STATE | Reflect current system state |
+| 3 | Database backup to disk | Automated pg_dump to a local backup directory | Cron or script that dumps the staging DB to `~/backups/soccersmartbet/` with date-stamped filenames. Must survive docker-compose restarts. |
 
-### After Wave 9
+### After Wave 10
 - Full system test across multiple leagues
-- Verify: Israeli league, CL, name resolution across all sources
 - Verify: DB backup file exists and is restorable
+
+---
+
+## Wave 11 — Testing Scheme ⬜ TBD
+
+Full testing redesign. Scope, strategy, and tooling to be planned separately.
