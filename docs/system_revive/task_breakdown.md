@@ -427,10 +427,25 @@ Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism ru
 
 **8F runs in parallel with 8A–8E because it is read-only and does not modify code. Its output steers Wave 9's scope.**
 
+### Agent 8G: H2H Rate-Limit Mitigation
+**Type:** `python-pro`
+**Scope:** `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_h2h.py` + its orchestration caller (wherever H2H is invoked per game in the pre-gambling flow); optional alternative-source module if a swap is warranted.
+
+Context: 2026-04-18 pre-gambling report had 7 games. H2H appears empty for most/all of them, and the leading hypothesis is rate limiting by the H2H source (football-data.org) when N H2H calls fire within a ~1-minute window. Pre-gambling can acceptably extend to 3–4 minutes if that buys reliable H2H.
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Confirm the hypothesis | Logs + response inspection | Reproduce N concurrent/back-to-back H2H calls and capture actual status codes, response bodies, and timing. Distinguish "429 / 403 / empty payload / truncated list" so we know what we're working around. |
+| 2 | Evaluate mitigation options | Design note in the task output | At minimum: (a) serialize H2H calls with inter-call delay, (b) token-bucket / semaphore limiter tuned to source's published or observed limits, (c) switch/fallback to a different H2H source (FotMob, other). Recommend one based on reliability and implementation cost. |
+| 3 | Implement chosen approach | fetch_h2h.py and/or its caller | Keep total pre-gambling flow under ~4 minutes for N≤10 games. If pacing is the fix, make the pacing value configurable. If source-swap is the fix, preserve the current return shape so downstream consumers don't break. |
+| 4 | Respect existing verification constraint | No pytest reinstatement | Verify on a live pre-gambling run, not via synthetic tests. Tools tests were intentionally removed and stay removed. |
+| 5 | Coordinate with 8F / 9A | Avoid double-fixing | If 8F's diagnosis points to a different root cause (prompt/model, not rate limiting), defer implementation to 9A and leave 8G as the confirmation step. |
+
 ### After Wave 8
 - Agent prompts + structured outputs rewritten; H2H is a first-class structured field.
 - Post-games alerts on missing results; no-games day + startup recovery verified.
 - Wave 9 contract is frozen: 9A's scope known, 9B's input contract known, no file collisions.
+- H2H rate-limit root cause confirmed; mitigation implemented or explicitly deferred to 9A with evidence.
 
 ---
 

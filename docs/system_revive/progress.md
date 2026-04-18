@@ -221,6 +221,7 @@ All 5 agents touch disjoint files and are safe to dispatch in parallel. Original
 | 8D | No-Games-Day Robustness Verification | python-pro | ⬜ Pending | Verify `daily_runs` closes cleanly, "No games today" message sent. |
 | 8E | Startup Recovery Verification | python-pro | ⬜ Pending | Verify bot restart past 13:00 ISR fires pre-gambling flow immediately. |
 | 8F | Wave 9 Contract Investigation | python-pro | ⬜ Pending | Read-only. Diagnose H2H empty bug; freeze Wave 9 contract in `wave9_contract.md`. (FotMob cup-tie metadata verification moved to Wave 10.) |
+| 8G | H2H Rate-Limit Mitigation | python-pro | ⬜ Pending | Confirm rate-limit hypothesis (7-game run had empty H2H), evaluate pacing vs source-swap, implement. Budget: pre-gambling flow up to ~4 min OK. |
 
 ---
 
