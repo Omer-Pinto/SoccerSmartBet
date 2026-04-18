@@ -403,15 +403,11 @@ Context: 8A confirmed rate limiting by football-data.org — up to 63 requests f
 | 5 | Timeout bump | `fetch_h2h.py` | `TIMEOUT = 30`, env override `FDORG_H2H_TIMEOUT_S`. |
 | 6 | No pytest reinstatement | Verification | Smoke imports + graph compile only. Tool tests stay removed. Verify end-to-end on a real pre-gambling run once 8E lands. |
 
-### Agent 8D: H2H Fix Application (conditional)
-**Type:** `python-pro`
-**Scope:** determined by 8A's diagnosis + 8C's outcome. Likely `agents/game_intelligence.py` DB-write path, `fetch_h2h.py`, or the H2H structured field population logic.
+### Agent 8D: H2H Fix Application — SKIPPED
 
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | Apply residual fix | Whichever layer 8A identified | Populate the H2H aggregate structured field when source data exists. |
-| 2 | Preserve "data unavailable" signal | Same layer | When H2H is truly missing, carry an explicit empty/null marker so the renderer shows "H2H: No data available." |
-| 3 | Skip if already resolved | Coordinate | If 8A + 8B + 8C together fully resolve H2H, skip this agent. |
+Superseded by 8B + 8C. 8B's `_build_h2h_aggregate` populates the structured `H2HAggregate` field from raw tool output and returns `None` when source data is missing; 8C made `fetch_h2h` reliable for supported leagues and graceful for the rest. No residual layer needs a fix.
+
+End-to-end verification happens naturally on the first pre-gambling run after 8E's live-DB migration.
 
 ### Agent 8E: Report HTML Full Overhaul (5-inch mobile, table-comparison)
 **Type:** `ui-designer` (design spec produced 2026-04-17) + `python-pro` (implementation)
