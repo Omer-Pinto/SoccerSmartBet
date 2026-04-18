@@ -21,8 +21,6 @@ import logging
 import os
 from typing import Any, Dict
 
-logger = logging.getLogger(__name__)
-
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
@@ -36,6 +34,8 @@ from soccersmartbet.pre_gambling_flow.structured_outputs import (
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_h2h import fetch_h2h
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_venue import fetch_venue
 from soccersmartbet.pre_gambling_flow.tools.game.fetch_weather import fetch_weather
+
+logger = logging.getLogger(__name__)
 
 INTELLIGENCE_MODEL = os.getenv("INTELLIGENCE_MODEL", "gpt-5.4")
 
@@ -195,6 +195,7 @@ def run_game_intelligence(
     away_team: str,
     match_date: str,
     kickoff_time: str,
+    league: str | None = None,
 ) -> GameReport:
     """Run the Game Intelligence Agent for a single match.
 
@@ -218,7 +219,7 @@ def run_game_intelligence(
     )
 
     # Step 1: Fetch raw data.
-    h2h_data = fetch_h2h(home_team, away_team)
+    h2h_data = fetch_h2h(home_team, away_team, league=league)
     logger.info("run_game_intelligence: fetch_h2h done, error=%s", h2h_data.get("error"))
 
     venue_data = fetch_venue(home_team, away_team)

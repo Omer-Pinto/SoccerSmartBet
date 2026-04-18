@@ -58,18 +58,15 @@ Per-game call volume today: up to 8 competition-scan calls (to find the match ID
 
 ## 4. 8C Scope — Rate-Limited `fetch_h2h`
 
-Thread pool is the concurrency model (LangGraph sync `invoke` path), so `threading.Lock` / `threading.Semaphore` — not asyncio primitives.
+LangGraph-native parallelization preserved: games fan out via `Send()`, each game's `fetch_h2h` fires independently, each call handles its own 429 with exponential backoff. No shared rate-limiter state, no global queues, no cross-game serialization.
 
-Changes:
-1. **League hint.** Add `league: str | None` to `fetch_h2h` signature. Thread `game["league"]` through `Send()` payload → `AnalyzeGameState` → `run_game_intelligence` → `fetch_h2h`. When present, scan only that one competition.
-2. **Per-run competition cache.** Module-level `dict[str, list[match]]` keyed by competition code, guarded by `threading.Lock`. Cleared at the start of each pre-gambling run via `reset_h2h_run_cache()` called from `graph_manager.run_pre_gambling_flow`.
-3. **Token-bucket rate limiter.** Module-level, thread-safe. Default 8 tokens/minute (safety margin below the 10/min free-tier cap). All HTTP calls in `fetch_h2h` acquire one token before firing.
-4. **Exponential backoff with jitter on 429.** `sleep = base * 2**attempt + uniform(0,1)`, capped at 32s, max 5 retries. Applied to both competition-scan and final H2H call.
-5. **Timeout bump.** `TIMEOUT` 10s → 30s (matches free-tier latency of 12–15s normal, worse under load).
-6. **Graceful degradation.** On retry-exhaustion, return `{"error": "Rate limit exceeded after N retries"}` — existing `error`-dict contract preserved. No crashes.
-7. **Env vars for all thresholds.** `FDORG_MAX_REQ_PER_MIN`, `FDORG_BACKOFF_BASE_S`, `FDORG_BACKOFF_MAX_S`, `FDORG_MAX_RETRIES`, `FDORG_H2H_TIMEOUT_S`.
+Per Omer's spec:
+1. **League hint.** Add `league: str | None` to `fetch_h2h` signature. Thread `game["league"]` through `Send()` payload → `AnalyzeGameState` → `run_game_intelligence` → `fetch_h2h`. When present, scan only that one competition (pure data optimization to reduce call volume — not a coordination mechanism). Leagues football-data.org doesn't cover (EL, ECL, Israeli Premier League, etc.) return the graceful-degradation dict immediately — no API hit, no fallback scan.
+2. **Exponential backoff on 429.** Per-call, independent per game. Sleep sequence: **5s → 10s → 20s → 40s → 80s**. After the 80s retry still fails, return the graceful-degradation dict. Applied to both competition-scan and final H2H call.
+3. **Timeout bump.** `TIMEOUT` 10s → 30s. Env-var override `FDORG_H2H_TIMEOUT_S`.
+4. **Graceful degradation.** On retry exhaustion or unsupported league, preserve the existing `error`-dict shape with `error="couldn't retrieve h2h due to API issues"` — exact string. Never crash.
 
-Resulting call volume for a typical 7-game run (4 PL + 2 SA + 1 CL): 3 unique competition fetches + 7 H2H = **10 calls**, spread by the limiter across ~75 seconds. Under the free-tier cap.
+No token buckets, no threading locks, no semaphores, no shared-state caches. LangGraph owns the concurrency; each `fetch_h2h` is a stateless I/O call that survives rate limits by its own backoff.
 
 No new dependencies.
 

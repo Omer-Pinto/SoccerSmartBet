@@ -1,6 +1,6 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-18 | **Branch:** major_report_refactor
+> **Last updated:** 2026-04-19 | **Branch:** major_report_refactor
 
 ## Summary
 
@@ -37,7 +37,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜] 7/13 waves done
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone |
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
-| 8 | 🔵 In Progress | Report refactor track (sequential): 8A → 8B → 8C → 8D → 8E. 8A + 8B done. |
+| 8 | 🔵 In Progress | Report refactor track (sequential): 8A → 8B → 8C → 8D → 8E. 8A + 8B + 8C done. |
 | 9 | ⬜ Not Started | Robustness carryovers: 9A missing-results alert, 9B no-games verify, 9C startup-recovery verify. Independent of Wave 8. |
 | 10 | ⬜ Not Started | Offline Analysis Flow — multi-day gambling view. Deferred until enough betting data accumulated. |
 | 11 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
@@ -220,8 +220,8 @@ Execution order: **8A → 8B → 8C → 8D → 8E.**
 |---|-------|------|--------|
 | 8A | Contract Investigation + H2H Diagnosis | python-pro | 🟢 Done |
 | 8B | Tighten Agent Prompts + Structured Outputs | ai-engineer | 🟢 Done |
-| 8C | H2H Rate-Limit Mitigation | python-pro | ⬜ Pending |
-| 8D | H2H Fix Application (conditional) | python-pro | ⬜ Pending |
+| 8C | H2H Rate-Limit Mitigation | python-pro | 🟢 Done | League hint threaded end-to-end (state → Send → game_intelligence → fetch_h2h). 1 competition scan + 1 H2H per game. Per-call exponential backoff `[5,10,20,40,80]`. Unsupported league or retry exhaustion → `"couldn't retrieve h2h due to API issues"`. Zero shared state — no buckets, no locks, no caches. LangGraph `Send()` owns parallelism. |
+| 8D | H2H Fix Application (conditional) | python-pro | ⬜ Pending | Likely skippable: 8B built `_build_h2h_aggregate`; 8C populates H2H reliably for supported leagues. Confirm on a real pre-gambling run once 8E migration lands. |
 | 8E | Report HTML Full Overhaul | ui-designer + python-pro | ⬜ Pending |
 
 ---

@@ -80,6 +80,7 @@ def fan_out_to_analysis(state: PreGamblingState) -> list[Send]:
                     "away_team": game["away_team"],
                     "match_date": game["match_date"],
                     "kickoff_time": game["kickoff_time"],
+                    "league": game["league"],
                     "analyzed_game_ids": [],
                 },
             )

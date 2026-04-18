@@ -390,17 +390,18 @@ Tightly-coupled chain: diagnose → schema → data-source fix → residual fix 
 
 ### Agent 8C: H2H Rate-Limit Mitigation
 **Type:** `python-pro`
-**Scope:** `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_h2h.py` + its orchestration caller; optional alternative-source module if a swap is warranted.
+**Scope:** `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_h2h.py` + the LangGraph wiring that threads the league hint into it.
 
-Context: leading hypothesis is rate limiting by football-data.org when N H2H calls fire within a ~1-minute window. Pre-gambling can acceptably extend to 3–4 minutes if that buys reliable H2H.
+Context: 8A confirmed rate limiting by football-data.org — up to 63 requests fired in seconds against a 10 req/min free-tier cap. Pre-gambling can acceptably extend to 3–4 minutes if that buys reliable H2H. Omer's explicit design directive: keep LangGraph-native parallelization, no shared rate-limiter state, no threading primitives, no cross-game coordination.
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
-| 1 | Confirm the hypothesis | Logs + response inspection | Reproduce N concurrent/back-to-back H2H calls and capture status codes, bodies, timing. Distinguish "429 / 403 / empty payload / truncated list". |
-| 2 | Evaluate mitigation options | Design note in the task output | At minimum: (a) serialize H2H calls with inter-call delay, (b) token-bucket / semaphore limiter tuned to observed limits, (c) switch/fallback to a different H2H source (FotMob, other). Recommend one based on reliability and implementation cost. |
-| 3 | Implement chosen approach | fetch_h2h.py and/or its caller | Keep total pre-gambling flow under ~4 minutes for N≤10 games. If pacing: make the value configurable. If source-swap: preserve return shape. |
-| 4 | No pytest reinstatement | Verification | Verify on a live pre-gambling run (once 8E lands). Tool tests stay removed. |
-| 5 | Skip if 8A rules out rate limiting | Coordinate | If root cause is elsewhere, implementation shifts to 8D and 8C becomes a no-op confirmation step. |
+| 1 | League hint threaded end-to-end | `state.py`, `graph_manager.py`, `nodes/analyze_game.py`, `agents/game_intelligence.py`, `fetch_h2h.py` | Add `league: str` to `AnalyzeGameState`, include in `Send()` payload, forward through `run_game_intelligence` to `fetch_h2h`. |
+| 2 | 1 scan + 1 H2H per game | `fetch_h2h.py` | Module-level `LEAGUE_CODE_MAP` (PL/PD/SA/BL1/FL1/CL/EC/WC/ELC/DED/PPL/BSA). Hint present + supported → scan exactly that one competition. No hint or unsupported league → graceful-degradation dict, no API hit. |
+| 3 | Per-call exponential backoff on 429 | `fetch_h2h.py::_get_with_backoff` | Sleep sequence `[5, 10, 20, 40, 80]`. Applied independently to the scan GET and the final H2H GET. After the 80s attempt still 429 → return `None` → caller maps to graceful dict. No jitter, no shared state. |
+| 4 | Graceful degradation string | `fetch_h2h.py::_graceful` | On retry exhaustion or unsupported league, `error="couldn't retrieve h2h due to API issues"` — exact string. Other existing error paths unchanged. |
+| 5 | Timeout bump | `fetch_h2h.py` | `TIMEOUT = 30`, env override `FDORG_H2H_TIMEOUT_S`. |
+| 6 | No pytest reinstatement | Verification | Smoke imports + graph compile only. Tool tests stay removed. Verify end-to-end on a real pre-gambling run once 8E lands. |
 
 ### Agent 8D: H2H Fix Application (conditional)
 **Type:** `python-pro`
