@@ -36,9 +36,9 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜] 7/12 waves done
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone |
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
-| 8 | 🔵 Scoped | Independent foundations — 6 parallel agents (8A–8F): cup-tie helper, prompts/outputs rewrite, missing-results alert, no-games day verify, startup recovery verify, Wave 9 contract investigation |
+| 8 | 🔵 Scoped | Independent foundations — 5 parallel agents (8B–8F): prompts/outputs rewrite, missing-results alert, no-games day verify, startup recovery verify, Wave 9 contract investigation |
 | 9 | 🔵 Scoped | Report overhaul consumers — 2 agents (9A H2H fix conditional, 9B HTML overhaul), blocked by Wave 8 |
-| 10 | ⬜ Not Started | Offline analysis — deferred until enough data accumulated |
+| 10 | ⬜ Not Started | Offline analysis + cup-tie first-leg helper (deferred 2026-04-18 — no 2-legged cup ties on schedule to validate) |
 | 11 | 🟡 Partial | Expansion: Israeli league + CL/EL done. Euro/WC + backup pending. |
 | 12 | ⬜ TBD | Testing scheme — to be planned separately |
 
@@ -210,40 +210,50 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜] 7/12 waves done
 
 ---
 
-## Wave 8 — Independent Foundations 🔵 SCOPED (6 parallel agents)
+## Wave 8 — Independent Foundations 🔵 SCOPED (5 parallel agents)
 
-All 6 agents touch disjoint files and are safe to dispatch in parallel. Original Wave 8 mixed producers and consumers — that was corrected by splitting into Wave 8 (foundations) + Wave 9 (consumers).
+All 5 agents touch disjoint files and are safe to dispatch in parallel. Original Wave 8 mixed producers and consumers — that was corrected by splitting into Wave 8 (foundations) + Wave 9 (consumers). Cup-tie helper (formerly 8A) moved to Wave 10 on 2026-04-18 — no 2-legged cup ties currently on schedule.
 
 | # | Agent | Type | Status | Notes |
 |---|-------|------|--------|-------|
-| 8A | Cup-Tie First-Leg Context helper | python-pro | ⬜ Pending | FotMob match data. No schema changes. Structured output keyed by team identity. Not consumed in Wave 8 — Wave 9's renderer consumes it. |
 | 8B | Tighten Agent Prompts + Structured Outputs | ai-engineer | ⬜ Pending | Split raw fields (streak, rank, points) from bullet commentary. H2H as first-class structured field. Length caps. No opening flourishes. |
 | 8C | Post-Games Missing-Results Alert (#55) | python-pro | ⬜ Pending | Bot silently skips games with no FotMob match — must alert. |
 | 8D | No-Games-Day Robustness Verification | python-pro | ⬜ Pending | Verify `daily_runs` closes cleanly, "No games today" message sent. |
 | 8E | Startup Recovery Verification | python-pro | ⬜ Pending | Verify bot restart past 13:00 ISR fires pre-gambling flow immediately. |
-| 8F | Wave 9 Contract Investigation | python-pro | ⬜ Pending | Read-only. Verify FotMob cup-tie metadata exists; diagnose H2H empty bug; freeze Wave 9 contract in `wave9_contract.md`. |
+| 8F | Wave 9 Contract Investigation | python-pro | ⬜ Pending | Read-only. Diagnose H2H empty bug; freeze Wave 9 contract in `wave9_contract.md`. (FotMob cup-tie metadata verification moved to Wave 10.) |
 
 ---
 
 ## Wave 9 — Report Overhaul Consumers 🔵 SCOPED (2 agents, blocked by Wave 8)
 
-Consumes 8A's cup-tie helper, 8B's new Pydantic fields, 8F's contract doc. 9A and 9B touch disjoint files and render independent states — they are parallel once Wave 8 completes.
+Consumes 8B's new Pydantic fields and 8F's contract doc. 9A and 9B touch disjoint files and render independent states — they are parallel once Wave 8 completes. Cup-tie first-leg rendering deferred to Wave 10 alongside the helper.
 
 | # | Agent | Type | Status | Notes |
 |---|-------|------|--------|-------|
 | 9A | H2H Fix Application (conditional) | python-pro | ⬜ Pending | Scope depends on 8F's diagnosis. Skip entirely if 8B's rewrite already resolves the bug. |
-| 9B | Report HTML Full Overhaul (5" mobile, table-comparison) | ui-designer + python-pro | ⬜ Pending | Mobile-first. Pills for form. Compact odds row + implied-prob bar. Fix venue dup bug. Remove crests / VS badge / emoji titles / home-green-away-red coding. Renders both present and absent states for H2H. |
+| 9B | Report HTML Full Overhaul (5" mobile, table-comparison) | ui-designer + python-pro | ⬜ Pending | Mobile-first. Pills for form. Compact odds row + implied-prob bar. Fix venue dup bug. Remove crests / VS badge / emoji titles / home-green-away-red coding. Renders both present and absent states for H2H. Cup-tie inline rendering deferred to Wave 10. |
 
 ---
 
-## Wave 10 — Offline Analysis Flow ⬜ NOT STARTED
+## Wave 10 — Offline Analysis Flow + Deferred Cup-Tie Context ⬜ NOT STARTED
 
+### Agent 10A: Offline Analysis
 | # | Task | Status |
 |---|------|--------|
 | 1 | Design analysis queries + HTML dashboard | ⬜ Pending |
 | 2 | Create query_stats.py | ⬜ Pending |
 | 3 | Create analysis HTML reports | ⬜ Pending |
 | 4 | Create offline graph_manager.py | ⬜ Pending |
+
+### Agent 10B: Cup-Tie First-Leg Context (moved from Wave 8 on 2026-04-18)
+Trigger: pick up when an actual 2-legged cup tie appears on the schedule so the helper can be validated end-to-end.
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Create fetch_cup_tie_context.py helper (FotMob roundInfo/aggregate) | ⬜ Pending |
+| 2 | Pydantic output keyed by team identity (not home/away) | ⬜ Pending |
+| 3 | Wire renderer — cup-tie inline in match header (html_report.py) | ⬜ Pending |
+| 4 | Verify FotMob cup-tie metadata against a real 2-legged tie | ⬜ Pending |
 
 ---
 

@@ -352,9 +352,11 @@ APScheduler's `AsyncIOScheduler` (used by python-telegram-bot's `JobQueue`) reli
 
 ---
 
-## Wave 8 — Independent Foundations (6 parallel agents)
+## Wave 8 — Independent Foundations (5 parallel agents)
 
-Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism rule by mixing producers and consumers. Split: Wave 8 = independent foundations, Wave 9 = the report-overhaul consumers. All 6 agents below touch disjoint files — dispatch in parallel.
+Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism rule by mixing producers and consumers. Split: Wave 8 = independent foundations, Wave 9 = the report-overhaul consumers. All 5 agents below touch disjoint files — dispatch in parallel.
+
+> **Note (2026-04-18):** Cup-tie first-leg helper (formerly 8A) moved to Wave 10 — no 2-legged cup ties currently on the schedule to validate against.
 
 **Guiding constraints (read before building anything in this wave):**
 - Target device: 5-inch phone, Telegram in-app browser. Omer opens 3–8 reports back-to-back before betting.
@@ -367,7 +369,6 @@ Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism ru
 
 | Agent | Files it owns |
 |-------|---------------|
-| 8A | `tools/game/fetch_cup_tie_context.py` (new), tiny Pydantic model in a new file |
 | 8B | `structured_outputs.py`, `agents/game_intelligence.py`, `agents/team_intelligence.py`, prompts |
 | 8C | `post_games_flow/fetch_results.py`, notification path |
 | 8D | `pre_gambling_flow/…`, `telegram/triggers.py` — verification only, minor fixes if broken |
@@ -375,20 +376,6 @@ Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism ru
 | 8F | read-only; produces `docs/system_revive/wave9_contract.md` |
 
 8D and 8E both touch `telegram/triggers.py` for verification. If either needs a fix there, the second agent must wait — assign 8D to run before 8E if both need code changes, or serialize them. For the common case (verification only, no code change), they stay parallel.
-
-### Agent 8A: Cup-Tie First-Leg Context (helper only, no renderer)
-**Type:** `python-pro`
-**Scope:** new helper `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_cup_tie_context.py`. No schema changes, no DB writes. Not consumed by anything in Wave 8 — Wave 9's renderer consumes it.
-
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | New helper — cup-tie detector | FotMob match response | Read `roundInfo` / aggregate metadata from `get_match_data(match_id)`. Detect if the fixture is part of a 2-legged cup tie and which leg it is. If regular league match → return `is_cup_tie=False` and nothing else. |
-| 2 | If 2nd leg — extract 1st-leg result | Same FotMob response | Pull 1st-leg score + date from the match payload. **Critical invariant: 2nd-leg home team was the 1st-leg away team.** Return raw structured data keyed by team identity (not by home/away role), so the renderer cannot confuse sides. Include aggregate if present. |
-| 3 | If 1st leg — surface return-leg info | Same FotMob response | Return 2nd-leg venue + date if exposed. |
-| 4 | Optional enrichment from our DB | `games` table | If the 1st-leg match happens to exist in our `games` table (because we bet on it), attach the stored row. Read-only. No inserts. No schema changes. |
-| 5 | Pydantic output model | New file (not in shared `structured_outputs.py` — avoid collision with 8B) | `{is_cup_tie, leg, first_leg: {team_a, team_b, score_a, score_b, date}, aggregate, return_leg_venue, return_leg_date}`. Keyed by team identity, not home/away. |
-
-**Verify:** call against a known 2nd-leg fixture (e.g. a CL/EL knockout 2nd leg) and a regular league match. Confirm inversion handled correctly. Unit test only — no end-to-end wiring.
 
 ### Agent 8B: Tighten Agent Prompts + Structured Outputs
 **Type:** `ai-engineer` (use `claude-api` skill if applicable to the SDK in use)
@@ -441,7 +428,6 @@ Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism ru
 **8F runs in parallel with 8A–8E because it is read-only and does not modify code. Its output steers Wave 9's scope.**
 
 ### After Wave 8
-- Cup-tie helper exists and returns correct structured output (unit-tested in isolation).
 - Agent prompts + structured outputs rewritten; H2H is a first-class structured field.
 - Post-games alerts on missing results; no-games day + startup recovery verified.
 - Wave 9 contract is frozen: 9A's scope known, 9B's input contract known, no file collisions.
@@ -450,7 +436,9 @@ Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism ru
 
 ## Wave 9 — Report Overhaul Consumers (2 agents, blocked by Wave 8)
 
-Consumes Wave 8's outputs: 8A's cup-tie helper, 8B's new Pydantic fields, 8F's contract doc. Both agents below render a state the other does not affect — 9B renders "data present" AND "data unavailable" for H2H, so it does not need 9A to finish first.
+Consumes Wave 8's outputs: 8B's new Pydantic fields, 8F's contract doc. Both agents below render a state the other does not affect — 9B renders "data present" AND "data unavailable" for H2H, so it does not need 9A to finish first.
+
+> Cup-tie first-leg rendering deferred to Wave 10 alongside the helper — no 2-legged cup ties currently on the schedule.
 
 ### Agent 9A: H2H Fix Application (conditional)
 **Type:** `python-pro`
@@ -463,13 +451,13 @@ Consumes Wave 8's outputs: 8A's cup-tie helper, 8B's new Pydantic fields, 8F's c
 
 ### Agent 9B: Report HTML Full Overhaul (5-inch mobile, table-comparison)
 **Type:** `ui-designer` (design spec already produced 2026-04-17) + `python-pro` (implementation)
-**Scope:** `src/soccersmartbet/reports/html_report.py`, `reports/telegram_message.py` if affected. Consumes 8A output + 8B's Pydantic fields per 8F's contract.
+**Scope:** `src/soccersmartbet/reports/html_report.py`, `reports/telegram_message.py` if affected. Consumes 8B's Pydantic fields per 8F's contract.
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
 | 1 | Full rewrite of `html_report.py` | Mobile-first, 5" phone (≈375px portrait, ≈667px landscape) | Per ui-designer spec. Professional bettor's spreadsheet aesthetic. |
 | 2 | Layout — table comparison | 3-col table: home \| stat label \| away | Split rows: form (streak + bullets), league position (rank · pts · MP), recovery, injuries. Shared rows (full width): H2H, venue, weather. |
-| 3 | Match header with cup-tie inline | Team names, kickoff (ISR), league, first-leg inline if 8A returned cup-tie data | Wire 8A output. Inversion already handled inside 8A's structured data (team-identity-keyed). |
+| 3 | Match header | Team names, kickoff (ISR), league | Cup-tie first-leg inline rendering deferred to Wave 10 (helper doesn't exist yet). |
 | 4 | Compact odds row | Single line | `1 1.15 · X 6.60 · 2 11.10`. Source label "winner.co.il" small, right-aligned. No big cards. |
 | 5 | Implied-probability bar | Thin horizontal bar under odds row | Neutral color segments proportional to implied probability. No home/away color coding. Omer may remove later if it doesn't land. |
 | 6 | Form as pills row | `L D D W W` visual pills | Pills first, bullets after. No prose. |
@@ -487,9 +475,9 @@ Consumes Wave 8's outputs: 8A's cup-tie helper, 8B's new Pydantic fields, 8F's c
 
 ---
 
-## Wave 10 — Offline Analysis Flow ⬜ NOT STARTED
+## Wave 10 — Offline Analysis Flow + Deferred Cup-Tie Context ⬜ NOT STARTED
 
-Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML dashboards. Deferred until enough betting data accumulated.
+Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML dashboards. Deferred until enough betting data accumulated. Also includes the deferred cup-tie first-leg helper + renderer (moved from Wave 8/9 on 2026-04-18 — no 2-legged cup ties currently on the schedule to validate against).
 
 ### Agent 10A: Offline Analysis
 **Type:** `fullstack-developer`
@@ -501,6 +489,21 @@ Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML das
 | 2 | Create `query_stats.py` | SQL aggregations on bets + games | Breakdowns by bettor, league, team, date range |
 | 3 | Create analysis HTML reports | Detailed visual reports | Similar quality to game report pages |
 | 4 | Create `graph_manager.py` | On-demand trigger | Telegram command or scheduled weekly |
+
+### Agent 10B: Cup-Tie First-Leg Context (helper + renderer wiring)
+**Type:** `python-pro`
+**Scope:** new helper `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_cup_tie_context.py`; renderer updates in `src/soccersmartbet/reports/html_report.py`. No schema changes, no DB writes. Trigger: pick up when an actual 2-legged cup tie appears on the schedule so the helper can be validated end-to-end.
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | New helper — cup-tie detector | FotMob match response | Read `roundInfo` / aggregate metadata from `get_match_data(match_id)`. Detect if the fixture is part of a 2-legged cup tie and which leg it is. If regular league match → return `is_cup_tie=False` and nothing else. |
+| 2 | If 2nd leg — extract 1st-leg result | Same FotMob response | Pull 1st-leg score + date from the match payload. **Critical invariant: 2nd-leg home team was the 1st-leg away team.** Return raw structured data keyed by team identity (not by home/away role), so the renderer cannot confuse sides. Include aggregate if present. |
+| 3 | If 1st leg — surface return-leg info | Same FotMob response | Return 2nd-leg venue + date if exposed. |
+| 4 | Optional enrichment from our DB | `games` table | If the 1st-leg match happens to exist in our `games` table (because we bet on it), attach the stored row. Read-only. No inserts. No schema changes. |
+| 5 | Pydantic output model | New file (not in shared `structured_outputs.py`) | `{is_cup_tie, leg, first_leg: {team_a, team_b, score_a, score_b, date}, aggregate, return_leg_venue, return_leg_date}`. Keyed by team identity, not home/away. |
+| 6 | Wire renderer — match header cup-tie inline | `html_report.py` match header | First-leg result inline when helper returns cup-tie data. Inversion already handled inside helper's structured data (team-identity-keyed). |
+
+**Verify:** call against a known 2nd-leg fixture (e.g. a CL/EL knockout 2nd leg) and a regular league match. Confirm inversion handled correctly. Then verify the rendered report displays first-leg result correctly for the team-identity mapping.
 
 ---
 
