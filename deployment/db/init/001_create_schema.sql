@@ -56,9 +56,8 @@ COMMENT ON COLUMN games.draw_odd IS 'Draw odds (X in Israeli Toto notation)';
 -- TABLE: game_reports
 -- Purpose: AI-generated game analysis from Game Intelligence Agent
 --
--- Schema v2 — Wave 8B (branch major_report_refactor).
--- Live DB NOT migrated. Migration DDL will run at merge time after Wave 9
--- completes. Old columns dropped: h2h_insights TEXT, weather_risk TEXT.
+-- Schema v2 — Wave 8B/8E. Migration applied to live DB on 2026-04-19.
+-- H2H aggregate is keyed by today's team identity (historical roles discarded).
 -- ============================================================================
 CREATE TABLE game_reports (
     report_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -96,10 +95,9 @@ COMMENT ON COLUMN game_reports.weather_cancellation_risk IS 'low | medium | high
 -- TABLE: team_reports
 -- Purpose: AI-generated team analysis from Team Intelligence Agent
 --
--- Schema v2 — Wave 8B (branch major_report_refactor).
--- Live DB NOT migrated. Migration DDL will run at merge time after Wave 9
--- completes. Old columns dropped: form_trend, injury_impact,
--- league_position, team_news.
+-- Schema v2 — Wave 8B/8E. Migration applied to live DB on 2026-04-19.
+-- Structured facts (recovery, streak, last-5 rows, league snapshot) plus
+-- short analytical bullets as JSONB arrays.
 -- ============================================================================
 CREATE TABLE team_reports (
     report_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -140,9 +138,8 @@ COMMENT ON COLUMN team_reports.news_bullets IS 'JSONB array of pre-match news bu
 -- TABLE: expert_game_reports
 -- Purpose: LLM-generated expert pre-match analysis synthesizing all intel
 --
--- Schema v2 — Wave 8B (branch major_report_refactor).
--- Live DB NOT migrated. Migration DDL will run at merge time after Wave 9
--- completes. expert_analysis type: TEXT -> JSONB (bullet list).
+-- Schema v2 — Wave 8B/8E. Migration applied to live DB on 2026-04-19.
+-- expert_analysis is a JSONB array of 3-6 bullets, <=20 words each.
 -- ============================================================================
 CREATE TABLE expert_game_reports (
     report_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -176,7 +173,9 @@ CREATE TABLE bets (
 
 CREATE INDEX idx_bets_game ON bets(game_id);
 
-COMMENT ON COLUMN bets.stake IS 'Always 100 NIS per system rules';
+COMMENT ON COLUMN bets.stake IS 'Variable stake in NIS (50/100/200/500 per gambling UI). Israeli Toto: profit = (odds - 1) * stake.';
+COMMENT ON COLUMN bets.result IS 'Actual match outcome copied from games.outcome at post-games time';
+COMMENT ON COLUMN bets.pnl IS 'Realized profit/loss in NIS. Won: stake*(odds-1). Lost: -stake.';
 
 -- ============================================================================
 -- TABLE: bankroll
