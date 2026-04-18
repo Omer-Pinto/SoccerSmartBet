@@ -37,7 +37,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜] 7/13 waves done
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone |
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
-| 8 | ⬜ Not Started | Report refactor track (sequential): 8A → 8B → 8C → 8D → 8E. |
+| 8 | 🔵 In Progress | Report refactor track (sequential): 8A → 8B → 8C → 8D → 8E. 8A + 8B done. |
 | 9 | ⬜ Not Started | Robustness carryovers: 9A missing-results alert, 9B no-games verify, 9C startup-recovery verify. Independent of Wave 8. |
 | 10 | ⬜ Not Started | Offline Analysis Flow — multi-day gambling view. Deferred until enough betting data accumulated. |
 | 11 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
@@ -212,7 +212,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜] 7/13 waves done
 
 ---
 
-## Wave 8 — Report Refactor Track ⬜ NOT STARTED (sequential)
+## Wave 8 — Report Refactor Track 🔵 IN PROGRESS (sequential)
 
 Execution order: **8A → 8B → 8C → 8D → 8E.**
 
