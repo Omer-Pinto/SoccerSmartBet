@@ -16,27 +16,33 @@ logger = logging.getLogger(__name__)
 from soccersmartbet.pre_gambling_flow.agents.expert_report import run_expert_report
 from soccersmartbet.pre_gambling_flow.state import PreGamblingState
 
-# The separator used by combine_reports to delimit individual game blocks
-_GAME_SEPARATOR = "=== GAME REPORT:"
+# Matches the header emitted by combine_reports._format_game_block:
+#   === {home_team} vs {away_team} ({league}) ===
+# Tolerates team names with punctuation, accented characters, and digits
+# (e.g. "1. FC Köln", "Gil Vicente FC", "Atlético de Madrid").
+_HEADER_RE = re.compile(r"^=== .+? vs .+? \(.+?\) ===\s*$", re.MULTILINE)
 
 
 def _split_by_game(combined_text: str) -> list[str]:
     """Split combined report text into per-game sections.
 
-    combine_reports uses ``=== GAME REPORT: Team A vs Team B (League) ===``
-    as a separator. Each section begins at that header and runs until the
-    next one (or end of string).
+    combine_reports emits headers of the form::
+
+        === {home_team} vs {away_team} ({league}) ===
+
+    Each section begins at that header and runs until the next one (or end of
+    string).
 
     Args:
         combined_text: Full combined report text from combine_reports.
 
     Returns:
-        List of per-game text sections, each starting with the GAME REPORT header.
+        List of per-game text sections, each starting with the game header.
     """
-    # Split on the separator but keep the delimiter in the result
-    parts = re.split(r"(?=^=== GAME REPORT:)", combined_text, flags=re.MULTILINE)
-    # Filter empty strings that may appear if the text starts with the separator
-    return [p.strip() for p in parts if p.strip() and _GAME_SEPARATOR in p]
+    # Lookahead split keeps each header at the start of its section.
+    parts = re.split(r"(?m)(?=^=== .+? vs .+? \(.+?\) ===\s*$)", combined_text)
+    # Discard leading whitespace/preamble chunks that have no header.
+    return [p.strip() for p in parts if p.strip() and _HEADER_RE.match(p.strip())]
 
 
 def generate_expert_reports(state: PreGamblingState) -> dict[str, Any]:

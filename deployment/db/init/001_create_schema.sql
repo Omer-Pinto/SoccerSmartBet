@@ -55,13 +55,28 @@ COMMENT ON COLUMN games.draw_odd IS 'Draw odds (X in Israeli Toto notation)';
 -- ============================================================================
 -- TABLE: game_reports
 -- Purpose: AI-generated game analysis from Game Intelligence Agent
+--
+-- Schema v2 — Wave 8B/8E. Migration applied to live DB on 2026-04-19.
+-- H2H aggregate is keyed by today's team identity (historical roles discarded).
 -- ============================================================================
 CREATE TABLE game_reports (
     report_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     game_id INTEGER NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
-    
-    h2h_insights TEXT,
-    weather_risk TEXT,
+
+    -- H2H aggregate (keyed by today's team identity; historical roles discarded)
+    h2h_home_team TEXT,
+    h2h_away_team TEXT,
+    h2h_home_team_wins INTEGER,
+    h2h_away_team_wins INTEGER,
+    h2h_draws INTEGER,
+    h2h_total_meetings INTEGER,
+    h2h_bullets JSONB,
+
+    -- Weather
+    weather_bullets JSONB,
+    weather_cancellation_risk TEXT,
+
+    -- Venue (short stadium name only)
     venue TEXT,
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -72,21 +87,35 @@ CREATE TABLE game_reports (
 CREATE INDEX idx_game_reports_game ON game_reports(game_id);
 
 COMMENT ON COLUMN game_reports.report_id IS 'UUID for parallel agent writes';
+COMMENT ON COLUMN game_reports.h2h_bullets IS 'JSONB array of short analytical bullets (<=2, <=20 words each)';
+COMMENT ON COLUMN game_reports.weather_bullets IS 'JSONB array of weather bullets (<=3, <=20 words each)';
+COMMENT ON COLUMN game_reports.weather_cancellation_risk IS 'low | medium | high | unknown';
 
 -- ============================================================================
 -- TABLE: team_reports
 -- Purpose: AI-generated team analysis from Team Intelligence Agent
+--
+-- Schema v2 — Wave 8B/8E. Migration applied to live DB on 2026-04-19.
+-- Structured facts (recovery, streak, last-5 rows, league snapshot) plus
+-- short analytical bullets as JSONB arrays.
 -- ============================================================================
 CREATE TABLE team_reports (
     report_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     game_id INTEGER NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
     team_name VARCHAR(255) NOT NULL, -- Changed from team_id FK to VARCHAR!
-    
+
     recovery_days INTEGER CHECK (recovery_days >= 0),
-    form_trend TEXT,
-    injury_impact TEXT,
-    league_position TEXT,
-    team_news TEXT,
+    form_streak VARCHAR(5),
+    last_5_games JSONB,
+    form_bullets JSONB,
+
+    league_rank INTEGER,
+    league_points INTEGER,
+    league_matches_played INTEGER,
+    league_bullets JSONB,
+
+    injury_bullets JSONB,
+    news_bullets JSONB,
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
@@ -98,21 +127,31 @@ CREATE INDEX idx_team_reports_game ON team_reports(game_id);
 
 COMMENT ON COLUMN team_reports.report_id IS 'UUID for parallel agent writes (2 per game: home + away)';
 COMMENT ON COLUMN team_reports.team_name IS 'VARCHAR not FK - no teams table needed';
+COMMENT ON COLUMN team_reports.form_streak IS '5-char streak, most recent LAST, ? for missing';
+COMMENT ON COLUMN team_reports.last_5_games IS 'JSONB array of RecentMatch objects, most recent FIRST';
+COMMENT ON COLUMN team_reports.form_bullets IS 'JSONB array of form bullets (<=2, <=12 words each)';
+COMMENT ON COLUMN team_reports.league_bullets IS 'JSONB array of league/motivation bullets (<=3, <=20 words each)';
+COMMENT ON COLUMN team_reports.injury_bullets IS 'JSONB array of impactful-injury bullets (<=5)';
+COMMENT ON COLUMN team_reports.news_bullets IS 'JSONB array of pre-match news bullets (<=3, <=20 words each)';
 
 -- ============================================================================
 -- TABLE: expert_game_reports
 -- Purpose: LLM-generated expert pre-match analysis synthesizing all intel
+--
+-- Schema v2 — Wave 8B/8E. Migration applied to live DB on 2026-04-19.
+-- expert_analysis is a JSONB array of 3-6 bullets, <=20 words each.
 -- ============================================================================
 CREATE TABLE expert_game_reports (
     report_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     game_id INTEGER NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
-    expert_analysis TEXT NOT NULL,
+    expert_analysis JSONB NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_expert_game_report UNIQUE (game_id)
 );
 CREATE INDEX idx_expert_game_reports_game ON expert_game_reports(game_id);
 
 COMMENT ON TABLE expert_game_reports IS 'Expert LLM pre-match analysis synthesizing game + team reports with odds';
+COMMENT ON COLUMN expert_game_reports.expert_analysis IS 'JSONB array of bullets (3-6, <=20 words each)';
 
 -- ============================================================================
 -- TABLE: bets
@@ -134,7 +173,9 @@ CREATE TABLE bets (
 
 CREATE INDEX idx_bets_game ON bets(game_id);
 
-COMMENT ON COLUMN bets.stake IS 'Always 100 NIS per system rules';
+COMMENT ON COLUMN bets.stake IS 'Variable stake in NIS (50/100/200/500 per gambling UI). Israeli Toto: profit = (odds - 1) * stake.';
+COMMENT ON COLUMN bets.result IS 'Actual match outcome copied from games.outcome at post-games time';
+COMMENT ON COLUMN bets.pnl IS 'Realized profit/loss in NIS. Won: stake*(odds-1). Lost: -stake.';
 
 -- ============================================================================
 -- TABLE: bankroll

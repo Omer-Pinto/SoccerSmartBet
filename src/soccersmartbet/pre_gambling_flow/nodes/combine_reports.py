@@ -11,13 +11,20 @@ import os
 from typing import Any
 
 import psycopg2
-
-logger = logging.getLogger(__name__)
 from langchain_core.messages import AIMessage
 
 from soccersmartbet.pre_gambling_flow.state import Phase, PreGamblingState
 
+logger = logging.getLogger(__name__)
+
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+_EL_LEAGUES = {
+    "Europa League",
+    "UEFA Europa League",
+    "UEFA Europa Conference League",
+    "Conference League",
+}
 
 _FETCH_GAME_SQL = """
 SELECT home_team, away_team, league, home_win_odd, away_win_odd, draw_odd
@@ -26,20 +33,93 @@ WHERE game_id = %(game_id)s
 """
 
 _FETCH_GAME_REPORT_SQL = """
-SELECT h2h_insights, weather_risk, venue
+SELECT h2h_home_team, h2h_away_team, h2h_home_team_wins, h2h_away_team_wins,
+       h2h_draws, h2h_total_meetings, h2h_bullets,
+       weather_bullets, weather_cancellation_risk, venue
 FROM game_reports
 WHERE game_id = %(game_id)s
 LIMIT 1
 """
 
 _FETCH_TEAM_REPORTS_SQL = """
-SELECT team_name, recovery_days, form_trend, injury_impact, league_position, team_news
+SELECT team_name, recovery_days, form_streak, last_5_games, form_bullets,
+       league_rank, league_points, league_matches_played, league_bullets,
+       injury_bullets, news_bullets
 FROM team_reports
 WHERE game_id = %(game_id)s
 ORDER BY team_name
 """
 
-_NOT_AVAILABLE = "Not available"
+
+def _fmt_bullets(items: list[str] | None) -> str:
+    if not items:
+        return ""
+    return "\n".join(f"  - {b}" for b in items)
+
+
+def _h2h_line(
+    league: str,
+    home: str | None,
+    away: str | None,
+    hw: int | None,
+    aw: int | None,
+    draws: int | None,
+    total: int | None,
+) -> str:
+    if league in _EL_LEAGUES:
+        return "H2H not tracked for this competition"
+    if total and total > 0 and home and away:
+        return f"{home} {hw or 0} \u2013 {draws or 0} draws \u2013 {aw or 0} {away}"
+    return "H2H: No data available."
+
+
+def _format_team_block(label: str, report: dict[str, Any] | None) -> list[str]:
+    lines: list[str] = [f"  [{label}]"]
+    if report is None:
+        return lines
+
+    streak = report.get("form_streak") or "\u2014"
+    rank = report.get("league_rank")
+    pts = report.get("league_points")
+    mp = report.get("league_matches_played")
+    rank_s = str(rank) if rank is not None else "\u2014"
+    pts_s = f"{pts} pts" if pts is not None else "\u2014"
+    mp_s = f"{mp} MP" if mp is not None else "\u2014"
+    recovery = report.get("recovery_days")
+    recovery_s = f"{recovery} days" if recovery is not None else "\u2014"
+
+    lines.append(f"  Form streak: {streak}")
+    form_b = _fmt_bullets(report.get("form_bullets"))
+    if form_b:
+        lines.append(form_b)
+
+    last5: list[dict] = report.get("last_5_games") or []
+    if last5:
+        lines.append("  Last 5 (most recent first):")
+        for m in last5[:5]:
+            lines.append(
+                f"    {m.get('result','?')} {m.get('goals_for','?')}:{m.get('goals_against','?')}"
+                f" vs {m.get('opponent','')} ({m.get('home_or_away','')})"
+            )
+
+    lines.append(f"  League: {rank_s} \u00b7 {pts_s} \u00b7 {mp_s}")
+    league_b = _fmt_bullets(report.get("league_bullets"))
+    if league_b:
+        lines.append(league_b)
+
+    lines.append(f"  Recovery: {recovery_s}")
+
+    injury_b = _fmt_bullets(report.get("injury_bullets"))
+    if injury_b:
+        lines.append("  Injuries:")
+        lines.append(injury_b)
+
+    news_b = _fmt_bullets(report.get("news_bullets"))
+    if news_b:
+        lines.append("  News:")
+        lines.append(news_b)
+
+    return lines
 
 
 def _format_game_block(
@@ -49,83 +129,55 @@ def _format_game_block(
     home_win_odd: Any,
     away_win_odd: Any,
     draw_odd: Any,
-    h2h_insights: str,
-    weather_risk: str,
-    venue: str,
+    h2h_home: str | None,
+    h2h_away: str | None,
+    h2h_hw: int | None,
+    h2h_aw: int | None,
+    h2h_draws: int | None,
+    h2h_total: int | None,
+    h2h_bullets: list[str] | None,
+    weather_bullets: list[str] | None,
+    cancel_risk: str | None,
+    venue: str | None,
     home_report: dict[str, Any] | None,
     away_report: dict[str, Any] | None,
 ) -> str:
-    """Build the formatted text block for a single game.
-
-    Args:
-        home_team: Home team name from the games table.
-        away_team: Away team name from the games table.
-        league: League name from the games table.
-        home_win_odd: Home-win odds decimal value.
-        away_win_odd: Away-win odds decimal value.
-        draw_odd: Draw odds decimal value.
-        h2h_insights: Head-to-head insights text.
-        weather_risk: Weather risk assessment text.
-        venue: Venue description text.
-        home_report: Dict with keys recovery_days, form_trend, injury_impact,
-            league_position, team_news for the home side, or None if unavailable.
-        away_report: Dict with keys recovery_days, form_trend, injury_impact,
-            league_position, team_news for the away side, or None if unavailable.
-
-    Returns:
-        Formatted multi-line string for this game.
-    """
     lines: list[str] = [
-        f"=== GAME REPORT: {home_team} vs {away_team} ({league}) ===",
+        f"=== {home_team} vs {away_team} ({league}) ===",
         f"Odds: 1={home_win_odd} / X={draw_odd} / 2={away_win_odd}",
         "",
-        "--- H2H Insights ---",
-        h2h_insights,
-        "",
-        "--- Weather Risk ---",
-        weather_risk,
-        "",
-        "--- Venue ---",
-        venue,
+        "--- H2H ---",
+        _h2h_line(league, h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_draws, h2h_total),
     ]
+    h2h_b = _fmt_bullets(h2h_bullets)
+    if h2h_b:
+        lines.append(h2h_b)
 
-    for label, report in ((f"{home_team} (Home)", home_report), (f"{away_team} (Away)", away_report)):
+    if weather_bullets:
         lines.append("")
-        lines.append(f"--- {label} ---")
-        if report is None:
-            lines.append(_NOT_AVAILABLE)
-        else:
-            lines.append(f"League Position: {report['league_position'] or _NOT_AVAILABLE}")
-            lines.append(f"Form: {report['form_trend'] or _NOT_AVAILABLE}")
-            recovery = report["recovery_days"]
-            lines.append(f"Recovery: {recovery if recovery is not None else _NOT_AVAILABLE} days")
-            lines.append(f"Injuries: {report['injury_impact'] or _NOT_AVAILABLE}")
-            lines.append(f"Team News: {report['team_news'] or _NOT_AVAILABLE}")
+        lines.append("--- Weather ---")
+        lines.append(_fmt_bullets(weather_bullets))
+        if cancel_risk in ("medium", "high"):
+            lines.append(f"  Cancellation risk: {cancel_risk}")
+
+    if venue:
+        lines.extend(["", "--- Venue ---", venue])
+
+    lines.append("")
+    lines.extend(_format_team_block(f"{home_team} (Home)", home_report))
+    lines.append("")
+    lines.extend(_format_team_block(f"{away_team} (Away)", away_report))
 
     return "\n".join(lines)
 
 
 def combine_reports(state: PreGamblingState) -> dict[str, Any]:
-    """LangGraph node: combine game_reports and team_reports into a single message.
-
-    Queries the DB for all analyzed games and assembles a structured text
-    report per game.  All games are concatenated into a single AIMessage.
-
-    Args:
-        state: Current Pre-Gambling Flow state.  Must contain ``games_to_analyze``.
-
-    Returns:
-        State update dict with ``messages`` (list containing one AIMessage) and
-        ``phase`` set to ``Phase.COMPLETE``.
-    """
+    """LangGraph node: combine game_reports and team_reports into a single message."""
     game_ids: list[int] = state["games_to_analyze"]
     logger.info("combine_reports: querying reports for %d games", len(game_ids))
 
     if not game_ids:
-        return {
-            "messages": [],
-            "phase": Phase.COMPLETE,
-        }
+        return {"messages": [], "phase": Phase.COMPLETE}
 
     blocks: list[str] = []
 
@@ -140,27 +192,44 @@ def combine_reports(state: PreGamblingState) -> dict[str, Any]:
                         continue
                     home_team, away_team, league, home_win_odd, away_win_odd, draw_odd = game_row
 
+                    h2h_home = h2h_away = None
+                    h2h_hw = h2h_aw = h2h_d = h2h_total = None
+                    h2h_bullets: list[str] = []
+                    weather_bullets: list[str] = []
+                    cancel_risk: str | None = None
+                    venue: str | None = None
+
                     cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
                     report_row = cur.fetchone()
                     if report_row is not None:
-                        h2h_insights, weather_risk, venue = (
-                            v or _NOT_AVAILABLE for v in report_row
-                        )
-                    else:
-                        h2h_insights = weather_risk = venue = _NOT_AVAILABLE
+                        (
+                            h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total,
+                            h2h_bullets_raw, weather_bullets_raw, cancel_risk, venue,
+                        ) = report_row
+                        h2h_bullets = h2h_bullets_raw or []
+                        weather_bullets = weather_bullets_raw or []
 
                     cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
                     team_rows = cur.fetchall()
 
                     team_map: dict[str, dict[str, Any]] = {}
                     for row in team_rows:
-                        t_name, recovery_days, form_trend, injury_impact, league_position, team_news = row
+                        (
+                            t_name, recovery_days, form_streak, last5_raw, form_bullets_raw,
+                            league_rank, league_points, league_mp, league_bullets_raw,
+                            injury_bullets_raw, news_bullets_raw,
+                        ) = row
                         team_map[t_name] = {
                             "recovery_days": recovery_days,
-                            "form_trend": form_trend,
-                            "injury_impact": injury_impact,
-                            "league_position": league_position,
-                            "team_news": team_news,
+                            "form_streak": form_streak,
+                            "last_5_games": last5_raw or [],
+                            "form_bullets": form_bullets_raw or [],
+                            "league_rank": league_rank,
+                            "league_points": league_points,
+                            "league_matches_played": league_mp,
+                            "league_bullets": league_bullets_raw or [],
+                            "injury_bullets": injury_bullets_raw or [],
+                            "news_bullets": news_bullets_raw or [],
                         }
 
                     home_report = team_map.get(home_team)
@@ -174,8 +243,15 @@ def combine_reports(state: PreGamblingState) -> dict[str, Any]:
                             home_win_odd=home_win_odd,
                             away_win_odd=away_win_odd,
                             draw_odd=draw_odd,
-                            h2h_insights=h2h_insights,
-                            weather_risk=weather_risk,
+                            h2h_home=h2h_home,
+                            h2h_away=h2h_away,
+                            h2h_hw=h2h_hw,
+                            h2h_aw=h2h_aw,
+                            h2h_draws=h2h_d,
+                            h2h_total=h2h_total,
+                            h2h_bullets=h2h_bullets,
+                            weather_bullets=weather_bullets,
+                            cancel_risk=cancel_risk,
                             venue=venue,
                             home_report=home_report,
                             away_report=away_report,

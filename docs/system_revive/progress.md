@@ -1,11 +1,11 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-14 | **Branch:** main
+> **Last updated:** 2026-04-19 (post-migration) | **Branch:** major_report_refactor
 
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 7/11 waves done
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜] 8/13 waves done
 ```
 
 | What | Status |
@@ -20,7 +20,8 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 7/11 waves done
 | Gambling Flow (AI bets + validation) | **Working E2E** — Telegram UI + LangGraph AI betting + verification |
 | Post-Games Flow (results + P&L) | **Working E2E** — FotMob overviewFixtures results, PnL calculator, Telegram summary, auto-triggered |
 | Daily automation (wall-clock scheduler) | **Working E2E** — full cycle proven daily since 2026-04-12 |
-| Offline Analysis Flow | **NOT BUILT** — deferred to Wave 9 |
+| Offline Analysis Flow | **NOT BUILT** — Wave 10 |
+| Cup-Tie 2-leg support | **NOT BUILT** — Wave 11 |
 
 ---
 
@@ -31,15 +32,17 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 7/11 waves done
 | 0 | 🟢 Done | Setup, curation, schema, enrichment verification |
 | 1 | 🟢 Done | FotMob client, team registry, winner client |
 | 2 | 🟢 Done | All 11 tools working against live APIs |
-| 3 | 🟢 Done | Web app works. Tests obsolete — deleted, deferred to Wave 11. |
+| 3 | 🟢 Done | Web app works. Tests obsolete — deleted, deferred to Wave 13. |
 | 4 | 🟢 Done | Subgraph architecture, E2E verified with expert summary |
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone |
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
-| 8 | ⏳ Waiting | Pre-gambling report refinement + robustness — waiting for Omer input |
-| 9 | ⬜ Not Started | Offline analysis — deferred until enough data accumulated |
-| 10 | 🟡 Partial | Expansion: Israeli league + CL/EL done. Euro/WC + backup pending. |
-| 11 | ⬜ TBD | Testing scheme — to be planned separately |
+| 8 | 🟢 Done | Report refactor track: 8A + 8B + 8C + 8E done. 8D skipped. Live-DB migration applied 2026-04-19 (backup: `~/soccersmartbet_backup_before_wave8_20260418_163145.sql`, 360KB, zero row loss). |
+| 9 | ⬜ Not Started | Robustness carryovers: 9A missing-results alert, 9B no-games verify, 9C startup-recovery verify. Independent of Wave 8. |
+| 10 | ⬜ Not Started | Offline Analysis Flow — multi-day gambling view. Deferred until enough betting data accumulated. |
+| 11 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
+| 12 | 🟡 Partial | Competition expansion + polish: Israeli league + CL/EL done. Euro/WC + backup pending. |
+| 13 | ⬜ TBD | Testing scheme — to be planned separately |
 
 ---
 
@@ -209,29 +212,64 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 7/11 waves done
 
 ---
 
-## Wave 8 — Pre-Gambling Report Refinement + Robustness ⏳ WAITING FOR OMER INPUT
+## Wave 8 — Report Refactor Track 🟢 DONE (sequential)
 
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Alert on missing post-games results (#55) | ⬜ Pending | Bot silently skips — must alert |
-| 2 | Verify no-games day robustness | ⬜ Pending | From Wave 7 |
-| 3 | Verify startup recovery | ⬜ Pending | From Wave 7 |
-| — | Report refinement tasks | ⏳ Waiting | Omer will define |
+Execution order: **8A → 8B → 8C → 8D → 8E.** 8D skipped (superseded by 8B + 8C).
+
+Accepted design deviations from the original plan (approved by Omer during v3–v6 iterations):
+- Task 8E #5 "implied-probability bar" — **removed** entirely (added no signal above the raw odds).
+- Task 8E #10 palette — shipped near-black with green undertone (`#0d1410` bg, `#1e2a22` hairlines, `#2e6b2d` / `#3d7a37` structural green, `#c8a84b` gold accent) instead of the originally planned `#0f0f0f` + `#222`.
+- Editorial-terminal redesign (v7) was rejected and reverted to v6 green.
+
+| # | Agent | Type | Status |
+|---|-------|------|--------|
+| 8A | Contract Investigation + H2H Diagnosis | python-pro | 🟢 Done |
+| 8B | Tighten Agent Prompts + Structured Outputs | ai-engineer | 🟢 Done |
+| 8C | H2H Rate-Limit Mitigation | python-pro | 🟢 Done | League hint threaded end-to-end (state → Send → game_intelligence → fetch_h2h). 1 competition scan + 1 H2H per game. Per-call exponential backoff `[5,10,20,40,80]`. Unsupported league or retry exhaustion → `"couldn't retrieve h2h due to API issues"`. Zero shared state — no buckets, no locks, no caches. LangGraph `Send()` owns parallelism. |
+| 8D | H2H Fix Application (conditional) | — | ⚫ Skipped | Superseded by 8B + 8C. 8B built `_build_h2h_aggregate` from raw tool output; 8C made `fetch_h2h` reliable for supported leagues with graceful degradation for the rest. No residual layer needs a fix. End-to-end verification will happen naturally on the first pre-gambling run after 8E's live-DB migration. |
+| 8E | Report HTML Full Overhaul | python-pro | 🟢 Done | Full mobile-first rewrite of `html_report.py` (5" phone, bettor's-spreadsheet aesthetic, table-comparison layout, implied-probability bar, form pills, no crests/VS/emoji/color coding). `combine_reports.py` + `ai_betting_agent.py` migrated to new column shape (bullets + structured fields). Live DB migration applied with backup + row-count verification. |
 
 ---
 
-## Wave 9 — Offline Analysis Flow ⬜ NOT STARTED
+## Wave 9 — Robustness Carryovers ⬜ NOT STARTED (independent of Wave 8)
 
+| # | Agent | Type | Status |
+|---|-------|------|--------|
+| 9A | Post-Games Missing-Results Alert (#55) | python-pro | ⬜ Pending |
+| 9B | No-Games-Day Robustness Verification | python-pro | ⬜ Pending |
+| 9C | Startup Recovery Verification | python-pro | ⬜ Pending |
+
+---
+
+## Wave 10 — Offline Analysis Flow ⬜ NOT STARTED
+
+Multi-day gambling analytics. Deferred until enough betting data accumulated.
+
+### Agent 10A: Offline Analysis
 | # | Task | Status |
 |---|------|--------|
-| 1 | Design analysis queries + HTML dashboard | ⬜ Pending |
+| 1 | Design analysis queries + multi-day HTML dashboard | ⬜ Pending |
 | 2 | Create query_stats.py | ⬜ Pending |
 | 3 | Create analysis HTML reports | ⬜ Pending |
 | 4 | Create offline graph_manager.py | ⬜ Pending |
 
 ---
 
-## Wave 10 — Competition Expansion + Polish 🟡 PARTIALLY DONE
+## Wave 11 — Cup-Tie 2-Leg Match Support ⬜ NOT STARTED
+
+Trigger: pick up when an actual 2-legged cup tie appears on the schedule so the helper can be validated end-to-end.
+
+### Agent 11A: Cup-Tie First-Leg Context
+| # | Task | Status |
+|---|------|--------|
+| 1 | Create fetch_cup_tie_context.py helper (FotMob roundInfo/aggregate) | ⬜ Pending |
+| 2 | Pydantic output keyed by team identity (not home/away) | ⬜ Pending |
+| 3 | Wire renderer — cup-tie inline in match header (html_report.py) | ⬜ Pending |
+| 4 | Verify FotMob cup-tie metadata against a real 2-legged tie | ⬜ Pending |
+
+---
+
+## Wave 12 — Competition Expansion + Polish 🟡 PARTIALLY DONE
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
@@ -245,7 +283,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 7/11 waves done
 
 ---
 
-## Wave 11 — Testing Scheme ⬜ TBD
+## Wave 13 — Testing Scheme ⬜ TBD
 
 To be planned separately.
 

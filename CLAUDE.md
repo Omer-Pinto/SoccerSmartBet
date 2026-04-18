@@ -18,11 +18,14 @@ This rule has been violated 10+ times. There are no exceptions. No "it's technic
 
 `deployment/db/init/001_create_schema.sql` only runs on first Docker volume creation. Editing it does NOT update the running database.
 
-When changing schema:
+**NEVER run live DDL without Omer's explicit approval for that specific change.** This applies to agents, sub-agents, parallel waves, worktrees — everything. The live DB is shared across all worktrees; it is not isolated by git branches. Stage DDL in the SQL file only. Live-apply happens ONLY after Omer's explicit OK for that specific DDL. When dispatching sub-agents, do NOT instruct them to run `docker exec ... psql ...` or any other live-DB command as part of their task; that step belongs to the orchestrator after approval.
+
+When changing schema (with approval):
 1. Edit the SQL file
-2. Run the same DDL against live DB: `docker exec soccersmartbet-staging psql -U postgres -d soccersmartbet_staging -c "..."`
-3. If the bot is running, restart it after code changes
-4. NEVER delete the Docker volume or database — data must survive
+2. Get Omer's explicit OK to apply against live DB
+3. Run the same DDL against live DB: `docker exec soccersmartbet-staging psql -U postgres -d soccersmartbet_staging -c "..."`
+4. If the bot is running, restart it after code changes
+5. NEVER delete the Docker volume or database — data must survive
 
 ## GIT: Never rewrite history
 

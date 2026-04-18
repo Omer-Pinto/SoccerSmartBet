@@ -90,6 +90,7 @@ class AnalyzeGameState(TypedDict):
     away_team: str
     match_date: str
     kickoff_time: str
+    league: str
     analyzed_game_ids: Annotated[list[int], add]
 
 

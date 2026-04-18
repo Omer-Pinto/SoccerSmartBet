@@ -24,12 +24,12 @@ import logging
 
 from langgraph.graph import StateGraph, START, END
 
-logger = logging.getLogger(__name__)
-
 from soccersmartbet.pre_gambling_flow.state import AnalyzeGameState
 from soccersmartbet.pre_gambling_flow.agents.db_utils import update_game_status
 from soccersmartbet.pre_gambling_flow.agents.game_intelligence import run_game_intelligence
 from soccersmartbet.pre_gambling_flow.agents.team_intelligence import run_team_intelligence
+
+logger = logging.getLogger(__name__)
 
 
 def _game_intelligence_node(state: AnalyzeGameState) -> dict:
@@ -62,6 +62,7 @@ def _game_intelligence_node(state: AnalyzeGameState) -> dict:
         state["away_team"],
         state["match_date"],
         state["kickoff_time"],
+        league=state["league"],
     )
 
     logger.info("game_intelligence: completed for game_id=%d", game_id)

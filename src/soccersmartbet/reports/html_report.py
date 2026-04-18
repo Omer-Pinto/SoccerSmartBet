@@ -1,29 +1,91 @@
 from __future__ import annotations
 
+import base64
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 import psycopg2
+import requests
+
+logger = logging.getLogger(__name__)
+
+# Logos are embedded as base64 data URIs so they render from file:// pages
+# (downloaded HTML attachments in Telegram's in-app browser block external
+# https:// image requests from file:// origin). Cache is process-lifetime;
+# entries are either a data URI string or None on failed fetch.
+_LOGO_CACHE: dict[str, str | None] = {}
+_LOGO_FETCH_TIMEOUT_S = 5
+
+
+def _fetch_logo_data_uri(url: str) -> str | None:
+    if url in _LOGO_CACHE:
+        return _LOGO_CACHE[url]
+    try:
+        resp = requests.get(url, timeout=_LOGO_FETCH_TIMEOUT_S)
+        if resp.status_code != 200:
+            logger.info("logo fetch failed: %s -> %d", url, resp.status_code)
+            _LOGO_CACHE[url] = None
+            return None
+        content_type = resp.headers.get("content-type", "image/png").split(";")[0].strip()
+        encoded = base64.b64encode(resp.content).decode("ascii")
+        data_uri = f"data:{content_type};base64,{encoded}"
+        _LOGO_CACHE[url] = data_uri
+        return data_uri
+    except requests.RequestException as e:
+        logger.info("logo fetch error for %s: %s", url, e)
+        _LOGO_CACHE[url] = None
+        return None
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-_NOT_AVAILABLE = "Not available"
+_EL_LEAGUES = {"Europa League", "UEFA Europa League", "UEFA Europa Conference League", "Conference League"}
+
+# FotMob league IDs — verified 200 via curl before embedding
+# Verified: 47 (PL), 87 (La Liga), 55 (Serie A), 54 (Bundesliga), 53 (Ligue 1), 42 (UCL), 73 (EL), 264 (Israeli)
+FOTMOB_LEAGUE_ID: dict[str, int] = {
+    "Premier League": 47,
+    "La Liga": 87,
+    "Serie A": 55,
+    "Bundesliga": 54,
+    "Ligue 1": 53,
+    "Champions League": 42,
+    "UEFA Champions League": 42,
+    "Europa League": 73,
+    "UEFA Europa League": 73,
+    "Conference League": 10216,
+    "UEFA Conference League": 10216,
+    "UEFA Europa Conference League": 10216,
+    "Israeli Premier League": 264,
+    "\u05dc\u05d9\u05d2\u05ea Winner": 264,
+}
 
 _FETCH_GAME_SQL = """
-SELECT game_id, match_date, kickoff_time, home_team, away_team, league, venue,
-       home_win_odd, away_win_odd, draw_odd
-FROM games WHERE game_id = %(game_id)s
+SELECT g.game_id, g.match_date, g.kickoff_time, g.home_team, g.away_team, g.league, g.venue,
+       g.home_win_odd, g.away_win_odd, g.draw_odd,
+       th.fotmob_id AS home_fotmob_id,
+       ta.fotmob_id AS away_fotmob_id
+FROM games g
+LEFT JOIN teams th ON th.canonical_name = g.home_team
+                   OR th.aliases @> to_jsonb(g.home_team)
+LEFT JOIN teams ta ON ta.canonical_name = g.away_team
+                   OR ta.aliases @> to_jsonb(g.away_team)
+WHERE g.game_id = %(game_id)s
 """
 
 _FETCH_GAME_REPORT_SQL = """
-SELECT h2h_insights, weather_risk, venue
+SELECT h2h_home_team, h2h_away_team, h2h_home_team_wins, h2h_away_team_wins,
+       h2h_draws, h2h_total_meetings, h2h_bullets,
+       weather_bullets, weather_cancellation_risk, venue
 FROM game_reports WHERE game_id = %(game_id)s
 LIMIT 1
 """
 
 _FETCH_TEAM_REPORTS_SQL = """
-SELECT team_name, recovery_days, form_trend, injury_impact, league_position, team_news
+SELECT team_name, recovery_days, form_streak, last_5_games, form_bullets,
+       league_rank, league_points, league_matches_played, league_bullets,
+       injury_bullets, news_bullets
 FROM team_reports WHERE game_id = %(game_id)s ORDER BY team_name
 """
 
@@ -33,332 +95,328 @@ FROM expert_game_reports WHERE game_id = %(game_id)s
 LIMIT 1
 """
 
-_CSS = """
-* { margin: 0; padding: 0; box-sizing: border-box; }
+# ---------------------------------------------------------------------------
+# CSS — v6 green palette
+# ---------------------------------------------------------------------------
+_CSS = """\
+/* === portrait overflow safety net === */
+html,body{max-width:100vw;overflow-x:hidden}
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(135deg, #2d5a27 0%, #3d7a37 100%);
-    min-height: 100vh;
-    color: #ffffff;
-    padding: 16px;
+/* === reset === */
+*{margin:0;padding:0;box-sizing:border-box}
+
+/* === typography === */
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  background:#0d1410;
+  color:#e4e4e4;
+  padding:12px;
+}
+h1,h2,h3{font-weight:600}
+
+/* === section cards — alternating backgrounds === */
+.section-a{background:#121a15;padding:10px;margin-bottom:2px}
+.section-b{background:#0f1512;padding:10px;margin-bottom:2px}
+.section-header{
+  background:#0d1410;
+  padding:12px 0 12px 0;
+  border-top:2px solid #2e6b2d;
+  border-bottom:1px solid #1e2a22;
+  margin-bottom:2px;
 }
 
-.container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 16px;
+/* === hero === */
+.header-teams{
+  font-size:1.8rem;
+  font-weight:700;
+  color:#e4e4e4;
+  letter-spacing:0.01em;
+  line-height:1.2;
+}
+.header-sep{
+  color:#8a938d;
+  padding:0 8px;
+  font-size:1.2rem;
+  font-weight:400;
+}
+.header-meta{
+  font-size:1.1rem;
+  color:#8a938d;
+  margin-top:5px;
+}
+.header-league{
+  font-weight:600;
+  color:#c8a84b;
+}
+/* team logo: inline next to team name in hero */
+.team-logo{
+  height:32px;
+  width:auto;
+  vertical-align:middle;
+  margin-right:6px;
+  display:inline-block;
+}
+/* league logo: inline before league name */
+.league-logo{
+  height:24px;
+  width:auto;
+  vertical-align:middle;
+  margin-right:4px;
+  display:inline-block;
 }
 
-/* Match Header */
-.match-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: rgba(26, 26, 46, 0.95);
-    border-radius: 16px;
-    padding: 28px 24px;
-    margin-bottom: 16px;
-    border: 1px solid rgba(79, 195, 247, 0.3);
-    flex-wrap: wrap;
-    gap: 16px;
+/* === odds === */
+.odds-row{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:1.5rem;
+  font-weight:700;
+  color:#e4e4e4;
+  padding:4px 0;
+}
+.odds-label{
+  color:#e4e4e4;
+  font-size:1.5rem;
+  font-weight:700;
+}
+.odds-dot{
+  color:#3d7a37;
+  font-size:1.5rem;
+  font-weight:700;
+  padding:0 2px;
+}
+.odds-value{
+  color:#c8a84b;
+  font-size:1.5rem;
+  font-weight:700;
+}
+.odds-sep{
+  color:#1e2a22;
+  font-size:1.2rem;
+  padding:0 6px;
+}
+.odds-source{
+  margin-left:auto;
+  font-size:0.7rem;
+  color:#888;
+  font-weight:400;
+  white-space:nowrap;
 }
 
-.team-badge {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    flex: 1;
-    min-width: 140px;
+/* === comparison table — fixed layout, 3 cols: 40/20/40 === */
+.cmp-table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+  max-width:100%;
+}
+.cmp-table th{
+  padding:6px 4px;
+  font-size:0.8rem;
+  font-weight:600;
+  color:#8a938d;
+  border-bottom:1px solid #1e2a22;
+  text-align:center;
+  overflow-wrap:break-word;
+  word-break:break-word;
+}
+.cmp-table th.th-home{
+  width:40%;
+  text-align:left;
+  padding-left:8px;
+  color:#e4e4e4;
+}
+.cmp-table th.th-label{
+  width:20%;
+  text-align:center;
+}
+.cmp-table th.th-away{
+  width:40%;
+  text-align:left;
+  padding-left:8px;
+  color:#e4e4e4;
+}
+.cmp-table td{
+  vertical-align:top;
+  padding:7px 4px;
+  border-bottom:1px solid #1e2a22;
+  font-size:0.82rem;
+  text-align:left;
+  overflow-wrap:break-word;
+  word-break:break-word;
+}
+/* in-table bullets are smaller to fit narrow columns */
+.cmp-table .bullets li{font-size:0.78rem}
+.cmp-table td.home-cell{
+  width:40%;
+  text-align:left;
+  padding-left:8px;
+}
+.cmp-table td.label-cell{
+  width:20%;
+  text-align:center;
+  color:#c8a84b;
+  font-size:0.72rem;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  white-space:nowrap;
+  border-left:2px solid #2e6b2d;
+  border-right:2px solid #2e6b2d;
+}
+.cmp-table td.away-cell{
+  width:40%;
+  text-align:left;
+  padding-left:8px;
 }
 
-.team-crest {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.8rem;
-    font-weight: 700;
-    border: 3px solid;
+/* === form pills — both sides left-aligned === */
+.pills{
+  display:flex;
+  gap:3px;
+  flex-wrap:wrap;
+  justify-content:flex-start;
+  align-items:flex-start;
+}
+.pill{
+  display:inline-flex;
+  width:22px;
+  height:22px;
+  align-items:center;
+  justify-content:center;
+  font-size:0.68rem;
+  font-weight:700;
+  border-radius:50%;
+  background:#242424;
+  color:#e4e4e4;
+  flex-shrink:0;
+}
+.pill.w{background:#2e6b2d;color:#e4e4e4}
+.pill.d{background:#4a4f4a;color:#e4e4e4}
+.pill.l{background:#8a2a2a;color:#e4e4e4}
+.pill.q{background:#1c1c1c;color:#555}
+/* newest-pill underscore indicator: short bar below the circle, no vertical shift */
+.pill-newest{
+  display:inline-flex;
+  flex-direction:column;
+  align-items:center;
+  vertical-align:top;
+  flex-shrink:0;
+}
+.pill-newest-bar{
+  margin-top:3px;
+  width:60%;
+  height:2px;
+  border-radius:1px;
+}
+.pill-newest-bar.w{background:#2e6b2d}
+.pill-newest-bar.d{background:#4a4f4a}
+.pill-newest-bar.l{background:#8a2a2a}
+.pill-newest-bar.q{background:#333}
+
+/* === last-5 mini table: 100% width, fixed layout, % columns === */
+.l5-table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+  font-size:0.72rem;
+  margin-top:5px;
+  color:#8a938d;
+}
+.l5-table td{
+  padding:2px 2px;
+  border-bottom:1px solid #1e2a22;
+  overflow:hidden;
+  white-space:nowrap;
+}
+/* result col: 15%, score col: 22%, opp col: 48%, h/a col: 15% */
+.l5-table td:first-child{text-align:center;width:15%}
+.l5-table .l5-score{color:#e4e4e4;font-variant-numeric:tabular-nums;width:22%}
+.l5-table .l5-opp{width:48%;overflow:hidden;text-overflow:ellipsis}
+.l5-table .l5-ha{width:15%;text-align:center}
+.l5-res-w{color:#2e6b2d;font-weight:700}
+.l5-res-d{color:#4a4f4a;font-weight:700}
+.l5-res-l{color:#8a2a2a;font-weight:700}
+
+/* === bullets — clean left-gutter === */
+.bullets{list-style:none;padding-left:0;margin:6px 0}
+.bullets li{
+  position:relative;
+  padding-left:16px;
+  margin-bottom:4px;
+  line-height:1.5;
+  font-size:0.78rem;
+  color:#8a938d;
+}
+.bullets li::before{
+  content:"•";
+  position:absolute;
+  left:4px;
+  top:0;
+  color:#c8a84b;
 }
 
-.team-badge.home .team-crest {
-    background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
-    border-color: #4caf50;
+/* === section labels with green left-rule === */
+.shared-label{
+  color:#c8a84b;
+  font-size:0.72rem;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  margin-bottom:4px;
+  border-left:3px solid #2e6b2d;
+  padding-left:7px;
+}
+.shared-body{color:#e4e4e4;font-size:0.82rem}
+.cancel-risk{color:#c8a84b;font-size:0.75rem;margin-top:3px}
+
+/* === h2h dot separators === */
+.h2h-dot{
+  color:#c8a84b;
+  font-size:1.1rem;
+  font-weight:700;
+  padding:0 4px;
 }
 
-.team-badge.away .team-crest {
-    background: linear-gradient(135deg, #f44336 0%, #c62828 100%);
-    border-color: #f44336;
+/* === expert === */
+.expert-title{
+  color:#c8a84b;
+  font-size:0.72rem;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  margin-bottom:6px;
+  border-left:3px solid #2e6b2d;
+  padding-left:7px;
 }
 
-.team-name {
-    font-size: 1.3rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    text-align: center;
+/* === utilities === */
+.em{color:#8a938d}
+@media(max-width:420px){
+  body{padding:8px;font-size:13px}
+  .header-teams{font-size:1.5rem}
+  .header-meta{font-size:0.95rem}
+  .cmp-table td{padding:6px 2px;font-size:0.78rem}
+  .cmp-table .bullets li{font-size:0.75rem}
+  /* shrink pills so 5 fit in ~125px column */
+  .cmp-table .pill{width:18px;height:18px;line-height:18px;font-size:0.62rem}
+  .cmp-table .pill-newest-bar{width:60%;height:2px}
+  .odds-row,.odds-label,.odds-dot,.odds-value{font-size:1.3rem}
+  .team-logo{height:24px}
+  .league-logo{height:18px}
 }
-
-.team-badge.home .team-name { color: #4caf50; }
-.team-badge.away .team-name { color: #f44336; }
-
-.match-center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    min-width: 160px;
-}
-
-.vs-badge {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: #f5a623;
-    border: 2px solid #f5a623;
-    border-radius: 50%;
-    width: 52px;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.match-datetime {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #f5a623;
-    text-align: center;
-}
-
-.league-label {
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.6);
-    padding: 4px 12px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 4px;
-    text-align: center;
-}
-
-.venue-label {
-    font-size: 0.8rem;
-    color: #4fc3f7;
-    text-align: center;
-}
-
-/* Section card */
-.section-card {
-    background: rgba(26, 26, 46, 0.95);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 16px;
-    border: 1px solid rgba(79, 195, 247, 0.3);
-}
-
-.section-title {
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: rgba(255,255,255,0.6);
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-/* Odds */
-.odds-row {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.odd-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 18px 28px;
-    background: rgba(255,255,255,0.05);
-    border-radius: 10px;
-    border: 2px solid transparent;
-    min-width: 110px;
-}
-
-.odd-card.home-win { border-color: #4caf50; }
-.odd-card.draw     { border-color: #9e9e9e; }
-.odd-card.away-win { border-color: #f44336; }
-
-.odd-label {
-    font-size: 1.2rem;
-    font-weight: 700;
-    margin-bottom: 4px;
-}
-
-.odd-value {
-    font-size: 2.4rem;
-    font-weight: 700;
-    color: #f5a623;
-    line-height: 1;
-}
-
-.odd-desc {
-    font-size: 0.75rem;
-    color: rgba(255,255,255,0.5);
-    margin-top: 4px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-/* Expert analysis */
-.expert-card {
-    background: rgba(26, 26, 46, 0.95);
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 16px;
-    border: 1px solid rgba(245, 166, 35, 0.4);
-    border-left: 4px solid #f5a623;
-}
-
-.expert-title {
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: #f5a623;
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.expert-body {
-    font-size: 0.95rem;
-    line-height: 1.75;
-    color: #e0e0e0;
-    white-space: pre-wrap;
-}
-
-/* Comparison grid */
-.comparison-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-}
-
-@media (max-width: 900px) {
-    .comparison-grid {
-        grid-template-columns: 1fr;
-    }
-    .center-col { order: -1; }
-}
-
-.team-col {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.col-header {
-    text-align: center;
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 4px;
-}
-
-.team-col.home .col-header {
-    background: linear-gradient(135deg, rgba(76,175,80,0.3) 0%, rgba(76,175,80,0.1) 100%);
-    border: 1px solid #4caf50;
-}
-
-.team-col.away .col-header {
-    background: linear-gradient(135deg, rgba(244,67,54,0.3) 0%, rgba(244,67,54,0.1) 100%);
-    border: 1px solid #f44336;
-}
-
-.center-col {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.col-tag {
-    display: block;
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 3px;
-    color: rgba(255,255,255,0.5);
-    margin-bottom: 4px;
-}
-
-.col-title {
-    display: block;
-    font-size: 1.1rem;
-    font-weight: 700;
-    text-transform: uppercase;
-}
-
-/* Stat card */
-.stat-card {
-    background: rgba(26, 26, 46, 0.95);
-    border-radius: 10px;
-    padding: 16px;
-    border: 1px solid rgba(79, 195, 247, 0.2);
-}
-
-.stat-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: rgba(255,255,255,0.5);
-    margin-bottom: 10px;
-}
-
-.stat-body {
-    font-size: 0.88rem;
-    line-height: 1.65;
-    color: #e0e0e0;
-    white-space: pre-wrap;
-}
-
-/* Recovery badge */
-.recovery-number {
-    font-size: 2.4rem;
-    font-weight: 700;
-    display: block;
-    margin-bottom: 4px;
-}
-
-.recovery-tag {
-    display: inline-block;
-    padding: 3px 12px;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-weight: 600;
-}
-
-.recovery-tag.short    { background: rgba(244,67,54,0.2);  color: #f44336; }
-.recovery-tag.normal   { background: rgba(158,158,158,0.2); color: #9e9e9e; }
-.recovery-tag.extended { background: rgba(76,175,80,0.2);  color: #4caf50; }
-
-/* Match header responsive */
-@media (max-width: 600px) {
-    .match-header { flex-direction: column; align-items: center; }
-    .team-badge { min-width: unset; width: 100%; }
-    .odd-value { font-size: 1.8rem; }
+@media(min-width:668px){
+  body{max-width:660px;margin:0 auto}
 }
 """
 
 
 def _esc(value: Any) -> str:
     if value is None:
-        return _NOT_AVAILABLE
+        return "\u2014"
     s = str(value)
     return (
         s.replace("&", "&amp;")
@@ -368,114 +426,216 @@ def _esc(value: Any) -> str:
     )
 
 
-def _recovery_class(days: int | None) -> str:
+def _bullets_html(items: list[str] | None, side: str = "") -> str:
+    if not items:
+        return ""
+    lis = "".join(f"<li>{_esc(b)}</li>" for b in items)
+    return f'<ul class="bullets">{lis}</ul>'
+
+
+def _pill_class(char: str) -> str:
+    return {"W": "w", "D": "d", "L": "l"}.get(char.upper(), "q")
+
+
+def _pill(char: str, newest: bool = False) -> str:
+    c = char.upper()
+    css = _pill_class(c)
+    circle = f'<span class="pill {css}">{_esc(c)}</span>'
+    if newest:
+        bar = f'<span class="pill-newest-bar {css}"></span>'
+        return f'<span class="pill-newest">{circle}{bar}</span>'
+    return circle
+
+
+def _form_pills_html(streak: str | None, side: str) -> str:
+    if not streak:
+        return '<span class="em">\u2014</span>'
+    # Both sides left-aligned — no away-pills class needed.
+    # form_streak is stored newest-first (same convention as last_5_games).
+    # Reverse so pills read oldest→newest left-to-right; the rightmost pill
+    # (last after reversal) is the most-recent result and gets the underscore.
+    chars = list(reversed(streak))
+    parts = []
+    for i, ch in enumerate(chars):
+        is_newest = (i == len(chars) - 1)
+        parts.append(_pill(ch, newest=is_newest))
+    pills = "".join(parts)
+    return f'<div class="pills">{pills}</div>'
+
+
+def _last5_html(last5: list[dict] | None, side: str) -> str:
+    if not last5:
+        return ""
+    # last_5_games JSONB is stored oldest-first; render most-recent at top
+    games = list(reversed(last5[:5]))
+    rows = ""
+    for m in games:
+        result = (m.get("result") or "?").upper()
+        gf = m.get("goals_for", "?")
+        ga = m.get("goals_against", "?")
+        opp = _esc(m.get("opponent", "\u2014"))
+        ha = _esc(m.get("home_or_away", "?"))
+        res_class = {"W": "l5-res-w", "D": "l5-res-d", "L": "l5-res-l"}.get(result, "")
+        rows += (
+            f"<tr>"
+            f'<td class="{res_class}">{_esc(result)}</td>'
+            f'<td class="l5-score">{gf}:{ga}</td>'
+            f'<td class="l5-opp">{opp}</td>'
+            f'<td class="l5-ha">{ha}</td>'
+            f"</tr>"
+        )
+    return f'<table class="l5-table">{rows}</table>'
+
+
+def _form_cell(report: dict | None, side: str) -> str:
+    if report is None:
+        return '<span class="em">\u2014</span>'
+    streak = report.get("form_streak") or ""
+    last5 = report.get("last_5_games") or []
+    form_bullets = report.get("form_bullets") or []
+    pills = _form_pills_html(streak, side)
+    tbl = _last5_html(last5, side)
+    bullets = _bullets_html(form_bullets)
+    return pills + tbl + bullets
+
+
+def _league_cell(report: dict | None) -> str:
+    if report is None:
+        return '<span class="em">\u2014</span>'
+    rank = report.get("league_rank")
+    pts = report.get("league_points")
+    mp = report.get("league_matches_played")
+    rank_s = str(rank) if rank is not None else "\u2014"
+    pts_s = str(pts) if pts is not None else "\u2014"
+    mp_s = str(mp) if mp is not None else "\u2014"
+    summary = (
+        f'{_esc(rank_s)}'
+        f' · {_esc(pts_s)} pts'
+        f' · {_esc(mp_s)} MP'
+    )
+    bullets = _bullets_html(report.get("league_bullets"))
+    return f"<div>{summary}</div>{bullets}"
+
+
+def _recovery_cell(report: dict | None) -> str:
+    if report is None:
+        return '<span class="em">\u2014</span>'
+    days = report.get("recovery_days")
     if days is None:
-        return "normal"
-    if days < 3:
-        return "short"
-    if days <= 5:
-        return "normal"
-    return "extended"
+        return '<span class="em">\u2014</span>'
+    return f'{_esc(str(days))} days'
 
 
-def _recovery_label(days: int | None) -> str:
-    if days is None:
-        return "Unknown"
-    if days < 3:
-        return "Short turnaround"
-    if days <= 5:
-        return "Normal rest"
-    return "Well rested"
+def _injuries_cell(report: dict | None) -> str:
+    if report is None:
+        return '<span class="em">\u2014</span>'
+    bullets = report.get("injury_bullets") or []
+    if not bullets:
+        return '<span class="em">\u2014</span>'
+    return _bullets_html(bullets)
 
 
-def _team_initials(name: str) -> str:
-    parts = name.split()
-    if len(parts) >= 2:
-        return (parts[0][0] + parts[-1][0]).upper()
-    return name[:2].upper()
+def _cmp_row(home_content: str, label: str, away_content: str) -> str:
+    return (
+        f"<tr>"
+        f'<td class="home-cell">{home_content}</td>'
+        f'<td class="label-cell">{_esc(label)}</td>'
+        f'<td class="away-cell">{away_content}</td>'
+        f"</tr>"
+    )
 
 
-def _team_card_html(team_name: str, report: dict[str, Any] | None, side: str) -> str:
-    col_class = "home" if side == "home" else "away"
-    tag = "HOME" if side == "home" else "AWAY"
+def _h2h_html(
+    league: str,
+    h2h_home: str | None,
+    h2h_away: str | None,
+    h2h_hw: int | None,
+    h2h_aw: int | None,
+    h2h_d: int | None,
+    h2h_total: int | None,
+    h2h_bullets: list[str] | None,
+) -> str:
+    if league in _EL_LEAGUES:
+        fallback = "H2H not tracked for this competition"
+        return (
+            f'<div class="shared-label">H2H</div>'
+            f'<div class="shared-body">{_esc(fallback)}</div>'
+            + _bullets_html(h2h_bullets)
+        )
 
-    recovery_days = report["recovery_days"] if report else None
-    r_class = _recovery_class(recovery_days)
-    r_label = _recovery_label(recovery_days)
-    r_display = str(recovery_days) if recovery_days is not None else "?"
+    if h2h_total is not None and h2h_total > 0 and h2h_home and h2h_away:
+        hw = h2h_hw or 0
+        d = h2h_d or 0
+        aw = h2h_aw or 0
+        line = (
+            f'<div class="shared-label">H2H</div>'
+            f'<div class="shared-body">'
+            f'<span>{_esc(h2h_home)}</span>'
+            f'<span class="h2h-dot">·</span>'
+            f'<span>{hw}</span>'
+            f'<span class="h2h-dot"> — </span>'
+            f'<span>Draws</span>'
+            f'<span class="h2h-dot">·</span>'
+            f'<span>{d}</span>'
+            f'<span class="h2h-dot"> — </span>'
+            f'<span>{_esc(h2h_away)}</span>'
+            f'<span class="h2h-dot">·</span>'
+            f'<span>{aw}</span>'
+            f'</div>'
+        )
+        return line + _bullets_html(h2h_bullets)
 
-    form_trend     = _esc(report["form_trend"] if report else None)
-    injury_impact  = _esc(report["injury_impact"] if report else None)
-    league_position = _esc(report["league_position"] if report else None)
-    team_news      = _esc(report["team_news"] if report else None)
-
-    return f"""
-<div class="team-col {col_class}">
-    <div class="col-header">
-        <span class="col-tag">{tag}</span>
-        <span class="col-title">{_esc(team_name)}</span>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">League Position</div>
-        <div class="stat-body">{league_position}</div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Form Trend</div>
-        <div class="stat-body">{form_trend}</div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Recovery</div>
-        <div style="text-align:center; margin-bottom:6px;">
-            <span class="recovery-number" style="color: {'#f44336' if r_class == 'short' else ('#4caf50' if r_class == 'extended' else '#9e9e9e')};">{r_display}</span>
-            <span style="display:block; font-size:0.78rem; color:rgba(255,255,255,0.5); margin-bottom:6px;">days since last match</span>
-            <span class="recovery-tag {r_class}">{r_label}</span>
-        </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Injury Impact</div>
-        <div class="stat-body">{injury_impact}</div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Team News</div>
-        <div class="stat-body">{team_news}</div>
-    </div>
-</div>
-"""
+    # text fallback
+    fallback = "H2H: No data available."
+    return (
+        f'<div class="shared-label">H2H</div>'
+        f'<div class="shared-body">{_esc(fallback)}</div>'
+        + _bullets_html(h2h_bullets)
+    )
 
 
-def _center_card_html(h2h_insights: str, weather_risk: str, venue_text: str) -> str:
-    return f"""
-<div class="center-col">
-    <div class="col-header" style="background: rgba(79,195,247,0.1); border: 1px solid rgba(79,195,247,0.4);">
-        <span class="col-tag">SHARED</span>
-        <span class="col-title" style="color:#4fc3f7;">Match Data</span>
-    </div>
+def _weather_html(weather_bullets: list[str] | None, cancel_risk: str | None) -> str:
+    if not weather_bullets:
+        return '<span class="em">\u2014</span>'
+    bullets = _bullets_html(weather_bullets)
+    risk_line = ""
+    if cancel_risk in ("medium", "high"):
+        risk_line = f'<div class="cancel-risk">Weather cancellation risk: {_esc(cancel_risk)}.</div>'
+    return bullets + risk_line
 
-    <div class="stat-card">
-        <div class="stat-label">H2H Insights</div>
-        <div class="stat-body">{_esc(h2h_insights)}</div>
-    </div>
 
-    <div class="stat-card">
-        <div class="stat-label">Weather Risk</div>
-        <div class="stat-body">{_esc(weather_risk)}</div>
-    </div>
+def _odds_row_html(h_odd_disp: str, d_odd_disp: str, a_odd_disp: str) -> str:
+    """Render the odds as a single inline row."""
+    return (
+        f'<div class="odds-row">'
+        f'<span class="odds-label">1</span>'
+        f'<span class="odds-dot">·</span>'
+        f'<span class="odds-value">{_esc(h_odd_disp)}</span>'
+        f'<span class="odds-sep">|</span>'
+        f'<span class="odds-label">X</span>'
+        f'<span class="odds-dot">·</span>'
+        f'<span class="odds-value">{_esc(d_odd_disp)}</span>'
+        f'<span class="odds-sep">|</span>'
+        f'<span class="odds-label">2</span>'
+        f'<span class="odds-dot">·</span>'
+        f'<span class="odds-value">{_esc(a_odd_disp)}</span>'
+        f'<span class="odds-source">winner.co.il</span>'
+        f'</div>'
+    )
 
-    <div class="stat-card">
-        <div class="stat-label">Venue</div>
-        <div class="stat-body">{_esc(venue_text)}</div>
-    </div>
-</div>
-"""
+
+def _cmp_header_row(home_team: str, away_team: str) -> str:
+    return (
+        f"<tr>"
+        f'<th class="th-home">{_esc(home_team)}</th>'
+        f'<th class="th-label"></th>'
+        f'<th class="th-away">{_esc(away_team)}</th>'
+        f"</tr>"
+    )
 
 
 def generate_game_report_html(game_id: int) -> str:
-    """Query DB for all data about a game and return a complete self-contained HTML string."""
+    """Query DB and return a complete self-contained HTML string for one game."""
     conn = psycopg2.connect(DATABASE_URL)
     try:
         with conn:
@@ -488,126 +648,177 @@ def generate_game_report_html(game_id: int) -> str:
                 (
                     _gid, match_date, kickoff_time, home_team, away_team, league,
                     venue_from_games, home_win_odd, away_win_odd, draw_odd,
+                    home_fotmob_id, away_fotmob_id,
                 ) = game_row
+
+                h2h_home = h2h_away = None
+                h2h_hw = h2h_aw = h2h_d = h2h_total = None
+                h2h_bullets: list[str] = []
+                weather_bullets: list[str] = []
+                cancel_risk: str | None = None
+                venue_from_report: str | None = None
 
                 cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
                 report_row = cur.fetchone()
                 if report_row is not None:
-                    h2h_insights, weather_risk, venue_from_report = report_row
-                    h2h_insights  = h2h_insights  or _NOT_AVAILABLE
-                    weather_risk  = weather_risk  or _NOT_AVAILABLE
-                    venue_text    = venue_from_report or venue_from_games or _NOT_AVAILABLE
-                else:
-                    h2h_insights = weather_risk = _NOT_AVAILABLE
-                    venue_text   = venue_from_games or _NOT_AVAILABLE
+                    (
+                        h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total,
+                        h2h_bullets_raw, weather_bullets_raw, cancel_risk, venue_from_report,
+                    ) = report_row
+                    h2h_bullets = h2h_bullets_raw or []
+                    weather_bullets = weather_bullets_raw or []
+
+                venue_display = venue_from_report or venue_from_games
 
                 cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
                 team_rows = cur.fetchall()
                 team_map: dict[str, dict[str, Any]] = {}
                 for row in team_rows:
-                    t_name, recovery_days, form_trend, injury_impact, league_position, team_news = row
+                    (
+                        t_name, recovery_days, form_streak, last5_raw, form_bullets_raw,
+                        league_rank, league_points, league_mp, league_bullets_raw,
+                        injury_bullets_raw, news_bullets_raw,
+                    ) = row
                     team_map[t_name] = {
                         "recovery_days": recovery_days,
-                        "form_trend": form_trend,
-                        "injury_impact": injury_impact,
-                        "league_position": league_position,
-                        "team_news": team_news,
+                        "form_streak": form_streak,
+                        "last_5_games": last5_raw or [],
+                        "form_bullets": form_bullets_raw or [],
+                        "league_rank": league_rank,
+                        "league_points": league_points,
+                        "league_matches_played": league_mp,
+                        "league_bullets": league_bullets_raw or [],
+                        "injury_bullets": injury_bullets_raw or [],
+                        "news_bullets": news_bullets_raw or [],
                     }
 
                 cur.execute(_FETCH_EXPERT_SQL, {"game_id": game_id})
                 expert_row = cur.fetchone()
-                expert_analysis = expert_row[0] if expert_row else _NOT_AVAILABLE
+                expert_bullets: list[str] = expert_row[0] if expert_row else []
+                if not isinstance(expert_bullets, list):
+                    expert_bullets = [str(expert_bullets)] if expert_bullets else []
     finally:
         conn.close()
 
     home_report = team_map.get(home_team)
     away_report = team_map.get(away_team)
 
-    # Format date/time display
-    date_str    = str(match_date) if match_date else "TBD"
-    time_str    = str(kickoff_time) if kickoff_time else "TBD"
-    datetime_display = f"{date_str} — {time_str} ISR"
+    date_str = str(match_date) if match_date else "\u2014"
+    time_str = kickoff_time.strftime("%H:%M") if kickoff_time else "\u2014"
 
-    home_initials = _team_initials(home_team)
-    away_initials = _team_initials(away_team)
+    h_odd_disp = f"{float(home_win_odd):.2f}" if home_win_odd is not None else "\u2014"
+    d_odd_disp = f"{float(draw_odd):.2f}" if draw_odd is not None else "\u2014"
+    a_odd_disp = f"{float(away_win_odd):.2f}" if away_win_odd is not None else "\u2014"
 
-    home_win_odd_display = f"{float(home_win_odd):.2f}" if home_win_odd is not None else "—"
-    draw_odd_display     = f"{float(draw_odd):.2f}"     if draw_odd     is not None else "—"
-    away_win_odd_display = f"{float(away_win_odd):.2f}" if away_win_odd is not None else "—"
+    # --- logo HTML helpers ---
+    _fotmob_team_base = "https://images.fotmob.com/image_resources/logo/teamlogo"
+    _fotmob_league_base = "https://images.fotmob.com/image_resources/logo/leaguelogo"
 
-    home_col_html   = _team_card_html(home_team, home_report, "home")
-    away_col_html   = _team_card_html(away_team, away_report, "away")
-    center_col_html = _center_card_html(h2h_insights, weather_risk, venue_text)
+    def _team_logo_img(fotmob_id: int | None) -> str:
+        if fotmob_id is None:
+            return ""
+        url = f"{_fotmob_team_base}/{fotmob_id}.png"
+        data_uri = _fetch_logo_data_uri(url)
+        if data_uri is None:
+            return ""
+        return f'<img class="team-logo" src="{data_uri}" alt="">'
+
+    def _league_logo_img(league_name: str | None) -> str:
+        if not league_name:
+            return ""
+        lid = FOTMOB_LEAGUE_ID.get(league_name)
+        if lid is None:
+            return ""
+        url = f"{_fotmob_league_base}/{lid}.png"
+        data_uri = _fetch_logo_data_uri(url)
+        if data_uri is None:
+            return ""
+        return f'<img class="league-logo" src="{data_uri}" alt="">'
+
+    home_logo_html = _team_logo_img(home_fotmob_id)
+    away_logo_html = _team_logo_img(away_fotmob_id)
+    league_logo_html = _league_logo_img(league)
+
+    cmp_header = _cmp_header_row(home_team, away_team)
+    cmp_rows = "".join([
+        _cmp_row(_form_cell(home_report, "home"), "Form", _form_cell(away_report, "away")),
+        _cmp_row(_league_cell(home_report), "League", _league_cell(away_report)),
+        _cmp_row(_recovery_cell(home_report), "Recovery", _recovery_cell(away_report)),
+        _cmp_row(_injuries_cell(home_report), "Injuries", _injuries_cell(away_report)),
+    ])
+
+    h2h_content = _h2h_html(
+        league or "",
+        h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total, h2h_bullets,
+    )
+
+    weather_content = _weather_html(weather_bullets, cancel_risk)
+
+    venue_html = (
+        f'<div class="section-b">'
+        f'<div class="shared-label">Venue</div>'
+        f'<div class="shared-body">{_esc(venue_display) if venue_display else "\u2014"}</div>'
+        f'</div>'
+    )
+
+    expert_html = ""
+    if expert_bullets:
+        bullet_items = "".join(f"<li>{_esc(b)}</li>" for b in expert_bullets)
+        expert_html = (
+            f'<div class="section-a">'
+            f'<div class="expert-title">Expert analysis</div>'
+            f'<ul class="bullets">{bullet_items}</ul>'
+            f'</div>'
+        )
+
+    odds_html = _odds_row_html(h_odd_disp, d_odd_disp, a_odd_disp)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{_esc(home_team)} vs {_esc(away_team)} — SoccerSmartBet</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{_esc(home_team)} vs {_esc(away_team)}</title>
 <style>
 {_CSS}
 </style>
 </head>
 <body>
-<div class="container">
 
-    <!-- Match Header -->
-    <div class="match-header">
-        <div class="team-badge home">
-            <div class="team-crest">{_esc(home_initials)}</div>
-            <div class="team-name">{_esc(home_team)}</div>
-        </div>
-
-        <div class="match-center">
-            <div class="vs-badge">VS</div>
-            <div class="match-datetime">{_esc(datetime_display)}</div>
-            <div class="league-label">{_esc(league)}</div>
-            <div class="venue-label">{_esc(venue_text if venue_text != _NOT_AVAILABLE else "")}</div>
-        </div>
-
-        <div class="team-badge away">
-            <div class="team-crest">{_esc(away_initials)}</div>
-            <div class="team-name">{_esc(away_team)}</div>
-        </div>
-    </div>
-
-    <!-- Odds -->
-    <div class="section-card">
-        <div class="section-title">&#127922; Odds (winner.co.il)</div>
-        <div class="odds-row">
-            <div class="odd-card home-win">
-                <div class="odd-label">1</div>
-                <div class="odd-value">{_esc(home_win_odd_display)}</div>
-                <div class="odd-desc">Home Win</div>
-            </div>
-            <div class="odd-card draw">
-                <div class="odd-label">X</div>
-                <div class="odd-value">{_esc(draw_odd_display)}</div>
-                <div class="odd-desc">Draw</div>
-            </div>
-            <div class="odd-card away-win">
-                <div class="odd-label">2</div>
-                <div class="odd-value">{_esc(away_win_odd_display)}</div>
-                <div class="odd-desc">Away Win</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Expert Analysis -->
-    <div class="expert-card">
-        <div class="expert-title">&#129504; Expert Analysis</div>
-        <div class="expert-body">{_esc(expert_analysis)}</div>
-    </div>
-
-    <!-- Three-column grid -->
-    <div class="comparison-grid">
-        {home_col_html}
-        {center_col_html}
-        {away_col_html}
-    </div>
-
+<div class="section-header">
+  <div class="header-teams">
+    {home_logo_html}{_esc(home_team)}<span class="header-sep">vs</span>{away_logo_html}{_esc(away_team)}
+  </div>
+  <div class="header-meta">
+    {_esc(date_str)} · {_esc(time_str)} ISR ·
+    {league_logo_html}<span class="header-league">{_esc(league or "\u2014")}</span>
+  </div>
 </div>
+
+<div class="section-a">
+{odds_html}
+</div>
+
+<div class="section-b">
+<table class="cmp-table">
+{cmp_header}
+{cmp_rows}
+</table>
+</div>
+
+<div class="section-a">
+  {h2h_content}
+</div>
+
+{venue_html}
+
+<div class="section-a">
+  <div class="shared-label">Weather</div>
+  <div class="shared-body">{weather_content}</div>
+</div>
+
+{expert_html}
+
 </body>
 </html>"""
 
