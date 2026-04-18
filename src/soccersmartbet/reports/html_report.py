@@ -52,12 +52,12 @@ body{
 }
 h1,h2,h3{font-weight:600}
 
+/* === section cards — alternating backgrounds === */
+.section-a{background:#151515;padding:10px;margin-bottom:2px}
+.section-b{background:#1a1a1a;padding:10px;margin-bottom:2px}
+.section-header{background:#0f0f0f;padding:10px 0 10px 0;border-bottom:1px solid #222;margin-bottom:2px}
+
 /* === header === */
-.header{
-  border-bottom:1px solid #222;
-  padding-bottom:10px;
-  margin-bottom:10px;
-}
 .header-teams{
   font-size:1.05rem;
   font-weight:700;
@@ -78,41 +78,49 @@ h1,h2,h3{font-weight:600}
 .odds-row{
   display:flex;
   align-items:center;
-  gap:4px;
-  font-size:0.88rem;
+  gap:8px;
+  font-size:1.5rem;
+  font-weight:700;
   color:#d4d4d4;
-  padding:6px 0;
-  border-bottom:1px solid #1a1a1a;
+  padding:4px 0;
+}
+.odds-label{
+  color:#d4d4d4;
+  font-size:1.5rem;
+  font-weight:700;
+}
+.odds-dot{
+  color:#555;
+  font-size:1.5rem;
+  font-weight:700;
+  padding:0 2px;
+}
+.odds-value{
+  color:#c8a84b;
+  font-size:1.5rem;
+  font-weight:700;
+}
+.odds-sep{
+  color:#333;
+  font-size:1.2rem;
+  padding:0 6px;
 }
 .odds-source{
   margin-left:auto;
   font-size:0.72rem;
   color:#555;
+  font-weight:400;
 }
-
-/* === probability bar === */
-.prob-bar{
-  display:flex;
-  height:3px;
-  width:100%;
-  margin-bottom:10px;
-  border-radius:1px;
-  overflow:hidden;
-}
-.prob-home{background:#4a4a4a}
-.prob-draw{background:#2a2a2a}
-.prob-away{background:#3a3a3a}
 
 /* === comparison table === */
 .cmp-table{
   width:100%;
   border-collapse:collapse;
-  margin-bottom:10px;
 }
 .cmp-table td{
   vertical-align:top;
   padding:7px 4px;
-  border-bottom:1px solid #1a1a1a;
+  border-bottom:1px solid #222;
   font-size:0.82rem;
 }
 .cmp-table td.home-cell{
@@ -171,7 +179,7 @@ h1,h2,h3{font-weight:600}
 }
 .l5-table td{
   padding:2px 2px;
-  border-bottom:1px solid #1a1a1a;
+  border-bottom:1px solid #222;
 }
 .l5-table td:first-child{text-align:center;width:18px}
 .l5-table .l5-score{color:#bbb;font-variant-numeric:tabular-nums}
@@ -188,18 +196,13 @@ h1,h2,h3{font-weight:600}
   position:relative;
 }
 .bullets li::before{
-  content:'·';
+  content:'\00B7';
   position:absolute;
   left:0;
   color:#555;
 }
 
 /* === shared rows === */
-.shared-row{
-  padding:8px 0;
-  border-bottom:1px solid #1a1a1a;
-  font-size:0.82rem;
-}
 .shared-label{
   color:#c8a84b;
   font-size:0.72rem;
@@ -208,13 +211,18 @@ h1,h2,h3{font-weight:600}
   letter-spacing:0.05em;
   margin-bottom:4px;
 }
-.shared-body{color:#c0c0c0}
+.shared-body{color:#c0c0c0;font-size:0.82rem}
 .cancel-risk{color:#b08040;font-size:0.75rem;margin-top:3px}
 
-/* === expert === */
-.expert-section{
-  padding-top:10px;
+/* === h2h dot separators === */
+.h2h-dot{
+  color:#c8a84b;
+  font-size:1.1rem;
+  font-weight:700;
+  padding:0 4px;
 }
+
+/* === expert === */
 .expert-title{
   color:#c8a84b;
   font-size:0.72rem;
@@ -229,6 +237,7 @@ h1,h2,h3{font-weight:600}
 @media(max-width:375px){
   body{padding:8px;font-size:13px}
   .cmp-table td{padding:6px 2px;font-size:0.78rem}
+  .odds-row,.odds-label,.odds-dot,.odds-value{font-size:1.3rem}
 }
 @media(min-width:668px){
   body{max-width:660px;margin:0 auto}
@@ -344,26 +353,6 @@ def _cmp_row(home_content: str, label: str, away_content: str) -> str:
     )
 
 
-def _prob_bar_html(h_odd: Any, d_odd: Any, a_odd: Any) -> str:
-    try:
-        h = 1 / float(h_odd)
-        d = 1 / float(d_odd)
-        a = 1 / float(a_odd)
-        total = h + d + a
-        hp = round(h / total * 100, 1)
-        dp = round(d / total * 100, 1)
-        ap = round(100 - hp - dp, 1)
-        return (
-            f'<div class="prob-bar">'
-            f'<div class="prob-home" style="width:{hp}%"></div>'
-            f'<div class="prob-draw" style="width:{dp}%"></div>'
-            f'<div class="prob-away" style="width:{ap}%"></div>'
-            f"</div>"
-        )
-    except (TypeError, ValueError, ZeroDivisionError):
-        return ""
-
-
 def _h2h_html(
     league: str,
     h2h_home: str | None,
@@ -377,10 +366,13 @@ def _h2h_html(
     if league in _EL_LEAGUES:
         aggregate = "H2H not tracked for this competition"
     elif h2h_total is not None and h2h_total > 0 and h2h_home and h2h_away:
+        # Format: TeamA · wins – draws draws – wins · TeamB
         aggregate = (
-            f"{_esc(h2h_home)} {h2h_hw or 0} "
-            f"\u2013 {h2h_d or 0} draws "
-            f"\u2013 {h2h_aw or 0} {_esc(h2h_away)}"
+            f'<span>{_esc(h2h_home)}</span>'
+            f'<span class="h2h-dot">\u00b7</span>'
+            f'<span>{h2h_hw or 0} \u2013 {h2h_d or 0} draws \u2013 {h2h_aw or 0}</span>'
+            f'<span class="h2h-dot">\u00b7</span>'
+            f'<span>{_esc(h2h_away)}</span>'
         )
     else:
         aggregate = "H2H: No data available."
@@ -397,6 +389,27 @@ def _weather_html(weather_bullets: list[str] | None, cancel_risk: str | None) ->
     if cancel_risk in ("medium", "high"):
         risk_line = f'<div class="cancel-risk">Weather cancellation risk: {_esc(cancel_risk)}.</div>'
     return bullets + risk_line
+
+
+def _odds_row_html(h_odd_disp: str, d_odd_disp: str, a_odd_disp: str) -> str:
+    """Render the odds row: 1 · 2.00  |  X · 3.45  |  2 · 3.05"""
+    def _group(label: str, value: str) -> str:
+        return (
+            f'<span class="odds-label">{label}</span>'
+            f'<span class="odds-dot">\u00b7</span>'
+            f'<span class="odds-value">{_esc(value)}</span>'
+        )
+
+    return (
+        f'<div class="odds-row">'
+        f'{_group("1", h_odd_disp)}'
+        f'<span class="odds-sep">|</span>'
+        f'{_group("X", d_odd_disp)}'
+        f'<span class="odds-sep">|</span>'
+        f'{_group("2", a_odd_disp)}'
+        f'<span class="odds-source">winner.co.il</span>'
+        f'</div>'
+    )
 
 
 def generate_game_report_html(game_id: int) -> str:
@@ -474,8 +487,6 @@ def generate_game_report_html(game_id: int) -> str:
     d_odd_disp = f"{float(draw_odd):.2f}" if draw_odd is not None else "\u2014"
     a_odd_disp = f"{float(away_win_odd):.2f}" if away_win_odd is not None else "\u2014"
 
-    prob_bar = _prob_bar_html(home_win_odd, draw_odd, away_win_odd)
-
     cmp_rows = "".join([
         _cmp_row(_form_cell(home_report, "home"), "Form", _form_cell(away_report, "away")),
         _cmp_row(_league_cell(home_report), "League", _league_cell(away_report)),
@@ -491,7 +502,7 @@ def generate_game_report_html(game_id: int) -> str:
     weather_content = _weather_html(weather_bullets, cancel_risk)
 
     venue_html = (
-        f'<div class="shared-row">'
+        f'<div class="section-b">'
         f'<div class="shared-label">Venue</div>'
         f'<div class="shared-body">{_esc(venue_display) if venue_display else "\u2014"}</div>'
         f'</div>'
@@ -501,11 +512,13 @@ def generate_game_report_html(game_id: int) -> str:
     if expert_bullets:
         bullet_items = "".join(f"<li>{_esc(b)}</li>" for b in expert_bullets)
         expert_html = (
-            f'<div class="expert-section">'
+            f'<div class="section-a">'
             f'<div class="expert-title">Expert analysis</div>'
             f'<ul class="bullets">{bullet_items}</ul>'
             f'</div>'
         )
+
+    odds_row_html = _odds_row_html(h_odd_disp, d_odd_disp, a_odd_disp)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -519,31 +532,31 @@ def generate_game_report_html(game_id: int) -> str:
 </head>
 <body>
 
-<div class="header">
+<div class="section-header">
   <div class="header-teams">
     {_esc(home_team)}<span class="header-sep">vs</span>{_esc(away_team)}
   </div>
   <div class="header-meta">{_esc(date_str)} &middot; {_esc(time_str)} ISR &middot; {_esc(league)}</div>
 </div>
 
-<div class="odds-row">
-  <span>1&nbsp;{_esc(h_odd_disp)}&nbsp;&middot;&nbsp;X&nbsp;{_esc(d_odd_disp)}&nbsp;&middot;&nbsp;2&nbsp;{_esc(a_odd_disp)}</span>
-  <span class="odds-source">winner.co.il</span>
+<div class="section-a">
+{odds_row_html}
 </div>
-{prob_bar}
 
+<div class="section-b">
 <table class="cmp-table">
 {cmp_rows}
 </table>
+</div>
 
-<div class="shared-row">
+<div class="section-a">
   <div class="shared-label">H2H</div>
   {h2h_content}
 </div>
 
 {venue_html}
 
-<div class="shared-row">
+<div class="section-a">
   <div class="shared-label">Weather</div>
   <div class="shared-body">{weather_content}</div>
 </div>
