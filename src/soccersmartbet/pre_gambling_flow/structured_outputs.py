@@ -5,9 +5,11 @@ This module defines Pydantic schemas for AI-generated outputs from the
 Pre-Gambling Flow's intelligent agents. Only LLM-generated outputs are modeled here;
 Python code outputs (odds filtering, DB queries) do not require Pydantic schemas.
 
-Following StocksMarketRecommender pattern: each agent node that produces structured
-output has a corresponding BaseModel that enforces type safety and validation at
-LLM response parsing time.
+Schema v2 — Wave 8B (branch ``major_report_refactor``). Reports now carry
+structured facts (aggregates, typed streaks, per-match rows) with short
+analytical bullets alongside them, replacing the previous long-form prose
+fields. Soft length caps are enforced via prompts, not Pydantic validators,
+so the LLM is trusted to self-regulate without rejecting edge-case outputs.
 
 Reference Architecture:
 - StocksMarketRecommender/structured_outputs.py (AnalysisOutput, InvestmentDecision)
@@ -18,6 +20,8 @@ Data Source Context:
 - Some DB schema fields will remain NULL - this is acceptable
 - Focus is on actionable betting insights, not exhaustive data collection
 """
+
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -94,42 +98,74 @@ class SelectedGames(BaseModel):
 # ============================================================================
 
 
+class H2HAggregate(BaseModel):
+    """Aggregate head-to-head record between two teams across their meeting history.
+
+    Aggregate only — do NOT include the historical match list. Past meetings'
+    home/away roles may not match today's fixture, so only the total wins
+    keyed by team identity are reliable.
+    """
+
+    home_team: str = Field(description="Team playing at home TODAY.")
+    away_team: str = Field(description="Team playing away TODAY.")
+    home_team_wins: int = Field(
+        ge=0,
+        description=(
+            "Total all-time wins for the home team across all meetings, "
+            "regardless of venue."
+        ),
+    )
+    away_team_wins: int = Field(
+        ge=0,
+        description=(
+            "Total all-time wins for the away team across all meetings, "
+            "regardless of venue."
+        ),
+    )
+    draws: int = Field(ge=0, description="Total draws across all meetings.")
+    total_meetings: int = Field(
+        ge=0, description="Total meetings counted (sum of wins + draws)."
+    )
+
+
 class GameReport(BaseModel):
-    """
-    AI-generated game analysis from Game Intelligence Agent.
+    """AI-generated game-level analysis from the Game Intelligence Agent.
 
-    This agent analyzes game-level factors: head-to-head history patterns,
-    weather impact on play style and draw probability, venue-specific
-    advantages, and team news. Data comes from enabled sources only
-    (see research docs).
-
-    Fields NOT included (disabled data sources):
-    - atmosphere_summary (crowd/atmosphere data not enabled)
-    - venue_factors (advanced venue analytics not in scope for enabled sources)
+    Covers venue, weather and an aggregate H2H record — no per-match history.
+    Short analytical bullets sit alongside the structured facts so downstream
+    consumers can render either the data or the analysis, or both.
     """
 
-    h2h_insights: str = Field(
+    h2h: H2HAggregate | None = Field(
+        default=None,
         description=(
-            "AI-extracted patterns from head-to-head history between these teams. "
-            "Should identify: home dominance trends, scoring pattern evolution, "
-            "defensive stability shifts, recent form trajectory in matchups. "
-            "NOT a simple stats dump - extract betting-relevant patterns."
-        )
+            "Aggregate W/D/L between the two teams. Null when source "
+            "data unavailable."
+        ),
     )
-    weather_risk: str = Field(
+    h2h_bullets: list[str] = Field(
+        default_factory=list,
         description=(
-            "Assessment of weather impact on game dynamics and outcome probabilities. "
-            "Must address: (1) Cancellation/postponement risk, (2) Draw probability "
-            "increase in adverse conditions, (3) Style-of-play changes (e.g., "
-            "'Heavy rain favors defensive teams, reduces high-scoring probability'). "
-            "Use weather API data via FotMob venue lookup."
-        )
+            "Optional short analytical bullets on the aggregate. "
+            "Cap: 2 bullets, <=20 words each. Empty list if no observation "
+            "warranted. NEVER invent data."
+        ),
     )
-    venue: str = Field(
+    weather_bullets: list[str] = Field(
+        default_factory=list,
         description=(
-            "Stadium name extracted from FotMob. "
-            "Simple string field - no complex venue analytics (not in enabled sources)."
-        )
+            "Bullets covering cancellation risk, draw-probability impact, "
+            "and style-of-play impact. Cap: 3 bullets, <=20 words each."
+        ),
+    )
+    weather_cancellation_risk: Literal["low", "medium", "high", "unknown"] = Field(
+        description=(
+            "Cancellation/postponement risk classification from weather data."
+        ),
+    )
+    venue: str | None = Field(
+        default=None,
+        description="Short stadium name as provided by FotMob. Null if unavailable.",
     )
 
 
@@ -138,67 +174,146 @@ class GameReport(BaseModel):
 # ============================================================================
 
 
+class RecentMatch(BaseModel):
+    """One of the team's last 5 matches."""
+
+    result: Literal["W", "D", "L"]
+    goals_for: int = Field(ge=0)
+    goals_against: int = Field(ge=0)
+    opponent: str
+    home_or_away: Literal["home", "away"]
+    date: str = Field(description="YYYY-MM-DD")
+
+
 class TeamReport(BaseModel):
-    """
-    AI-generated team analysis from Team Intelligence Agent.
+    """AI-generated team-level analysis from the Team Intelligence Agent.
 
-    This agent analyzes team-level factors for betting assessment: recent form
-    trajectory, injury impact on lineup strength, league position context, and
-    recovery status. All data sourced from FotMob.
-
-    Fields NOT included (disabled data sources):
-    - rotation_risk (squad rotation data not reliably available)
-    - morale_stability (qualitative morale/coach stability not in enabled sources)
-
-    Available FotMob data sources:
-    - form_trend: fetch_form → FotMob teamForm (last 5 matches with W/D/L, scores, opponents)
-    - injury_impact: fetch_injuries → FotMob squad data (player name, position group,
-      injury type, expected return)
-    - league_position: fetch_league_position → FotMob league table (position, points, W/D/L)
-    - recovery_days: calculate_recovery_time → FotMob lastMatch (recovery days, recovery
-      status: Short/Normal/Extended)
+    Stores raw structured facts (recovery days, form streak, last-5 rows,
+    league table snapshot) plus short analytical bullets on form, league
+    context, injuries and pre-match news.
     """
 
     recovery_days: int = Field(
-        ge=0,
-        description=(
-            "Days elapsed since team's last competitive match. "
-            "Calculated from FotMob lastMatch data. "
-            "Critical for fatigue assessment: <3 days = high fatigue risk, "
-            "3-5 days = normal, >7 days = extra rest/rhythm concerns."
-        )
+        ge=0, description="Days since last competitive match."
     )
-    form_trend: str = Field(
+    form_streak: str = Field(
         description=(
-            "AI-computed trajectory from last 5 games: 'improving', 'declining', or 'stable'. "
-            "Must include reasoning based on pattern analysis (e.g., 'Improving: 3 wins "
-            "in last 4 after early slump, defensive solidity returning'). "
-            "NOT just win/loss record - extract momentum and quality of performances."
-        )
+            "5-character streak, most recent LAST (e.g. 'LDDWW' means 5 games "
+            "ago was L, most recent was W). Use exactly 5 chars when 5 games "
+            "are available; pad with '?' if fewer."
+        ),
     )
-    injury_impact: str = Field(
+    last_5_games: list[RecentMatch] = Field(
+        default_factory=list,
         description=(
-            "AI assessment of injury list impact on expected lineup strength. "
-            "CRITICAL: Must determine if injured players are starters vs. bench warmers "
-            "using FotMob squad data (player name, position group, injury type, expected return). "
-            "Example: 'Critical - starting striker with 0.8 goals/game out' vs. "
-            "'Minor - backup defender with 3 appearances missing'. "
-            "User doesn't know all teams (e.g., Napoli) - LLM must identify key contributors."
-        )
+            "Raw list of the last 5 matches, most recent FIRST. Up to 5 entries."
+        ),
     )
-    league_position: str = Field(
+    form_bullets: list[str] = Field(
+        default_factory=list,
         description=(
-            "AI assessment of team's league standing and what it means for match motivation. "
-            "Includes position, points, and context (title race, relegation battle, "
-            "mid-table comfort, European qualification push)."
-        )
+            "Short analytical observations. Cap: 2 bullets, <=12 words each."
+        ),
     )
-    team_news: str = Field(
+    league_rank: int | None = Field(
+        default=None,
+        description="Current league position. Null if unavailable.",
+    )
+    league_points: int | None = Field(default=None)
+    league_matches_played: int | None = Field(default=None)
+    league_bullets: list[str] = Field(
+        default_factory=list,
         description=(
-            "AI summary of recent team news relevant to the upcoming match from FotMob "
-            "news feed. Should highlight transfer rumors, tactical changes, managerial "
-            "quotes, or any intel that impacts match outcome for this specific team."
-        )
+            "Motivation/context bullets (title race, relegation, dead rubber, "
+            "etc.). Cap: 3 bullets, <=20 words each."
+        ),
+    )
+    injury_bullets: list[str] = Field(
+        default_factory=list,
+        description=(
+            "One bullet per impactful injured/unavailable player. Format: "
+            "'Name (position) - injury_type, return.' Importance judgement "
+            "baked in. Cap: 5 bullets."
+        ),
+    )
+    news_bullets: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Pre-match intel synthesized from team news. Cap: 3 bullets, "
+            "<=20 words each."
+        ),
+    )
+
+
+# ============================================================================
+# LLM-only submodels for intelligence agents
+# ============================================================================
+#
+# These submodels describe *only* the synthesis fields the LLM is asked to
+# produce. Python already owns the structured fields (aggregate counts,
+# integer league snapshot, raw last-5 rows, etc.) and merges the LLM's
+# bullet output with those structured fields to form the final
+# ``GameReport`` / ``TeamReport`` objects persisted to the DB.
+#
+# Do NOT use these as the DB contract; the DB writers still accept the
+# public ``GameReport`` / ``TeamReport`` models defined above.
+
+
+class GameReportBullets(BaseModel):
+    """LLM output for game-intelligence synthesis fields only.
+
+    Python merges this with structured fields (aggregate H2H, venue name)
+    built from raw tool output to form the final ``GameReport``.
+    """
+
+    h2h_bullets: list[str] = Field(
+        default_factory=list,
+        description=(
+            "<=2 bullets, <=20 words each. Empty list if no observation "
+            "is warranted. NEVER invent data."
+        ),
+    )
+    weather_bullets: list[str] = Field(
+        default_factory=list,
+        description=(
+            "<=3 bullets, <=20 words each. Covers cancellation risk, "
+            "draw-probability impact, and style-of-play impact."
+        ),
+    )
+    weather_cancellation_risk: Literal["low", "medium", "high", "unknown"] = Field(
+        description="Classification derived from weather data.",
+    )
+
+
+class TeamReportBullets(BaseModel):
+    """LLM output for team-intelligence synthesis fields only.
+
+    Python merges this with structured fields (recovery_days, form_streak,
+    last_5_games, league rank/points/played) to form the final
+    ``TeamReport``.
+    """
+
+    form_bullets: list[str] = Field(
+        default_factory=list,
+        description="<=2 bullets, <=12 words each.",
+    )
+    league_bullets: list[str] = Field(
+        default_factory=list,
+        description=(
+            "<=3 bullets, <=20 words each. Motivation/context only "
+            "(title race, relegation, dead rubber, etc.)."
+        ),
+    )
+    injury_bullets: list[str] = Field(
+        default_factory=list,
+        description=(
+            "<=5 bullets. ONE per impactful injured/unavailable player. "
+            "Format: 'Name (POS) - injury_type, return.'"
+        ),
+    )
+    news_bullets: list[str] = Field(
+        default_factory=list,
+        description="<=3 bullets, <=20 words each.",
     )
 
 
@@ -208,20 +323,18 @@ class TeamReport(BaseModel):
 
 
 class ExpertGameReport(BaseModel):
-    """
-    Expert LLM pre-match analysis synthesizing game + team reports with odds.
+    """Expert LLM pre-match analysis synthesizing game + team reports with odds.
 
     Produced by the Expert Report Agent after combine_reports has assembled
-    all available intelligence. The expert synthesizes raw data into a
-    coherent narrative suitable for a professional pre-match analysis column.
+    all available intelligence. The expert produces cohesive analytical
+    bullets — no verdicts, no score predictions, no prose column.
     """
 
-    expert_analysis: str = Field(
+    expert_analysis: list[str] = Field(
+        default_factory=list,
         description=(
-            "Comprehensive pre-match analysis synthesizing all available intelligence "
-            "into a cohesive narrative. Highlights the 2-3 most impactful factors, "
-            "contextualizes injuries and form tactically, notes conflicting signals, "
-            "and reads like a professional pre-match analysis column. Does NOT make "
-            "betting suggestions or predict outcomes — analysis only."
-        )
+            "Cohesive pre-match analysis as 3-6 substantive bullets, "
+            "<=20 words each. No opening flourishes. No betting verdict. "
+            "Analysis only."
+        ),
     )
