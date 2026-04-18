@@ -352,16 +352,102 @@ APScheduler's `AsyncIOScheduler` (used by python-telegram-bot's `JobQueue`) reli
 
 ---
 
-## Wave 8 — Pre-Gambling Report Refinement + Robustness ⏳ WAITING FOR OMER INPUT
+## Wave 8 — Pre-Gambling Report Overhaul + Robustness
 
-Scope and tasks to be defined by Omer. Known items so far:
+Scope defined 2026-04-17 after Omer reviewed 4 real reports and flagged them as AI-slop prose that buries numbers under bedtime stories. New report-overhaul tasks on top (8A–8D). Older robustness items (from Wave 7 carry-over) at the bottom (8E–8G).
 
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Post-games must alert on missing results (issue #55) | ⬜ Pending | Bot silently skips games with no FotMob match — must alert, not swallow |
-| 2 | Verify no-games day doesn't crash or leave orphan state | ⬜ Pending | Moved from Wave 7 |
-| 3 | Verify startup recovery fires flow on bot restart | ⬜ Pending | Moved from Wave 7 |
-| — | Report refinement tasks | ⏳ Waiting | Omer will define scope |
+**Guiding constraints (read before building anything in this wave):**
+- Target device: 5-inch phone, Telegram in-app browser. Omer opens 3–8 reports back-to-back before betting.
+- **Numbers lead, prose follows as short bullets.** Never paragraphs. No opening flourishes ("This is the kind of…", "Critical —", "Improving —"). No scene-setting.
+- `games` table is a registry of games we're betting on / about to bet on. **It is NOT a world game registry.** No schema changes for first-leg data. No new rows for non-bet games.
+- Primary data source for football context is FotMob. football-data.org is a weak fallback — do not use it for first-leg lookup.
+- All LLM work goes through the `ai-engineer` subagent and uses structured Pydantic outputs. No prose blobs.
+
+### Agent 8A: Cup-Tie First-Leg Context (render-time only)
+**Type:** `python-pro`
+**Scope:** new helper inside `src/soccersmartbet/pre_gambling_flow/tools/game/` (e.g. `fetch_cup_tie_context.py`), consumed by the report renderer. No schema changes, no DB writes.
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | New helper — cup-tie detector | FotMob match response | Read `roundInfo` / aggregate metadata from `get_match_data(match_id)`. Detect if the fixture is part of a 2-legged cup tie and which leg it is. If regular league match → return `is_cup_tie=False` and nothing else. |
+| 2 | If 2nd leg — extract 1st-leg result | Same FotMob response | Pull 1st-leg score + date from the match payload. **Critical invariant: 2nd-leg home team was the 1st-leg away team.** Return raw structured data keyed by team identity (not by home/away role), so the renderer cannot confuse sides. Include aggregate if present. |
+| 3 | If 1st leg — surface return-leg info | Same FotMob response | Return 2nd-leg venue + date if exposed. |
+| 4 | Optional enrichment from our DB | `games` table | If the 1st-leg match happens to exist in our `games` table (because we bet on it), attach the stored row. Read-only. No inserts. No schema changes. |
+| 5 | Pydantic output model | `structured_outputs.py` or local | `{is_cup_tie, leg, first_leg: {team_a, team_b, score_a, score_b, date}, aggregate, return_leg_venue, return_leg_date}`. Keyed by team identity, not home/away. |
+
+**Verify:** call against a known 2nd-leg fixture (e.g. a CL/EL knockout 2nd leg) and a regular league match. Confirm inversion handled correctly.
+
+### Agent 8B: H2H Bug Fix
+**Type:** `python-pro`
+**Scope:** `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_h2h.py`, `agents/game_intelligence.py`, related prompt + DB write path
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Diagnose — why is `game_reports.h2h_insights` empty in all 4 recent reports? | Pre-gambling flow | `fetch_h2h.py` looks functional for top-5 leagues. Likely root cause: game_intelligence prompt drops it, or LLM returns empty, or DB write path swallows it. Capture logs from a live run. |
+| 2 | Fix the break | Whichever layer is responsible | Populate `h2h_insights` when source data exists. Use structured outputs — raw match list as a structured field separate from any commentary string. |
+| 3 | Preserve "data unavailable" signal | Renderer contract | When H2H is truly missing, the field must carry an explicit empty/null marker so the renderer can show "H2H: No data available." Omer wants the gap visible, not hidden behind filler. |
+
+### Agent 8C: Tighten Agent Prompts + Structured Outputs
+**Type:** `ai-engineer` (use `claude-api` skill if applicable to the SDK in use)
+**Scope:** `src/soccersmartbet/pre_gambling_flow/structured_outputs.py`, `agents/game_intelligence.py`, `agents/team_intelligence.py`, their prompts
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Split structured outputs: raw vs bullets | Pydantic models | Raw fields as their own typed fields: form streak `"LDDWL"`, league rank (int), points (int), matches played (int), recovery days (int), first-leg score components, etc. Commentary fields as `list[str]` of short bullets. Never a prose blob where a structured field can carry the data. |
+| 2 | Enforce length caps in prompts | game/team intelligence prompts | Caps: form bullets ≤2 × 12 words; injuries bullets ≤5; team news bullets ≤3; expert analysis bullets ≤6 × 20 words. |
+| 3 | Forbid opening flourishes | Prompt instructions | Explicitly disallow scene-setting sentences, "This is the kind of…", "Critical —", "Improving —", and bedtime-story tone. Bullets start with concrete facts. |
+| 4 | Keep "analyze, not verdict" directive | Prompt instructions | Omer deliberately wants analysis of the data, not a bet recommendation. Preserve this. |
+| 5 | Migrate DB columns if schema of `game_reports` / `team_reports` needs new fields | Live DB via docker exec | Per CLAUDE.md rule: apply DDL to running DB, do not rely on init script. |
+
+### Agent 8D: Report HTML Full Overhaul (5-inch mobile, table-comparison)
+**Type:** `ui-designer` (design) + `python-pro` (implementation)
+**Scope:** `src/soccersmartbet/reports/html_report.py`, `reports/telegram_message.py` if affected
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Full rewrite of `html_report.py` | Mobile-first, 5" phone (≈375px portrait, ≈667px landscape) | Per ui-designer spec produced on 2026-04-17. Professional bettor's spreadsheet aesthetic. |
+| 2 | Layout — table comparison | 3-col table: home \| stat label \| away | Split rows: form (streak + bullets), league position (rank · pts · MP), recovery, injuries. Shared rows (full width): H2H, venue, weather. |
+| 3 | Match header | Team names, kickoff (ISR), league, first-leg inline if 8A returned data | Wire 8A output. Inversion handled in 8A's structured data. |
+| 4 | Compact odds row | Single line | `1 1.15 · X 6.60 · 2 11.10`. Source label "winner.co.il" small, right-aligned. No big cards. |
+| 5 | Implied-probability bar | Thin horizontal bar under odds row | Neutral color segments proportional to implied probability. No home/away color coding. Omer may remove later if it doesn't land. |
+| 6 | Form as pills row | `L D D W W` visual pills | Pills first, bullets after. No prose. |
+| 7 | Injuries, team news, expert analysis — bullets only | Strict caps enforced by 8C prompts | No prose paragraphs. No opening flourishes. |
+| 8 | Venue display | Short name from `games.venue`, enriched with surface + capacity if available | Use FotMob's short/popular venue name IF FotMob exposes one. No local dict. Single line. |
+| 9 | Fix venue duplication bug | Header + shared row | Header uses `games.venue` (short). Shared row shows venue + surface + capacity. Never LLM prose in the header. |
+| 10 | Palette + typography | Near-black bg `#0f0f0f`, hairline separators `#222`, muted gold `#c8a84b` accent, drop green gradient + navy cards + orange + blue borders | Data-dense, flat, no gradients. |
+| 11 | Delete — crests, VS badge, emoji section titles, home=green/away=red coding, oversized recovery number | Generator | All removed. |
+| 12 | H2H display — show "No data available" when truly empty | Renderer | Bug visible, not hidden behind filler. |
+
+### Agent 8E: Post-Games Missing-Results Alert *(was old #1)*
+**Type:** `python-pro`
+**Scope:** `src/soccersmartbet/post_games_flow/fetch_results.py` + notification path
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Alert on missing result | Issue #55 | Post-games currently silently skips games with no FotMob match. Must send a Telegram alert listing the skipped games, not swallow them. |
+
+### Agent 8F: No-Games-Day Robustness Verification *(was old #2)*
+**Type:** `python-pro`
+**Scope:** `src/soccersmartbet/pre_gambling_flow/`, `telegram/triggers.py`
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Verify no-games day path | smart_game_picker returns 0 | No crash, no orphan state, `daily_runs` marked complete, "No games today" Telegram message sent. |
+
+### Agent 8G: Startup Recovery Verification *(was old #3)*
+**Type:** `python-pro`
+**Scope:** `telegram/triggers.py` startup recovery logic
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Verify startup recovery | Bot restart after missed 13:00 ISR | Recovery fires pre-gambling flow immediately on startup if today's run is missing and wall-clock is past 13:00 ISR. |
+
+### After Wave 8
+- Omer opens 3–8 reports on his phone via Telegram; all are compact, data-first, comparably structured.
+- H2H populated when source data exists; explicit gap shown when missing.
+- Cup-tie 2nd legs show 1st-leg result inline with correct team/goal attribution.
+- Post-games never silently skips games with missing results.
+- No-games day and startup recovery paths verified in production.
 
 ---
 

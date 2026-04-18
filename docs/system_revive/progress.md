@@ -1,6 +1,6 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-14 | **Branch:** main
+> **Last updated:** 2026-04-17 | **Branch:** major_report_refactor
 
 ## Summary
 
@@ -36,7 +36,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 7/11 waves done
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone |
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
-| 8 | ⏳ Waiting | Pre-gambling report refinement + robustness — waiting for Omer input |
+| 8 | 🔵 Scoped | Report overhaul + robustness — 7 sub-agents defined (8A–8G), awaiting execution |
 | 9 | ⬜ Not Started | Offline analysis — deferred until enough data accumulated |
 | 10 | 🟡 Partial | Expansion: Israeli league + CL/EL done. Euro/WC + backup pending. |
 | 11 | ⬜ TBD | Testing scheme — to be planned separately |
@@ -209,14 +209,25 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 7/11 waves done
 
 ---
 
-## Wave 8 — Pre-Gambling Report Refinement + Robustness ⏳ WAITING FOR OMER INPUT
+## Wave 8 — Pre-Gambling Report Overhaul + Robustness 🔵 SCOPED (2026-04-17)
 
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Alert on missing post-games results (#55) | ⬜ Pending | Bot silently skips — must alert |
-| 2 | Verify no-games day robustness | ⬜ Pending | From Wave 7 |
-| 3 | Verify startup recovery | ⬜ Pending | From Wave 7 |
-| — | Report refinement tasks | ⏳ Waiting | Omer will define |
+Scope defined after Omer reviewed 4 real reports and flagged them as AI-slop prose. Full rewrite of the HTML report plus supporting backend work. Old Wave 7 carry-over items pushed to the bottom.
+
+**Parallelism plan (confirmed NOT safe to run all in parallel):**
+- Hard deps: 8A → 8D (renderer needs cup-tie output shape), 8C → 8B + 8D (Pydantic rewrite affects both), 8B ⇄ 8C (both edit game_intelligence prompt).
+- Required investigation step before dispatching: verify FotMob cup-tie metadata exists; read current `agents/game_intelligence.py`, `team_intelligence.py`, `structured_outputs.py`, and existing prompts.
+- Safe-to-parallelize immediately: **8E, 8F, 8G** (robustness items, independent).
+- After investigation + contract freeze: **8A ∥ 8C** parallel, then **8B ∥ 8D** sequence.
+
+| # | Agent | Type | Status | Notes |
+|---|-------|------|--------|-------|
+| 8A | Cup-Tie First-Leg Context (render-time only) | python-pro | ⬜ Pending | FotMob match data. No schema changes. Structured output keyed by team identity, not home/away. |
+| 8B | H2H Bug Fix | python-pro | ⬜ Pending | `h2h_insights` empty in all 4 recent reports. Diagnose + fix. Preserve "data unavailable" signal for real gaps. |
+| 8C | Tighten Agent Prompts + Structured Outputs | ai-engineer | ⬜ Pending | Split raw (streak, rank int, points int) from bullet commentary. Length caps. No opening flourishes. Keep "analyze, not verdict". |
+| 8D | Report HTML Full Overhaul (5" mobile, table-comparison) | ui-designer + python-pro | ⬜ Pending | Mobile-first. Pills for form. Compact odds row + implied-prob bar. Fix venue dup bug. Remove crests / VS badge / emoji titles / home-green-away-red coding. |
+| 8E | Post-Games Missing-Results Alert (#55) | python-pro | ⬜ Pending | Bot silently skips games with no FotMob match — must alert. Was old Wave 8 task #1. |
+| 8F | No-Games-Day Robustness Verification | python-pro | ⬜ Pending | From Wave 7. Verify `daily_runs` closes cleanly, "No games today" message sent. |
+| 8G | Startup Recovery Verification | python-pro | ⬜ Pending | From Wave 7. Verify bot restart past 13:00 ISR fires pre-gambling flow immediately. |
 
 ---
 
