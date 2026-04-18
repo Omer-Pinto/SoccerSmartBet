@@ -58,14 +58,18 @@ WHERE game_id = %(game_id)s
 """
 
 _FETCH_GAME_REPORT_SQL = """
-SELECT h2h_insights, weather_risk
+SELECT h2h_home_team, h2h_away_team, h2h_home_team_wins, h2h_away_team_wins,
+       h2h_draws, h2h_total_meetings, h2h_bullets,
+       weather_bullets, weather_cancellation_risk
 FROM game_reports
 WHERE game_id = %(game_id)s
 LIMIT 1
 """
 
 _FETCH_TEAM_REPORTS_SQL = """
-SELECT team_name, form_trend, injury_impact, league_position, team_news
+SELECT team_name, recovery_days, form_streak, form_bullets,
+       league_rank, league_points, league_matches_played, league_bullets,
+       injury_bullets, news_bullets
 FROM team_reports
 WHERE game_id = %(game_id)s
 ORDER BY team_name
@@ -84,7 +88,12 @@ FROM bankroll
 WHERE bettor = 'ai'
 """
 
-_NOT_AVAILABLE = "Not available"
+_EL_LEAGUES = {
+    "Europa League",
+    "UEFA Europa League",
+    "UEFA Europa Conference League",
+    "Conference League",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -105,8 +114,29 @@ Rules:
 """
 
 
+def _fmt_bullets(items: list[str] | None, indent: str = "  ") -> str:
+    if not items:
+        return ""
+    return "\n".join(f"{indent}- {b}" for b in items)
+
+
+def _h2h_line(
+    league: str,
+    home: str | None,
+    away: str | None,
+    hw: int | None,
+    aw: int | None,
+    draws: int | None,
+    total: int | None,
+) -> str:
+    if league in _EL_LEAGUES:
+        return "H2H not tracked for this competition"
+    if total and total > 0 and home and away:
+        return f"{home} {hw or 0} \u2013 {draws or 0} draws \u2013 {aw or 0} {away}"
+    return "H2H: No data available."
+
+
 def _build_games_prompt(games_data: list[dict[str, Any]], ai_bankroll: float) -> str:
-    """Build the human message content with all game analysis data."""
     lines: list[str] = [
         f"Your current bankroll: {ai_bankroll:.2f} NIS",
         "Available stakes: 50, 100, 200, or 500 NIS per game (choose based on confidence)",
@@ -116,46 +146,74 @@ def _build_games_prompt(games_data: list[dict[str, Any]], ai_bankroll: float) ->
     ]
 
     for g in games_data:
+        league = g.get("league", "")
         lines.append(f"--- Game ID: {g['game_id']} ---")
-        lines.append(f"{g['home_team']} vs {g['away_team']} ({g['league']})")
+        lines.append(f"{g['home_team']} vs {g['away_team']} ({league})")
         lines.append(f"Odds: 1={g['home_win_odd']} / X={g['draw_odd']} / 2={g['away_win_odd']}")
         lines.append("")
 
-        lines.append("H2H Insights:")
-        lines.append(g.get("h2h_insights", _NOT_AVAILABLE))
+        h2h_text = _h2h_line(
+            league,
+            g.get("h2h_home_team"),
+            g.get("h2h_away_team"),
+            g.get("h2h_home_team_wins"),
+            g.get("h2h_away_team_wins"),
+            g.get("h2h_draws"),
+            g.get("h2h_total_meetings"),
+        )
+        lines.append(f"H2H: {h2h_text}")
+        h2h_b = _fmt_bullets(g.get("h2h_bullets"))
+        if h2h_b:
+            lines.append(h2h_b)
         lines.append("")
 
-        lines.append("Weather Risk:")
-        lines.append(g.get("weather_risk", _NOT_AVAILABLE))
-        lines.append("")
+        weather_b = _fmt_bullets(g.get("weather_bullets"))
+        if weather_b:
+            lines.append("Weather:")
+            lines.append(weather_b)
+            cancel = g.get("weather_cancellation_risk")
+            if cancel in ("medium", "high"):
+                lines.append(f"  Cancellation risk: {cancel}")
+            lines.append("")
 
-        # Home team report
-        home_report = g.get("home_report")
-        lines.append(f"{g['home_team']} (Home):")
-        if home_report:
-            lines.append(f"  Form: {home_report.get('form_trend', _NOT_AVAILABLE)}")
-            lines.append(f"  Injuries: {home_report.get('injury_impact', _NOT_AVAILABLE)}")
-            lines.append(f"  League Position: {home_report.get('league_position', _NOT_AVAILABLE)}")
-            lines.append(f"  Team News: {home_report.get('team_news', _NOT_AVAILABLE)}")
-        else:
-            lines.append(f"  {_NOT_AVAILABLE}")
-        lines.append("")
+        for side, key in (("Home", "home_report"), ("Away", "away_report")):
+            report = g.get(key)
+            team_name = g["home_team"] if side == "Home" else g["away_team"]
+            lines.append(f"{team_name} ({side}):")
+            if report:
+                streak = report.get("form_streak") or "\u2014"
+                rank = report.get("league_rank")
+                pts = report.get("league_points")
+                mp = report.get("league_matches_played")
+                rank_s = str(rank) if rank is not None else "\u2014"
+                pts_s = f"{pts} pts" if pts is not None else "\u2014"
+                mp_s = f"{mp} MP" if mp is not None else "\u2014"
+                recovery = report.get("recovery_days")
+                recovery_s = f"{recovery} days" if recovery is not None else "\u2014"
 
-        # Away team report
-        away_report = g.get("away_report")
-        lines.append(f"{g['away_team']} (Away):")
-        if away_report:
-            lines.append(f"  Form: {away_report.get('form_trend', _NOT_AVAILABLE)}")
-            lines.append(f"  Injuries: {away_report.get('injury_impact', _NOT_AVAILABLE)}")
-            lines.append(f"  League Position: {away_report.get('league_position', _NOT_AVAILABLE)}")
-            lines.append(f"  Team News: {away_report.get('team_news', _NOT_AVAILABLE)}")
-        else:
-            lines.append(f"  {_NOT_AVAILABLE}")
-        lines.append("")
+                lines.append(f"  Form: {streak}")
+                form_b = _fmt_bullets(report.get("form_bullets"))
+                if form_b:
+                    lines.append(form_b)
+                lines.append(f"  League: {rank_s} \u00b7 {pts_s} \u00b7 {mp_s}")
+                league_b = _fmt_bullets(report.get("league_bullets"))
+                if league_b:
+                    lines.append(league_b)
+                lines.append(f"  Recovery: {recovery_s}")
+                injury_b = _fmt_bullets(report.get("injury_bullets"))
+                if injury_b:
+                    lines.append("  Injuries:")
+                    lines.append(injury_b)
+                news_b = _fmt_bullets(report.get("news_bullets"))
+                if news_b:
+                    lines.append("  News:")
+                    lines.append(news_b)
+            lines.append("")
 
-        # Expert analysis
-        lines.append("Expert Analysis:")
-        lines.append(g.get("expert_analysis", _NOT_AVAILABLE))
+        expert_bullets: list[str] = g.get("expert_analysis") or []
+        if expert_bullets:
+            lines.append("Expert analysis:")
+            lines.append(_fmt_bullets(expert_bullets))
         lines.append("")
         lines.append("")
 
@@ -170,17 +228,7 @@ def _build_games_prompt(games_data: list[dict[str, Any]], ai_bankroll: float) ->
 
 
 def ai_betting_agent(state: GamblingState) -> dict:
-    """LangGraph node: AI places bets on all games using pre-match analysis.
-
-    Queries DB for game analysis (same data the user saw), makes a single
-    LLM call with structured output, and returns AI bet selections.
-
-    Args:
-        state: Current Gambling Flow state with game_ids.
-
-    Returns:
-        State update dict with ``ai_bets`` list.
-    """
+    """LangGraph node: AI places bets on all games using pre-match analysis."""
     game_ids: list[int] = state["game_ids"]
     logger.info("ai_betting_agent: placing bets for %d game(s)", len(game_ids))
 
@@ -188,15 +236,13 @@ def ai_betting_agent(state: GamblingState) -> dict:
         logger.info("ai_betting_agent: no games, returning empty bets")
         return {"ai_bets": []}
 
-    # Fetch all analysis data from DB
     games_data: list[dict[str, Any]] = []
-    ai_bankroll = 10000.0  # default
+    ai_bankroll = 10000.0
 
     conn = psycopg2.connect(DATABASE_URL)
     try:
         with conn:
             with conn.cursor() as cur:
-                # Fetch AI bankroll
                 cur.execute(_FETCH_AI_BANKROLL_SQL)
                 row = cur.fetchone()
                 if row:
@@ -205,7 +251,6 @@ def ai_betting_agent(state: GamblingState) -> dict:
                 for game_id in game_ids:
                     game_data: dict[str, Any] = {"game_id": game_id}
 
-                    # Game basics
                     cur.execute(_FETCH_GAME_SQL, {"game_id": game_id})
                     game_row = cur.fetchone()
                     if game_row is None:
@@ -221,33 +266,55 @@ def ai_betting_agent(state: GamblingState) -> dict:
                         "away_win_odd": away_win_odd,
                     })
 
-                    # Game report
                     cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
                     report_row = cur.fetchone()
                     if report_row:
-                        game_data["h2h_insights"] = report_row[0] or _NOT_AVAILABLE
-                        game_data["weather_risk"] = report_row[1] or _NOT_AVAILABLE
+                        (
+                            h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total,
+                            h2h_bullets_raw, weather_bullets_raw, cancel_risk,
+                        ) = report_row
+                        game_data.update({
+                            "h2h_home_team": h2h_home,
+                            "h2h_away_team": h2h_away,
+                            "h2h_home_team_wins": h2h_hw,
+                            "h2h_away_team_wins": h2h_aw,
+                            "h2h_draws": h2h_d,
+                            "h2h_total_meetings": h2h_total,
+                            "h2h_bullets": h2h_bullets_raw or [],
+                            "weather_bullets": weather_bullets_raw or [],
+                            "weather_cancellation_risk": cancel_risk,
+                        })
 
-                    # Team reports
                     cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
                     team_rows = cur.fetchall()
                     team_map: dict[str, dict[str, Any]] = {}
                     for t_row in team_rows:
-                        t_name, form_trend, injury_impact, league_position, team_news = t_row
+                        (
+                            t_name, recovery_days, form_streak, form_bullets_raw,
+                            league_rank, league_pts, league_mp, league_bullets_raw,
+                            injury_bullets_raw, news_bullets_raw,
+                        ) = t_row
                         team_map[t_name] = {
-                            "form_trend": form_trend,
-                            "injury_impact": injury_impact,
-                            "league_position": league_position,
-                            "team_news": team_news,
+                            "recovery_days": recovery_days,
+                            "form_streak": form_streak,
+                            "form_bullets": form_bullets_raw or [],
+                            "league_rank": league_rank,
+                            "league_points": league_pts,
+                            "league_matches_played": league_mp,
+                            "league_bullets": league_bullets_raw or [],
+                            "injury_bullets": injury_bullets_raw or [],
+                            "news_bullets": news_bullets_raw or [],
                         }
                     game_data["home_report"] = team_map.get(home_team)
                     game_data["away_report"] = team_map.get(away_team)
 
-                    # Expert report
                     cur.execute(_FETCH_EXPERT_REPORT_SQL, {"game_id": game_id})
                     expert_row = cur.fetchone()
-                    if expert_row:
-                        game_data["expert_analysis"] = expert_row[0] or _NOT_AVAILABLE
+                    if expert_row and expert_row[0]:
+                        bullets = expert_row[0]
+                        if not isinstance(bullets, list):
+                            bullets = [str(bullets)]
+                        game_data["expert_analysis"] = bullets
 
                     games_data.append(game_data)
     finally:
@@ -257,7 +324,6 @@ def ai_betting_agent(state: GamblingState) -> dict:
         logger.info("ai_betting_agent: no valid games found in DB")
         return {"ai_bets": []}
 
-    # Build prompt and call LLM
     prompt_text = _build_games_prompt(games_data, ai_bankroll)
 
     model = ChatOpenAI(model=AI_BETTING_MODEL, temperature=0.3)
@@ -269,7 +335,6 @@ def ai_betting_agent(state: GamblingState) -> dict:
     ])
     logger.info("ai_betting_agent: LLM returned %d bet(s)", len(result.bets))
 
-    # Map LLM decisions to BetSelection dicts with correct odds
     odds_map: dict[int, dict[str, float]] = {}
     for g in games_data:
         odds_map[g["game_id"]] = {

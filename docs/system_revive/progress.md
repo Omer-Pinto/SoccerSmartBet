@@ -1,11 +1,11 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-19 | **Branch:** major_report_refactor
+> **Last updated:** 2026-04-19 (post-migration) | **Branch:** major_report_refactor
 
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜] 7/13 waves done
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜] 8/13 waves done
 ```
 
 | What | Status |
@@ -37,7 +37,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜] 7/13 waves done
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone |
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
-| 8 | 🔵 In Progress | Report refactor track: 8A + 8B + 8C done. 8D skipped (superseded — see below). Next: 8E. |
+| 8 | 🟢 Done | Report refactor track: 8A + 8B + 8C + 8E done. 8D skipped. Live-DB migration applied 2026-04-19 (backup: `~/soccersmartbet_backup_before_wave8_20260418_163145.sql`, 360KB, zero row loss). |
 | 9 | ⬜ Not Started | Robustness carryovers: 9A missing-results alert, 9B no-games verify, 9C startup-recovery verify. Independent of Wave 8. |
 | 10 | ⬜ Not Started | Offline Analysis Flow — multi-day gambling view. Deferred until enough betting data accumulated. |
 | 11 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
@@ -222,7 +222,7 @@ Execution order: **8A → 8B → 8C → 8D → 8E.**
 | 8B | Tighten Agent Prompts + Structured Outputs | ai-engineer | 🟢 Done |
 | 8C | H2H Rate-Limit Mitigation | python-pro | 🟢 Done | League hint threaded end-to-end (state → Send → game_intelligence → fetch_h2h). 1 competition scan + 1 H2H per game. Per-call exponential backoff `[5,10,20,40,80]`. Unsupported league or retry exhaustion → `"couldn't retrieve h2h due to API issues"`. Zero shared state — no buckets, no locks, no caches. LangGraph `Send()` owns parallelism. |
 | 8D | H2H Fix Application (conditional) | — | ⚫ Skipped | Superseded by 8B + 8C. 8B built `_build_h2h_aggregate` from raw tool output; 8C made `fetch_h2h` reliable for supported leagues with graceful degradation for the rest. No residual layer needs a fix. End-to-end verification will happen naturally on the first pre-gambling run after 8E's live-DB migration. |
-| 8E | Report HTML Full Overhaul | ui-designer + python-pro | ⬜ Pending |
+| 8E | Report HTML Full Overhaul | python-pro | 🟢 Done | Full mobile-first rewrite of `html_report.py` (5" phone, bettor's-spreadsheet aesthetic, table-comparison layout, implied-probability bar, form pills, no crests/VS/emoji/color coding). `combine_reports.py` + `ai_betting_agent.py` migrated to new column shape (bullets + structured fields). Live DB migration applied with backup + row-count verification. |
 
 ---
 

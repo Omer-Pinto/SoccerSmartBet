@@ -8,7 +8,7 @@ import psycopg2
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-_NOT_AVAILABLE = "Not available"
+_EL_LEAGUES = {"Europa League", "UEFA Europa League", "UEFA Europa Conference League", "Conference League"}
 
 _FETCH_GAME_SQL = """
 SELECT game_id, match_date, kickoff_time, home_team, away_team, league, venue,
@@ -17,13 +17,17 @@ FROM games WHERE game_id = %(game_id)s
 """
 
 _FETCH_GAME_REPORT_SQL = """
-SELECT h2h_insights, weather_risk, venue
+SELECT h2h_home_team, h2h_away_team, h2h_home_team_wins, h2h_away_team_wins,
+       h2h_draws, h2h_total_meetings, h2h_bullets,
+       weather_bullets, weather_cancellation_risk, venue
 FROM game_reports WHERE game_id = %(game_id)s
 LIMIT 1
 """
 
 _FETCH_TEAM_REPORTS_SQL = """
-SELECT team_name, recovery_days, form_trend, injury_impact, league_position, team_news
+SELECT team_name, recovery_days, form_streak, last_5_games, form_bullets,
+       league_rank, league_points, league_matches_played, league_bullets,
+       injury_bullets, news_bullets
 FROM team_reports WHERE game_id = %(game_id)s ORDER BY team_name
 """
 
@@ -33,332 +37,208 @@ FROM expert_game_reports WHERE game_id = %(game_id)s
 LIMIT 1
 """
 
-_CSS = """
-* { margin: 0; padding: 0; box-sizing: border-box; }
+_CSS = """\
+/* === reset === */
+*{margin:0;padding:0;box-sizing:border-box}
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(135deg, #2d5a27 0%, #3d7a37 100%);
-    min-height: 100vh;
-    color: #ffffff;
-    padding: 16px;
+/* === typography === */
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  background:#0f0f0f;
+  color:#d4d4d4;
+  padding:12px;
+}
+h1,h2,h3{font-weight:600}
+
+/* === header === */
+.header{
+  border-bottom:1px solid #222;
+  padding-bottom:10px;
+  margin-bottom:10px;
+}
+.header-teams{
+  font-size:1.05rem;
+  font-weight:700;
+  color:#e8e8e8;
+  letter-spacing:0.02em;
+}
+.header-sep{
+  color:#555;
+  padding:0 6px;
+}
+.header-meta{
+  font-size:0.78rem;
+  color:#888;
+  margin-top:3px;
 }
 
-.container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 16px;
+/* === odds === */
+.odds-row{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  font-size:0.88rem;
+  color:#d4d4d4;
+  padding:6px 0;
+  border-bottom:1px solid #1a1a1a;
+}
+.odds-source{
+  margin-left:auto;
+  font-size:0.72rem;
+  color:#555;
 }
 
-/* Match Header */
-.match-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: rgba(26, 26, 46, 0.95);
-    border-radius: 16px;
-    padding: 28px 24px;
-    margin-bottom: 16px;
-    border: 1px solid rgba(79, 195, 247, 0.3);
-    flex-wrap: wrap;
-    gap: 16px;
+/* === probability bar === */
+.prob-bar{
+  display:flex;
+  height:3px;
+  width:100%;
+  margin-bottom:10px;
+  border-radius:1px;
+  overflow:hidden;
+}
+.prob-home{background:#4a4a4a}
+.prob-draw{background:#2a2a2a}
+.prob-away{background:#3a3a3a}
+
+/* === comparison table === */
+.cmp-table{
+  width:100%;
+  border-collapse:collapse;
+  margin-bottom:10px;
+}
+.cmp-table td{
+  vertical-align:top;
+  padding:7px 4px;
+  border-bottom:1px solid #1a1a1a;
+  font-size:0.82rem;
+}
+.cmp-table td.home-cell{
+  width:38%;
+  text-align:right;
+  padding-right:8px;
+}
+.cmp-table td.label-cell{
+  width:24%;
+  text-align:center;
+  color:#c8a84b;
+  font-size:0.72rem;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  white-space:nowrap;
+}
+.cmp-table td.away-cell{
+  width:38%;
+  text-align:left;
+  padding-left:8px;
 }
 
-.team-badge {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    flex: 1;
-    min-width: 140px;
+/* === pills === */
+.pills{
+  display:flex;
+  gap:3px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.pills.away-pills{justify-content:flex-start}
+.pill{
+  display:inline-block;
+  width:20px;
+  height:20px;
+  line-height:20px;
+  text-align:center;
+  font-size:0.68rem;
+  font-weight:700;
+  border-radius:2px;
+  background:#242424;
+  color:#aaa;
+}
+.pill-w{background:#1e2e1e;color:#5a8a5a}
+.pill-d{background:#222;color:#888}
+.pill-l{background:#2e1e1e;color:#8a5a5a}
+.pill-q{background:#1c1c1c;color:#555}
+
+/* === last-5 mini table === */
+.l5-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:0.72rem;
+  margin-top:5px;
+  color:#999;
+}
+.l5-table td{
+  padding:2px 2px;
+  border-bottom:1px solid #1a1a1a;
+}
+.l5-table td:first-child{text-align:center;width:18px}
+.l5-table .l5-score{color:#bbb;font-variant-numeric:tabular-nums}
+
+/* === bullets === */
+.bullets{
+  list-style:none;
+  margin-top:5px;
+}
+.bullets li{
+  font-size:0.78rem;
+  color:#aaa;
+  padding-left:10px;
+  position:relative;
+}
+.bullets li::before{
+  content:'·';
+  position:absolute;
+  left:0;
+  color:#555;
 }
 
-.team-crest {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.8rem;
-    font-weight: 700;
-    border: 3px solid;
+/* === shared rows === */
+.shared-row{
+  padding:8px 0;
+  border-bottom:1px solid #1a1a1a;
+  font-size:0.82rem;
+}
+.shared-label{
+  color:#c8a84b;
+  font-size:0.72rem;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  margin-bottom:4px;
+}
+.shared-body{color:#c0c0c0}
+.cancel-risk{color:#b08040;font-size:0.75rem;margin-top:3px}
+
+/* === expert === */
+.expert-section{
+  padding-top:10px;
+}
+.expert-title{
+  color:#c8a84b;
+  font-size:0.72rem;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  margin-bottom:6px;
 }
 
-.team-badge.home .team-crest {
-    background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
-    border-color: #4caf50;
+/* === utilities === */
+.em{color:#888}
+@media(max-width:375px){
+  body{padding:8px;font-size:13px}
+  .cmp-table td{padding:6px 2px;font-size:0.78rem}
 }
-
-.team-badge.away .team-crest {
-    background: linear-gradient(135deg, #f44336 0%, #c62828 100%);
-    border-color: #f44336;
-}
-
-.team-name {
-    font-size: 1.3rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    text-align: center;
-}
-
-.team-badge.home .team-name { color: #4caf50; }
-.team-badge.away .team-name { color: #f44336; }
-
-.match-center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    min-width: 160px;
-}
-
-.vs-badge {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: #f5a623;
-    border: 2px solid #f5a623;
-    border-radius: 50%;
-    width: 52px;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.match-datetime {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #f5a623;
-    text-align: center;
-}
-
-.league-label {
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.6);
-    padding: 4px 12px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 4px;
-    text-align: center;
-}
-
-.venue-label {
-    font-size: 0.8rem;
-    color: #4fc3f7;
-    text-align: center;
-}
-
-/* Section card */
-.section-card {
-    background: rgba(26, 26, 46, 0.95);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 16px;
-    border: 1px solid rgba(79, 195, 247, 0.3);
-}
-
-.section-title {
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: rgba(255,255,255,0.6);
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-/* Odds */
-.odds-row {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.odd-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 18px 28px;
-    background: rgba(255,255,255,0.05);
-    border-radius: 10px;
-    border: 2px solid transparent;
-    min-width: 110px;
-}
-
-.odd-card.home-win { border-color: #4caf50; }
-.odd-card.draw     { border-color: #9e9e9e; }
-.odd-card.away-win { border-color: #f44336; }
-
-.odd-label {
-    font-size: 1.2rem;
-    font-weight: 700;
-    margin-bottom: 4px;
-}
-
-.odd-value {
-    font-size: 2.4rem;
-    font-weight: 700;
-    color: #f5a623;
-    line-height: 1;
-}
-
-.odd-desc {
-    font-size: 0.75rem;
-    color: rgba(255,255,255,0.5);
-    margin-top: 4px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-/* Expert analysis */
-.expert-card {
-    background: rgba(26, 26, 46, 0.95);
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 16px;
-    border: 1px solid rgba(245, 166, 35, 0.4);
-    border-left: 4px solid #f5a623;
-}
-
-.expert-title {
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: #f5a623;
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.expert-body {
-    font-size: 0.95rem;
-    line-height: 1.75;
-    color: #e0e0e0;
-    white-space: pre-wrap;
-}
-
-/* Comparison grid */
-.comparison-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-}
-
-@media (max-width: 900px) {
-    .comparison-grid {
-        grid-template-columns: 1fr;
-    }
-    .center-col { order: -1; }
-}
-
-.team-col {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.col-header {
-    text-align: center;
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 4px;
-}
-
-.team-col.home .col-header {
-    background: linear-gradient(135deg, rgba(76,175,80,0.3) 0%, rgba(76,175,80,0.1) 100%);
-    border: 1px solid #4caf50;
-}
-
-.team-col.away .col-header {
-    background: linear-gradient(135deg, rgba(244,67,54,0.3) 0%, rgba(244,67,54,0.1) 100%);
-    border: 1px solid #f44336;
-}
-
-.center-col {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.col-tag {
-    display: block;
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 3px;
-    color: rgba(255,255,255,0.5);
-    margin-bottom: 4px;
-}
-
-.col-title {
-    display: block;
-    font-size: 1.1rem;
-    font-weight: 700;
-    text-transform: uppercase;
-}
-
-/* Stat card */
-.stat-card {
-    background: rgba(26, 26, 46, 0.95);
-    border-radius: 10px;
-    padding: 16px;
-    border: 1px solid rgba(79, 195, 247, 0.2);
-}
-
-.stat-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: rgba(255,255,255,0.5);
-    margin-bottom: 10px;
-}
-
-.stat-body {
-    font-size: 0.88rem;
-    line-height: 1.65;
-    color: #e0e0e0;
-    white-space: pre-wrap;
-}
-
-/* Recovery badge */
-.recovery-number {
-    font-size: 2.4rem;
-    font-weight: 700;
-    display: block;
-    margin-bottom: 4px;
-}
-
-.recovery-tag {
-    display: inline-block;
-    padding: 3px 12px;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-weight: 600;
-}
-
-.recovery-tag.short    { background: rgba(244,67,54,0.2);  color: #f44336; }
-.recovery-tag.normal   { background: rgba(158,158,158,0.2); color: #9e9e9e; }
-.recovery-tag.extended { background: rgba(76,175,80,0.2);  color: #4caf50; }
-
-/* Match header responsive */
-@media (max-width: 600px) {
-    .match-header { flex-direction: column; align-items: center; }
-    .team-badge { min-width: unset; width: 100%; }
-    .odd-value { font-size: 1.8rem; }
+@media(min-width:668px){
+  body{max-width:660px;margin:0 auto}
 }
 """
 
 
 def _esc(value: Any) -> str:
     if value is None:
-        return _NOT_AVAILABLE
+        return "\u2014"
     s = str(value)
     return (
         s.replace("&", "&amp;")
@@ -368,114 +248,159 @@ def _esc(value: Any) -> str:
     )
 
 
-def _recovery_class(days: int | None) -> str:
+def _bullets_html(items: list[str] | None, side: str = "") -> str:
+    if not items:
+        return ""
+    lis = "".join(f"<li>{_esc(b)}</li>" for b in items)
+    return f'<ul class="bullets">{lis}</ul>'
+
+
+def _pill(char: str) -> str:
+    c = char.upper()
+    css = {"W": "pill-w", "D": "pill-d", "L": "pill-l"}.get(c, "pill-q")
+    return f'<span class="pill {css}">{_esc(c)}</span>'
+
+
+def _form_pills_html(streak: str | None, side: str) -> str:
+    if not streak:
+        return '<span class="em">\u2014</span>'
+    align_cls = "" if side == "home" else "away-pills"
+    pills = "".join(_pill(ch) for ch in streak)
+    return f'<div class="pills {align_cls}">{pills}</div>'
+
+
+def _last5_html(last5: list[dict] | None, side: str) -> str:
+    if not last5:
+        return ""
+    rows = ""
+    for m in last5[:5]:
+        result = _esc(m.get("result", "?"))
+        gf = m.get("goals_for", "?")
+        ga = m.get("goals_against", "?")
+        opp = _esc(m.get("opponent", "\u2014"))
+        ha = _esc(m.get("home_or_away", "?"))
+        rows += (
+            f"<tr>"
+            f"<td>{result}</td>"
+            f'<td class="l5-score">{gf}:{ga}</td>'
+            f"<td>{opp}</td>"
+            f"<td>{ha}</td>"
+            f"</tr>"
+        )
+    return f'<table class="l5-table">{rows}</table>'
+
+
+def _form_cell(report: dict | None, side: str) -> str:
+    if report is None:
+        return '<span class="em">\u2014</span>'
+    streak = report.get("form_streak") or ""
+    last5 = report.get("last_5_games") or []
+    form_bullets = report.get("form_bullets") or []
+    pills = _form_pills_html(streak, side)
+    tbl = _last5_html(last5, side)
+    bullets = _bullets_html(form_bullets)
+    return pills + tbl + bullets
+
+
+def _league_cell(report: dict | None) -> str:
+    if report is None:
+        return '<span class="em">\u2014</span>'
+    rank = report.get("league_rank")
+    pts = report.get("league_points")
+    mp = report.get("league_matches_played")
+    rank_s = str(rank) if rank is not None else "\u2014"
+    pts_s = f"{pts} pts" if pts is not None else "\u2014"
+    mp_s = f"{mp} MP" if mp is not None else "\u2014"
+    summary = f"{rank_s} \u00b7 {pts_s} \u00b7 {mp_s}"
+    bullets = _bullets_html(report.get("league_bullets"))
+    return f"<div>{_esc(summary)}</div>{bullets}"
+
+
+def _recovery_cell(report: dict | None) -> str:
+    if report is None:
+        return '<span class="em">\u2014</span>'
+    days = report.get("recovery_days")
     if days is None:
-        return "normal"
-    if days < 3:
-        return "short"
-    if days <= 5:
-        return "normal"
-    return "extended"
+        return '<span class="em">\u2014</span>'
+    return f"{_esc(str(days))} days"
 
 
-def _recovery_label(days: int | None) -> str:
-    if days is None:
-        return "Unknown"
-    if days < 3:
-        return "Short turnaround"
-    if days <= 5:
-        return "Normal rest"
-    return "Well rested"
+def _injuries_cell(report: dict | None) -> str:
+    if report is None:
+        return '<span class="em">\u2014</span>'
+    bullets = report.get("injury_bullets") or []
+    if not bullets:
+        return '<span class="em">\u2014</span>'
+    return _bullets_html(bullets)
 
 
-def _team_initials(name: str) -> str:
-    parts = name.split()
-    if len(parts) >= 2:
-        return (parts[0][0] + parts[-1][0]).upper()
-    return name[:2].upper()
+def _cmp_row(home_content: str, label: str, away_content: str) -> str:
+    return (
+        f"<tr>"
+        f'<td class="home-cell">{home_content}</td>'
+        f'<td class="label-cell">{_esc(label)}</td>'
+        f'<td class="away-cell">{away_content}</td>'
+        f"</tr>"
+    )
 
 
-def _team_card_html(team_name: str, report: dict[str, Any] | None, side: str) -> str:
-    col_class = "home" if side == "home" else "away"
-    tag = "HOME" if side == "home" else "AWAY"
-
-    recovery_days = report["recovery_days"] if report else None
-    r_class = _recovery_class(recovery_days)
-    r_label = _recovery_label(recovery_days)
-    r_display = str(recovery_days) if recovery_days is not None else "?"
-
-    form_trend     = _esc(report["form_trend"] if report else None)
-    injury_impact  = _esc(report["injury_impact"] if report else None)
-    league_position = _esc(report["league_position"] if report else None)
-    team_news      = _esc(report["team_news"] if report else None)
-
-    return f"""
-<div class="team-col {col_class}">
-    <div class="col-header">
-        <span class="col-tag">{tag}</span>
-        <span class="col-title">{_esc(team_name)}</span>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">League Position</div>
-        <div class="stat-body">{league_position}</div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Form Trend</div>
-        <div class="stat-body">{form_trend}</div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Recovery</div>
-        <div style="text-align:center; margin-bottom:6px;">
-            <span class="recovery-number" style="color: {'#f44336' if r_class == 'short' else ('#4caf50' if r_class == 'extended' else '#9e9e9e')};">{r_display}</span>
-            <span style="display:block; font-size:0.78rem; color:rgba(255,255,255,0.5); margin-bottom:6px;">days since last match</span>
-            <span class="recovery-tag {r_class}">{r_label}</span>
-        </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Injury Impact</div>
-        <div class="stat-body">{injury_impact}</div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Team News</div>
-        <div class="stat-body">{team_news}</div>
-    </div>
-</div>
-"""
+def _prob_bar_html(h_odd: Any, d_odd: Any, a_odd: Any) -> str:
+    try:
+        h = 1 / float(h_odd)
+        d = 1 / float(d_odd)
+        a = 1 / float(a_odd)
+        total = h + d + a
+        hp = round(h / total * 100, 1)
+        dp = round(d / total * 100, 1)
+        ap = round(100 - hp - dp, 1)
+        return (
+            f'<div class="prob-bar">'
+            f'<div class="prob-home" style="width:{hp}%"></div>'
+            f'<div class="prob-draw" style="width:{dp}%"></div>'
+            f'<div class="prob-away" style="width:{ap}%"></div>'
+            f"</div>"
+        )
+    except (TypeError, ValueError, ZeroDivisionError):
+        return ""
 
 
-def _center_card_html(h2h_insights: str, weather_risk: str, venue_text: str) -> str:
-    return f"""
-<div class="center-col">
-    <div class="col-header" style="background: rgba(79,195,247,0.1); border: 1px solid rgba(79,195,247,0.4);">
-        <span class="col-tag">SHARED</span>
-        <span class="col-title" style="color:#4fc3f7;">Match Data</span>
-    </div>
+def _h2h_html(
+    league: str,
+    h2h_home: str | None,
+    h2h_away: str | None,
+    h2h_hw: int | None,
+    h2h_aw: int | None,
+    h2h_d: int | None,
+    h2h_total: int | None,
+    h2h_bullets: list[str] | None,
+) -> str:
+    if league in _EL_LEAGUES:
+        aggregate = "H2H not tracked for this competition"
+    elif h2h_total is not None and h2h_total > 0 and h2h_home and h2h_away:
+        aggregate = (
+            f"{_esc(h2h_home)} {h2h_hw or 0} "
+            f"\u2013 {h2h_d or 0} draws "
+            f"\u2013 {h2h_aw or 0} {_esc(h2h_away)}"
+        )
+    else:
+        aggregate = "H2H: No data available."
 
-    <div class="stat-card">
-        <div class="stat-label">H2H Insights</div>
-        <div class="stat-body">{_esc(h2h_insights)}</div>
-    </div>
+    bullets = _bullets_html(h2h_bullets)
+    return f'<div class="shared-body">{aggregate}</div>{bullets}'
 
-    <div class="stat-card">
-        <div class="stat-label">Weather Risk</div>
-        <div class="stat-body">{_esc(weather_risk)}</div>
-    </div>
 
-    <div class="stat-card">
-        <div class="stat-label">Venue</div>
-        <div class="stat-body">{_esc(venue_text)}</div>
-    </div>
-</div>
-"""
+def _weather_html(weather_bullets: list[str] | None, cancel_risk: str | None) -> str:
+    if not weather_bullets:
+        return '<span class="em">\u2014</span>'
+    bullets = _bullets_html(weather_bullets)
+    risk_line = ""
+    if cancel_risk in ("medium", "high"):
+        risk_line = f'<div class="cancel-risk">Weather cancellation risk: {_esc(cancel_risk)}.</div>'
+    return bullets + risk_line
 
 
 def generate_game_report_html(game_id: int) -> str:
-    """Query DB for all data about a game and return a complete self-contained HTML string."""
+    """Query DB and return a complete self-contained HTML string for one game."""
     conn = psycopg2.connect(DATABASE_URL)
     try:
         with conn:
@@ -490,124 +415,141 @@ def generate_game_report_html(game_id: int) -> str:
                     venue_from_games, home_win_odd, away_win_odd, draw_odd,
                 ) = game_row
 
+                h2h_home = h2h_away = None
+                h2h_hw = h2h_aw = h2h_d = h2h_total = None
+                h2h_bullets: list[str] = []
+                weather_bullets: list[str] = []
+                cancel_risk: str | None = None
+                venue_from_report: str | None = None
+
                 cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
                 report_row = cur.fetchone()
                 if report_row is not None:
-                    h2h_insights, weather_risk, venue_from_report = report_row
-                    h2h_insights  = h2h_insights  or _NOT_AVAILABLE
-                    weather_risk  = weather_risk  or _NOT_AVAILABLE
-                    venue_text    = venue_from_report or venue_from_games or _NOT_AVAILABLE
-                else:
-                    h2h_insights = weather_risk = _NOT_AVAILABLE
-                    venue_text   = venue_from_games or _NOT_AVAILABLE
+                    (
+                        h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total,
+                        h2h_bullets_raw, weather_bullets_raw, cancel_risk, venue_from_report,
+                    ) = report_row
+                    h2h_bullets = h2h_bullets_raw or []
+                    weather_bullets = weather_bullets_raw or []
+
+                venue_display = venue_from_report or venue_from_games
 
                 cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
                 team_rows = cur.fetchall()
                 team_map: dict[str, dict[str, Any]] = {}
                 for row in team_rows:
-                    t_name, recovery_days, form_trend, injury_impact, league_position, team_news = row
+                    (
+                        t_name, recovery_days, form_streak, last5_raw, form_bullets_raw,
+                        league_rank, league_points, league_mp, league_bullets_raw,
+                        injury_bullets_raw, news_bullets_raw,
+                    ) = row
                     team_map[t_name] = {
                         "recovery_days": recovery_days,
-                        "form_trend": form_trend,
-                        "injury_impact": injury_impact,
-                        "league_position": league_position,
-                        "team_news": team_news,
+                        "form_streak": form_streak,
+                        "last_5_games": last5_raw or [],
+                        "form_bullets": form_bullets_raw or [],
+                        "league_rank": league_rank,
+                        "league_points": league_points,
+                        "league_matches_played": league_mp,
+                        "league_bullets": league_bullets_raw or [],
+                        "injury_bullets": injury_bullets_raw or [],
+                        "news_bullets": news_bullets_raw or [],
                     }
 
                 cur.execute(_FETCH_EXPERT_SQL, {"game_id": game_id})
                 expert_row = cur.fetchone()
-                expert_analysis = expert_row[0] if expert_row else _NOT_AVAILABLE
+                expert_bullets: list[str] = expert_row[0] if expert_row else []
+                if not isinstance(expert_bullets, list):
+                    expert_bullets = [str(expert_bullets)] if expert_bullets else []
     finally:
         conn.close()
 
     home_report = team_map.get(home_team)
     away_report = team_map.get(away_team)
 
-    # Format date/time display
-    date_str    = str(match_date) if match_date else "TBD"
-    time_str    = str(kickoff_time) if kickoff_time else "TBD"
-    datetime_display = f"{date_str} — {time_str} ISR"
+    date_str = str(match_date) if match_date else "\u2014"
+    time_str = kickoff_time.strftime("%H:%M") if kickoff_time else "\u2014"
 
-    home_initials = _team_initials(home_team)
-    away_initials = _team_initials(away_team)
+    h_odd_disp = f"{float(home_win_odd):.2f}" if home_win_odd is not None else "\u2014"
+    d_odd_disp = f"{float(draw_odd):.2f}" if draw_odd is not None else "\u2014"
+    a_odd_disp = f"{float(away_win_odd):.2f}" if away_win_odd is not None else "\u2014"
 
-    home_win_odd_display = f"{float(home_win_odd):.2f}" if home_win_odd is not None else "—"
-    draw_odd_display     = f"{float(draw_odd):.2f}"     if draw_odd     is not None else "—"
-    away_win_odd_display = f"{float(away_win_odd):.2f}" if away_win_odd is not None else "—"
+    prob_bar = _prob_bar_html(home_win_odd, draw_odd, away_win_odd)
 
-    home_col_html   = _team_card_html(home_team, home_report, "home")
-    away_col_html   = _team_card_html(away_team, away_report, "away")
-    center_col_html = _center_card_html(h2h_insights, weather_risk, venue_text)
+    cmp_rows = "".join([
+        _cmp_row(_form_cell(home_report, "home"), "Form", _form_cell(away_report, "away")),
+        _cmp_row(_league_cell(home_report), "League", _league_cell(away_report)),
+        _cmp_row(_recovery_cell(home_report), "Recovery", _recovery_cell(away_report)),
+        _cmp_row(_injuries_cell(home_report), "Injuries", _injuries_cell(away_report)),
+    ])
+
+    h2h_content = _h2h_html(
+        league or "",
+        h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total, h2h_bullets,
+    )
+
+    weather_content = _weather_html(weather_bullets, cancel_risk)
+
+    venue_html = (
+        f'<div class="shared-row">'
+        f'<div class="shared-label">Venue</div>'
+        f'<div class="shared-body">{_esc(venue_display) if venue_display else "\u2014"}</div>'
+        f'</div>'
+    )
+
+    expert_html = ""
+    if expert_bullets:
+        bullet_items = "".join(f"<li>{_esc(b)}</li>" for b in expert_bullets)
+        expert_html = (
+            f'<div class="expert-section">'
+            f'<div class="expert-title">Expert analysis</div>'
+            f'<ul class="bullets">{bullet_items}</ul>'
+            f'</div>'
+        )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{_esc(home_team)} vs {_esc(away_team)} — SoccerSmartBet</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{_esc(home_team)} vs {_esc(away_team)}</title>
 <style>
 {_CSS}
 </style>
 </head>
 <body>
-<div class="container">
 
-    <!-- Match Header -->
-    <div class="match-header">
-        <div class="team-badge home">
-            <div class="team-crest">{_esc(home_initials)}</div>
-            <div class="team-name">{_esc(home_team)}</div>
-        </div>
-
-        <div class="match-center">
-            <div class="vs-badge">VS</div>
-            <div class="match-datetime">{_esc(datetime_display)}</div>
-            <div class="league-label">{_esc(league)}</div>
-            <div class="venue-label">{_esc(venue_text if venue_text != _NOT_AVAILABLE else "")}</div>
-        </div>
-
-        <div class="team-badge away">
-            <div class="team-crest">{_esc(away_initials)}</div>
-            <div class="team-name">{_esc(away_team)}</div>
-        </div>
-    </div>
-
-    <!-- Odds -->
-    <div class="section-card">
-        <div class="section-title">&#127922; Odds (winner.co.il)</div>
-        <div class="odds-row">
-            <div class="odd-card home-win">
-                <div class="odd-label">1</div>
-                <div class="odd-value">{_esc(home_win_odd_display)}</div>
-                <div class="odd-desc">Home Win</div>
-            </div>
-            <div class="odd-card draw">
-                <div class="odd-label">X</div>
-                <div class="odd-value">{_esc(draw_odd_display)}</div>
-                <div class="odd-desc">Draw</div>
-            </div>
-            <div class="odd-card away-win">
-                <div class="odd-label">2</div>
-                <div class="odd-value">{_esc(away_win_odd_display)}</div>
-                <div class="odd-desc">Away Win</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Expert Analysis -->
-    <div class="expert-card">
-        <div class="expert-title">&#129504; Expert Analysis</div>
-        <div class="expert-body">{_esc(expert_analysis)}</div>
-    </div>
-
-    <!-- Three-column grid -->
-    <div class="comparison-grid">
-        {home_col_html}
-        {center_col_html}
-        {away_col_html}
-    </div>
-
+<div class="header">
+  <div class="header-teams">
+    {_esc(home_team)}<span class="header-sep">vs</span>{_esc(away_team)}
+  </div>
+  <div class="header-meta">{_esc(date_str)} &middot; {_esc(time_str)} ISR &middot; {_esc(league)}</div>
 </div>
+
+<div class="odds-row">
+  <span>1&nbsp;{_esc(h_odd_disp)}&nbsp;&middot;&nbsp;X&nbsp;{_esc(d_odd_disp)}&nbsp;&middot;&nbsp;2&nbsp;{_esc(a_odd_disp)}</span>
+  <span class="odds-source">winner.co.il</span>
+</div>
+{prob_bar}
+
+<table class="cmp-table">
+{cmp_rows}
+</table>
+
+<div class="shared-row">
+  <div class="shared-label">H2H</div>
+  {h2h_content}
+</div>
+
+{venue_html}
+
+<div class="shared-row">
+  <div class="shared-label">Weather</div>
+  <div class="shared-body">{weather_content}</div>
+</div>
+
+{expert_html}
+
 </body>
 </html>"""
 
