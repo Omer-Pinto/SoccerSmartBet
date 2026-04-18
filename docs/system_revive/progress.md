@@ -212,9 +212,14 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜] 8/13 waves done
 
 ---
 
-## Wave 8 — Report Refactor Track 🔵 IN PROGRESS (sequential)
+## Wave 8 — Report Refactor Track 🟢 DONE (sequential)
 
-Execution order: **8A → 8B → 8C → 8D → 8E.**
+Execution order: **8A → 8B → 8C → 8D → 8E.** 8D skipped (superseded by 8B + 8C).
+
+Accepted design deviations from the original plan (approved by Omer during v3–v6 iterations):
+- Task 8E #5 "implied-probability bar" — **removed** entirely (added no signal above the raw odds).
+- Task 8E #10 palette — shipped near-black with green undertone (`#0d1410` bg, `#1e2a22` hairlines, `#2e6b2d` / `#3d7a37` structural green, `#c8a84b` gold accent) instead of the originally planned `#0f0f0f` + `#222`.
+- Editorial-terminal redesign (v7) was rejected and reverted to v6 green.
 
 | # | Agent | Type | Status |
 |---|-------|------|--------|
