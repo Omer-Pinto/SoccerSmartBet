@@ -352,45 +352,99 @@ APScheduler's `AsyncIOScheduler` (used by python-telegram-bot's `JobQueue`) reli
 
 ---
 
-## Wave 8 — Independent Foundations (5 parallel agents)
+## Wave 8 — Report Refactor Track (sequential)
 
-Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism rule by mixing producers and consumers. Split: Wave 8 = independent foundations, Wave 9 = the report-overhaul consumers. All 5 agents below touch disjoint files — dispatch in parallel.
+Tightly-coupled chain: diagnose → schema → data-source fix → residual fix → renderer. Sequential execution, one end-to-end review at the end of the track.
 
-> **Note (2026-04-18):** Cup-tie first-leg helper (formerly 8A) moved to Wave 10 — no 2-legged cup ties currently on the schedule to validate against.
+**Execution order:** 8A → 8B → 8C → 8D → 8E.
 
-**Guiding constraints (read before building anything in this wave):**
+**Guiding constraints:**
 - Target device: 5-inch phone, Telegram in-app browser. Omer opens 3–8 reports back-to-back before betting.
 - **Numbers lead, prose follows as short bullets.** Never paragraphs. No opening flourishes ("This is the kind of…", "Critical —", "Improving —"). No scene-setting.
-- `games` table is a registry of games we're betting on / about to bet on. **It is NOT a world game registry.** No schema changes for first-leg data. No new rows for non-bet games.
-- Primary data source for football context is FotMob. football-data.org is a weak fallback — do not use it for first-leg lookup.
+- `games` table is a registry of games we're betting on / about to bet on. **It is NOT a world game registry.** No new rows for non-bet games.
+- Primary data source for football context is FotMob. football-data.org is a weak fallback.
 - All LLM work goes through the `ai-engineer` subagent and uses structured Pydantic outputs. No prose blobs.
 
-**File-disjointness check (must hold for Wave 8 to be truly parallel):**
-
-| Agent | Files it owns |
-|-------|---------------|
-| 8B | `structured_outputs.py`, `agents/game_intelligence.py`, `agents/team_intelligence.py`, prompts |
-| 8C | `post_games_flow/fetch_results.py`, notification path |
-| 8D | `pre_gambling_flow/…`, `telegram/triggers.py` — verification only, minor fixes if broken |
-| 8E | `telegram/triggers.py` startup-recovery path — verification only |
-| 8F | read-only; produces `docs/system_revive/wave9_contract.md` |
-
-8D and 8E both touch `telegram/triggers.py` for verification. If either needs a fix there, the second agent must wait — assign 8D to run before 8E if both need code changes, or serialize them. For the common case (verification only, no code change), they stay parallel.
-
-### Agent 8B: Tighten Agent Prompts + Structured Outputs
-**Type:** `ai-engineer` (use `claude-api` skill if applicable to the SDK in use)
-**Scope:** `src/soccersmartbet/pre_gambling_flow/structured_outputs.py`, `agents/game_intelligence.py`, `agents/team_intelligence.py`, their prompts
+### Agent 8A: Contract Investigation + H2H Diagnosis (read-only)
+**Type:** `python-pro`
+**Scope:** read-only pass over existing code; outputs `docs/system_revive/wave8_contract.md`.
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
-| 1 | Split structured outputs: raw vs bullets | Pydantic models | Raw fields as their own typed fields: form streak `"LDDWL"`, league rank (int), points (int), matches played (int), recovery days (int). Commentary fields as `list[str]` of short bullets. Never a prose blob where a structured field can carry the data. |
-| 2 | Keep H2H as a first-class structured field | Pydantic models | Raw H2H match list as a structured field (not a commentary string). A separate optional commentary `list[str]` may summarize. This is the most likely root cause of the "H2H always empty" bug — the current model probably collapses raw H2H into prose that the LLM then drops. |
-| 3 | Enforce length caps in prompts | game/team intelligence prompts | Caps: form bullets ≤2 × 12 words; injuries bullets ≤5; team news bullets ≤3; expert analysis bullets ≤6 × 20 words. |
-| 4 | Forbid opening flourishes | Prompt instructions | Explicitly disallow scene-setting sentences, "This is the kind of…", "Critical —", "Improving —", and bedtime-story tone. Bullets start with concrete facts. |
-| 5 | Keep "analyze, not verdict" directive | Prompt instructions | Omer deliberately wants analysis of the data, not a bet recommendation. Preserve this. |
-| 6 | Migrate DB columns if `game_reports` / `team_reports` schema changes | Live DB via docker exec | Per CLAUDE.md rule: apply DDL to running DB, do not rely on init script. |
+| 1 | Read current code | `agents/game_intelligence.py`, `agents/team_intelligence.py`, `structured_outputs.py`, current prompts, `reports/html_report.py` | Inventory current Pydantic fields and what each report section reads. |
+| 2 | Diagnose H2H empty bug | Live logs + DB inspection + `fetch_h2h.py` review | Is H2H empty because: (a) prompt drops it, (b) LLM returns empty string, (c) DB write path swallows it, (d) `fetch_h2h.py` returns nothing, (e) rate limiting by football-data.org? Report root cause with evidence. |
+| 3 | Write `wave8_contract.md` | New file under `docs/system_revive/` | Contents: (a) final Pydantic field list 8B delivers; (b) H2H root cause + which later agent (8C rate-limit vs 8D residual fix) acts on it; (c) file-ownership map for 8D + 8E; (d) any surprises that change the plan. |
 
-### Agent 8C: Post-Games Missing-Results Alert *(from old Wave 7 carry-over)*
+### Agent 8B: Tighten Agent Prompts + Structured Outputs
+**Type:** `ai-engineer`
+**Scope:** `src/soccersmartbet/pre_gambling_flow/structured_outputs.py`, `agents/game_intelligence.py`, `agents/team_intelligence.py`, `agents/db_utils.py`, `prompts.py`, `db/schema.sql`, `deployment/db/init/001_create_schema.sql`.
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Split structured outputs: raw vs bullets | Pydantic models | Raw fields as their own typed fields: form streak, league rank (int), points (int), matches played (int), recovery days (int), last-5 matches list. Commentary fields as `list[str]` of short bullets. |
+| 2 | H2H aggregate keyed by team identity | Pydantic models | W/D/L totals between today's home and away team. NO historical per-match list (past meetings' home/away roles unreliable). |
+| 3 | Soft length caps in prompts | game/team intelligence prompts | Caps: form bullets ≤2 × 12 words; injuries bullets ≤5; team news bullets ≤3; expert analysis bullets ≤6 × 20 words. Soft — do not reject or truncate LLM output. |
+| 4 | Forbid opening flourishes | Prompt instructions | Explicitly disallow scene-setting sentences, "This is the kind of…", "Critical —", "Improving —", and bedtime-story tone. Bullets start with concrete facts. |
+| 5 | Keep "analyze, not verdict" directive | Prompt instructions | Analysis of the data, not a bet recommendation. |
+| 6 | Stage DDL in schema files only | `db/schema.sql` + `deployment/db/init/001_create_schema.sql` | DO NOT apply to live DB. Migration DDL runs at merge time with explicit OK. |
+
+### Agent 8C: H2H Rate-Limit Mitigation
+**Type:** `python-pro`
+**Scope:** `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_h2h.py` + its orchestration caller; optional alternative-source module if a swap is warranted.
+
+Context: leading hypothesis is rate limiting by football-data.org when N H2H calls fire within a ~1-minute window. Pre-gambling can acceptably extend to 3–4 minutes if that buys reliable H2H.
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Confirm the hypothesis | Logs + response inspection | Reproduce N concurrent/back-to-back H2H calls and capture status codes, bodies, timing. Distinguish "429 / 403 / empty payload / truncated list". |
+| 2 | Evaluate mitigation options | Design note in the task output | At minimum: (a) serialize H2H calls with inter-call delay, (b) token-bucket / semaphore limiter tuned to observed limits, (c) switch/fallback to a different H2H source (FotMob, other). Recommend one based on reliability and implementation cost. |
+| 3 | Implement chosen approach | fetch_h2h.py and/or its caller | Keep total pre-gambling flow under ~4 minutes for N≤10 games. If pacing: make the value configurable. If source-swap: preserve return shape. |
+| 4 | No pytest reinstatement | Verification | Verify on a live pre-gambling run (once 8E lands). Tool tests stay removed. |
+| 5 | Skip if 8A rules out rate limiting | Coordinate | If root cause is elsewhere, implementation shifts to 8D and 8C becomes a no-op confirmation step. |
+
+### Agent 8D: H2H Fix Application (conditional)
+**Type:** `python-pro`
+**Scope:** determined by 8A's diagnosis + 8C's outcome. Likely `agents/game_intelligence.py` DB-write path, `fetch_h2h.py`, or the H2H structured field population logic.
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Apply residual fix | Whichever layer 8A identified | Populate the H2H aggregate structured field when source data exists. |
+| 2 | Preserve "data unavailable" signal | Same layer | When H2H is truly missing, carry an explicit empty/null marker so the renderer shows "H2H: No data available." |
+| 3 | Skip if already resolved | Coordinate | If 8A + 8B + 8C together fully resolve H2H, skip this agent. |
+
+### Agent 8E: Report HTML Full Overhaul (5-inch mobile, table-comparison)
+**Type:** `ui-designer` (design spec produced 2026-04-17) + `python-pro` (implementation)
+**Scope:** `src/soccersmartbet/reports/html_report.py`, `src/soccersmartbet/pre_gambling_flow/nodes/combine_reports.py` (SELECT migration), `src/soccersmartbet/gambling_flow/ai_betting_agent.py` (intelligence-bundle migration), `reports/telegram_message.py` if affected. Consumes 8B's Pydantic fields per 8A's contract.
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | Full rewrite of `html_report.py` | Mobile-first, 5" phone (≈375px portrait, ≈667px landscape) | Per ui-designer spec. Professional bettor's spreadsheet aesthetic. |
+| 2 | Layout — table comparison | 3-col table: home \| stat label \| away | Split rows: form (streak + bullets), league position (rank · pts · MP), recovery, injuries. Shared rows (full width): H2H, venue, weather. |
+| 3 | Match header | Team names, kickoff (ISR), league | Cup-tie first-leg inline rendering deferred to Wave 11. |
+| 4 | Compact odds row | Single line | `1 1.15 · X 6.60 · 2 11.10`. Source label "winner.co.il" small, right-aligned. No big cards. |
+| 5 | Implied-probability bar | Thin horizontal bar under odds row | Neutral color segments proportional to implied probability. No home/away color coding. |
+| 6 | Form as pills row | `L D D W W` visual pills | Pills first, bullets after. Last-5 games table (result, GF:GA, opponent, home/away) below pills. |
+| 7 | Injuries, team news, expert analysis — bullets only | Strict caps enforced by 8B prompts | No prose paragraphs. No opening flourishes. |
+| 8 | Venue display | Short name from `games.venue`, enriched with surface + capacity if available | Use FotMob's short/popular venue name IF FotMob exposes one. No local dict. Single line. |
+| 9 | Fix venue duplication bug | Header + shared row | Header uses `games.venue` (short). Shared row shows venue + surface + capacity. Never LLM prose in the header. |
+| 10 | Palette + typography | Near-black bg `#0f0f0f`, hairline separators `#222`, muted gold `#c8a84b` accent | Data-dense, flat, no gradients. |
+| 11 | Delete — crests, VS badge, emoji section titles, home=green/away=red coding, oversized recovery number | Generator | All removed. |
+| 12 | H2H display — aggregate W/D/L or "No data available" | Renderer | Team_A W – D – Team_B W when present. Explicit gap when missing. |
+| 13 | Migrate `combine_reports.py` SELECT + template | Consumer | Read new columns; render from structured fields + JSONB bullet arrays. |
+| 14 | Migrate `ai_betting_agent.py` intelligence bundle | Consumer | Rebuild prompt payload from new JSONB bullets + structured fields. |
+| 15 | Apply migration DDL to live DB | Live DB via docker exec | Per CLAUDE.md: surface exact SQL for explicit OK, then apply. Only at this point does the track become mergeable. |
+
+### After Wave 8
+- End-to-end pre-gambling report runs with new Pydantic shape, new prompts, populated H2H, and mobile-first HTML rendered to Telegram.
+- Live DB migration applied. Bot resumes daily automation.
+
+---
+
+## Wave 9 — Robustness Carryovers (independent)
+
+Unrelated to the report refactor. Can run any time — files are disjoint from Wave 8.
+
+### Agent 9A: Post-Games Missing-Results Alert
 **Type:** `python-pro`
 **Scope:** `src/soccersmartbet/post_games_flow/fetch_results.py` + notification path
 
@@ -398,7 +452,7 @@ Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism ru
 |---|-------------|--------|-------|
 | 1 | Alert on missing result | Issue #55 | Post-games currently silently skips games with no FotMob match. Must send a Telegram alert listing the skipped games, not swallow them. |
 
-### Agent 8D: No-Games-Day Robustness Verification *(from old Wave 7 carry-over)*
+### Agent 9B: No-Games-Day Robustness Verification
 **Type:** `python-pro`
 **Scope:** `src/soccersmartbet/pre_gambling_flow/`, `telegram/triggers.py` (verification; fix only if broken)
 
@@ -406,7 +460,7 @@ Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism ru
 |---|-------------|--------|-------|
 | 1 | Verify no-games day path | smart_game_picker returns 0 | No crash, no orphan state, `daily_runs` marked complete, "No games today" Telegram message sent. |
 
-### Agent 8E: Startup Recovery Verification *(from old Wave 7 carry-over)*
+### Agent 9C: Startup Recovery Verification
 **Type:** `python-pro`
 **Scope:** `telegram/triggers.py` startup recovery logic (verification; fix only if broken)
 
@@ -414,85 +468,15 @@ Scope revised 2026-04-17. Original Wave 8 violated the intra-wave parallelism ru
 |---|-------------|--------|-------|
 | 1 | Verify startup recovery | Bot restart after missed 13:00 ISR | Recovery fires pre-gambling flow immediately on startup if today's run is missing and wall-clock is past 13:00 ISR. |
 
-### Agent 8F: Wave 9 Contract Investigation (read-only)
-**Type:** `python-pro`
-**Scope:** read-only pass over existing code; outputs `docs/system_revive/wave9_contract.md`. This is the Wave-8 deliverable that freezes the interface Wave 9 will build against.
-
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | Read current code | `agents/game_intelligence.py`, `agents/team_intelligence.py`, `structured_outputs.py`, current prompts, `reports/html_report.py` | Inventory what fields the current Pydantic models expose; what data each section in the current report reads. |
-| 2 | Verify FotMob cup-tie metadata exists | FotMob match endpoint against a real 2-legged cup tie (e.g. a CL knockout) | Document the exact JSON path that exposes leg + aggregate + 1st-leg score. If metadata is missing, flag Wave 9's header scope for adjustment. |
-| 3 | Diagnose H2H empty bug | Live logs + DB inspection | Is `h2h_insights` empty because: (a) prompt drops it, (b) LLM returns empty string, (c) DB write path swallows it, (d) `fetch_h2h.py` returns nothing? Report root cause. |
-| 4 | Write `wave9_contract.md` | New file under `docs/system_revive/` | Contents: (a) final Pydantic field list that 8B delivers; (b) 8A's structured output shape verbatim; (c) FotMob cup-tie JSON paths; (d) H2H root cause + which Wave 9 agent should fix it (9A or whether 8B's rewrite already covers it); (e) file-ownership map for Wave 9 so 9A and 9B cannot collide. |
-
-**8F runs in parallel with 8A–8E because it is read-only and does not modify code. Its output steers Wave 9's scope.**
-
-### Agent 8G: H2H Rate-Limit Mitigation
-**Type:** `python-pro`
-**Scope:** `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_h2h.py` + its orchestration caller (wherever H2H is invoked per game in the pre-gambling flow); optional alternative-source module if a swap is warranted.
-
-Context: 2026-04-18 pre-gambling report had 7 games. H2H appears empty for most/all of them, and the leading hypothesis is rate limiting by the H2H source (football-data.org) when N H2H calls fire within a ~1-minute window. Pre-gambling can acceptably extend to 3–4 minutes if that buys reliable H2H.
-
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | Confirm the hypothesis | Logs + response inspection | Reproduce N concurrent/back-to-back H2H calls and capture actual status codes, response bodies, and timing. Distinguish "429 / 403 / empty payload / truncated list" so we know what we're working around. |
-| 2 | Evaluate mitigation options | Design note in the task output | At minimum: (a) serialize H2H calls with inter-call delay, (b) token-bucket / semaphore limiter tuned to source's published or observed limits, (c) switch/fallback to a different H2H source (FotMob, other). Recommend one based on reliability and implementation cost. |
-| 3 | Implement chosen approach | fetch_h2h.py and/or its caller | Keep total pre-gambling flow under ~4 minutes for N≤10 games. If pacing is the fix, make the pacing value configurable. If source-swap is the fix, preserve the current return shape so downstream consumers don't break. |
-| 4 | Respect existing verification constraint | No pytest reinstatement | Verify on a live pre-gambling run, not via synthetic tests. Tools tests were intentionally removed and stay removed. |
-| 5 | Coordinate with 8F / 9A | Avoid double-fixing | If 8F's diagnosis points to a different root cause (prompt/model, not rate limiting), defer implementation to 9A and leave 8G as the confirmation step. |
-
-### After Wave 8
-- Agent prompts + structured outputs rewritten; H2H is a first-class structured field.
-- Post-games alerts on missing results; no-games day + startup recovery verified.
-- Wave 9 contract is frozen: 9A's scope known, 9B's input contract known, no file collisions.
-- H2H rate-limit root cause confirmed; mitigation implemented or explicitly deferred to 9A with evidence.
-
----
-
-## Wave 9 — Report Overhaul Consumers (2 agents, blocked by Wave 8)
-
-Consumes Wave 8's outputs: 8B's new Pydantic fields, 8F's contract doc. Both agents below render a state the other does not affect — 9B renders "data present" AND "data unavailable" for H2H, so it does not need 9A to finish first.
-
-> Cup-tie first-leg rendering deferred to Wave 10 alongside the helper — no 2-legged cup ties currently on the schedule.
-
-### Agent 9A: H2H Fix Application (conditional)
-**Type:** `python-pro`
-**Scope:** determined by 8F's diagnosis. Likely `agents/game_intelligence.py` DB-write path or `fetch_h2h.py`. Skip this agent entirely if 8F confirms 8B's prompt/model rewrite already resolves the bug.
-
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | Apply fix | Whichever layer 8F identified | Populate `h2h_insights` (or its replacement structured field) when source data exists. |
-| 2 | Preserve "data unavailable" signal | Same layer | When H2H is truly missing, the field must carry an explicit empty/null marker so the renderer shows "H2H: No data available." |
-
-### Agent 9B: Report HTML Full Overhaul (5-inch mobile, table-comparison)
-**Type:** `ui-designer` (design spec already produced 2026-04-17) + `python-pro` (implementation)
-**Scope:** `src/soccersmartbet/reports/html_report.py`, `reports/telegram_message.py` if affected. Consumes 8B's Pydantic fields per 8F's contract.
-
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | Full rewrite of `html_report.py` | Mobile-first, 5" phone (≈375px portrait, ≈667px landscape) | Per ui-designer spec. Professional bettor's spreadsheet aesthetic. |
-| 2 | Layout — table comparison | 3-col table: home \| stat label \| away | Split rows: form (streak + bullets), league position (rank · pts · MP), recovery, injuries. Shared rows (full width): H2H, venue, weather. |
-| 3 | Match header | Team names, kickoff (ISR), league | Cup-tie first-leg inline rendering deferred to Wave 10 (helper doesn't exist yet). |
-| 4 | Compact odds row | Single line | `1 1.15 · X 6.60 · 2 11.10`. Source label "winner.co.il" small, right-aligned. No big cards. |
-| 5 | Implied-probability bar | Thin horizontal bar under odds row | Neutral color segments proportional to implied probability. No home/away color coding. Omer may remove later if it doesn't land. |
-| 6 | Form as pills row | `L D D W W` visual pills | Pills first, bullets after. No prose. |
-| 7 | Injuries, team news, expert analysis — bullets only | Strict caps enforced by 8B prompts | No prose paragraphs. No opening flourishes. |
-| 8 | Venue display | Short name from `games.venue`, enriched with surface + capacity if available | Use FotMob's short/popular venue name IF FotMob exposes one. No local dict. Single line. |
-| 9 | Fix venue duplication bug | Header + shared row | Header uses `games.venue` (short). Shared row shows venue + surface + capacity. Never LLM prose in the header. |
-| 10 | Palette + typography | Near-black bg `#0f0f0f`, hairline separators `#222`, muted gold `#c8a84b` accent, drop green gradient + navy cards + orange + blue borders | Data-dense, flat, no gradients. |
-| 11 | Delete — crests, VS badge, emoji section titles, home=green/away=red coding, oversized recovery number | Generator | All removed. |
-| 12 | H2H display — show "No data available" when truly empty | Renderer | Bug visible, not hidden behind filler. Works whether 9A has run or not. |
-
 ### After Wave 9
-- Omer opens 3–8 reports on his phone via Telegram; all are compact, data-first, comparably structured.
-- H2H populated when source data exists; explicit gap shown when missing.
-- Cup-tie 2nd legs show 1st-leg result inline with correct team/goal attribution.
+- Post-games alerts on missing results.
+- No-games day + startup recovery verified.
 
 ---
 
-## Wave 10 — Offline Analysis Flow + Deferred Cup-Tie Context ⬜ NOT STARTED
+## Wave 10 — Offline Analysis Flow ⬜ NOT STARTED
 
-Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML dashboards. Deferred until enough betting data accumulated. Also includes the deferred cup-tie first-leg helper + renderer (moved from Wave 8/9 on 2026-04-18 — no 2-legged cup ties currently on the schedule to validate against).
+Multi-day gambling analytics. Deferred until enough betting data accumulated. Omer wants a way to look across multiple days, not a single-day summary.
 
 ### Agent 10A: Offline Analysis
 **Type:** `fullstack-developer`
@@ -500,14 +484,22 @@ Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML das
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
-| 1 | Design analysis queries + HTML dashboard | Per-user, per-league, per-team, date-range filters | Rich interactive UI, not basic text |
-| 2 | Create `query_stats.py` | SQL aggregations on bets + games | Breakdowns by bettor, league, team, date range |
-| 3 | Create analysis HTML reports | Detailed visual reports | Similar quality to game report pages |
-| 4 | Create `graph_manager.py` | On-demand trigger | Telegram command or scheduled weekly |
+| 1 | Design analysis queries + HTML dashboard | Multi-day view, per-user, per-league, per-team, date-range filters | Rich interactive UI, not basic text. Primary use case: look at last N days of gambling together. |
+| 2 | Create `query_stats.py` | SQL aggregations on bets + games | Breakdowns by bettor, league, team, date range. Daily + cumulative P&L. |
+| 3 | Create analysis HTML reports | Detailed visual reports | Similar quality to game report pages. |
+| 4 | Create `graph_manager.py` | On-demand trigger | Telegram command or scheduled weekly. |
 
-### Agent 10B: Cup-Tie First-Leg Context (helper + renderer wiring)
+---
+
+## Wave 11 — Cup-Tie Context (2-Leg Match Support) ⬜ NOT STARTED
+
+Extend the pre-gambling report to render 2-legged cup ties correctly: when today's game is a 2nd leg, show the 1st-leg result inline with correct team/goal attribution; when it's a 1st leg, surface return-leg info if known.
+
+Deferred from Wave 8 on 2026-04-18 — no 2-legged cup ties currently on the schedule to validate against. Pick up when an actual 2nd leg appears.
+
+### Agent 11A: Cup-Tie First-Leg Context (helper + renderer wiring)
 **Type:** `python-pro`
-**Scope:** new helper `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_cup_tie_context.py`; renderer updates in `src/soccersmartbet/reports/html_report.py`. No schema changes, no DB writes. Trigger: pick up when an actual 2-legged cup tie appears on the schedule so the helper can be validated end-to-end.
+**Scope:** new helper `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_cup_tie_context.py`; renderer updates in `src/soccersmartbet/reports/html_report.py`. No schema changes, no DB writes.
 
 | # | File / Task | Target | Notes |
 |---|-------------|--------|-------|
@@ -522,9 +514,9 @@ Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML das
 
 ---
 
-## Wave 11 — Competition Expansion + Polish (1 agent)
+## Wave 12 — Competition Expansion + Polish (1 agent)
 
-### Agent 11A: League Expansion + Final Polish
+### Agent 12A: League Expansion + Final Polish
 **Type:** `python-pro`
 **Scope:** `db/seeds/`, `src/soccersmartbet/team_registry.py`, documentation
 
@@ -534,12 +526,12 @@ Expanded scope: per-user, per-league, per-team, per-date analysis. Rich HTML das
 | 2 | Final documentation update | Update README, ORCHESTRATION_STATE | Reflect current system state |
 | 3 | Database backup to disk | Automated pg_dump to a local backup directory | Cron or script that dumps the staging DB to `~/backups/soccersmartbet/` with date-stamped filenames. Must survive docker-compose restarts. |
 
-### After Wave 11
+### After Wave 12
 - Full system test across multiple leagues
 - Verify: DB backup file exists and is restorable
 
 ---
 
-## Wave 12 — Testing Scheme ⬜ TBD
+## Wave 13 — Testing Scheme ⬜ TBD
 
 Full testing redesign. Scope, strategy, and tooling to be planned separately.
