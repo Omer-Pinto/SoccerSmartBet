@@ -535,6 +535,15 @@ def _injuries_cell(report: dict | None) -> str:
     return _bullets_html(bullets)
 
 
+def _news_cell(report: dict | None) -> str:
+    if report is None:
+        return '<span class="em">\u2014</span>'
+    bullets = report.get("news_bullets") or []
+    if not bullets:
+        return '<span class="em">\u2014</span>'
+    return _bullets_html(bullets)
+
+
 def _cmp_row(home_content: str, label: str, away_content: str) -> str:
     return (
         f"<tr>"
@@ -754,6 +763,18 @@ def generate_game_report_html(game_id: int) -> str:
 
     weather_content = _weather_html(weather_bullets, cancel_risk)
 
+    news_cmp_header = _cmp_header_row(home_team, away_team)
+    news_cmp_row = _cmp_row(_news_cell(home_report), "", _news_cell(away_report))
+    news_html = (
+        f'<div class="section-b">'
+        f'<div class="shared-label">News</div>'
+        f'<table class="cmp-table">'
+        f'{news_cmp_header}'
+        f'{news_cmp_row}'
+        f'</table>'
+        f'</div>'
+    )
+
     venue_html = (
         f'<div class="section-b">'
         f'<div class="shared-label">Venue</div>'
@@ -816,6 +837,8 @@ def generate_game_report_html(game_id: int) -> str:
   <div class="shared-label">Weather</div>
   <div class="shared-body">{weather_content}</div>
 </div>
+
+{news_html}
 
 {expert_html}
 
