@@ -22,6 +22,7 @@ LEAGUE_CODE_MAP: dict[str, str] = {
     "premier league": "PL",
     "english premier league": "PL",
     "la liga": "PD",
+    "primera division": "PD",
     "serie a": "SA",
     "bundesliga": "BL1",
     "ligue 1": "FL1",
