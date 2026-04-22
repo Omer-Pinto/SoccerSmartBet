@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from soccersmartbet.db import get_conn, get_cursor
 from soccersmartbet.utils.timezone import now_isr, today_isr, format_isr_time
-from soccersmartbet.webapp.audit import EventType, write_run_event, write_bet_edit
+from soccersmartbet.webapp.audit import EventType, write_run_event
 from soccersmartbet.webapp.run_mutex import (
     FlowConflict,
     InvalidTransition,
@@ -75,7 +75,7 @@ class RunRequest(BaseModel):
 
 
 class BetPatchRequest(BaseModel):
-    prediction: Literal["1", "x", "2", "X"] | None = None
+    prediction: Literal["1", "x", "2"] | None = None
     stake: float | None = None
 
 
@@ -111,6 +111,18 @@ async def trigger_run(body: RunRequest):
     flow_type = body.flow_type
     target_status = _FLOW_TARGET_STATUS[flow_type]
 
+    # Guard: post_games requires existing game_ids from a completed pre-gambling run
+    if flow_type == "post_games":
+        game_ids_check = _resolve_game_ids(run_date)
+        if not game_ids_check:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "no_games",
+                    "detail": "No game_ids from pre-gambling run — run pre-gambling first",
+                },
+            )
+
     # Force: clear today's derived data inside the acquire transaction
     if body.force:
         _force_clear(run_date)
@@ -145,26 +157,45 @@ async def trigger_run(body: RunRequest):
 
 
 def _force_clear(run_date: date) -> None:
-    """Delete today's derived rows so a force re-run starts clean.
+    """Delete only the LLM-derived report rows so a force re-run starts clean.
 
-    Deletes from expert_game_reports, game_reports, team_reports, bets, games
-    for the given run_date.  Also bumps attempt_count.
+    Deliberately does NOT touch games or bets.  bets.game_id has ON DELETE CASCADE
+    from games — deleting games would wipe user bets, which is data loss.
+
+    Design decision: persist_games uses plain INSERT (no ON CONFLICT), so games rows
+    survive and the next pre-gambling run will re-select and re-insert new game rows.
+    The force-override path is intended to regenerate REPORTS from a fresh game
+    selection; the old game rows are left in place and the new run inserts new ones.
+    This means a force-override on a day with existing games accumulates rows — that
+    is an accepted trade-off documented here.  Operator can inspect via DB directly.
+
     Called BEFORE acquire_flow so it doesn't hold the mutex longer than needed.
     """
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # game_reports and expert_game_reports cascade-delete from games ON DELETE CASCADE
-            # but team_reports also references games via game_id, so delete them too.
-            # bets also references games via game_id ON DELETE CASCADE.
             cur.execute(
                 """
-                DELETE FROM games
-                WHERE match_date = %s
+                DELETE FROM expert_game_reports
+                WHERE game_id IN (SELECT game_id FROM games WHERE match_date = %s)
+                """,
+                (run_date,),
+            )
+            cur.execute(
+                """
+                DELETE FROM game_reports
+                WHERE game_id IN (SELECT game_id FROM games WHERE match_date = %s)
+                """,
+                (run_date,),
+            )
+            cur.execute(
+                """
+                DELETE FROM team_reports
+                WHERE game_id IN (SELECT game_id FROM games WHERE match_date = %s)
                 """,
                 (run_date,),
             )
         conn.commit()
-    logger.info("force_clear: deleted all derived rows for %s", run_date)
+    logger.info("force_clear: deleted report rows for %s (games + bets preserved)", run_date)
 
 
 def _start_event_type(flow_type: str) -> str:
@@ -276,8 +307,8 @@ async def patch_bet(bet_id: int, body: BetPatchRequest):
     if body.prediction is None and body.stake is None:
         raise HTTPException(status_code=400, detail="Provide at least one of: prediction, stake")
 
-    # Normalise prediction to lowercase (schema stores 'x' not 'X')
-    prediction = body.prediction.lower() if body.prediction is not None else None
+    # prediction is already canonical lowercase — Literal["1", "x", "2"] enforces this at the API boundary.
+    prediction = body.prediction
 
     # --- fetch current bet + game + daily_runs row ---
     with get_cursor(commit=False) as cur:
@@ -360,23 +391,51 @@ async def patch_bet(bet_id: int, body: BetPatchRequest):
     if new_stake <= 0:
         raise HTTPException(status_code=400, detail="stake must be positive")
 
-    with get_cursor(commit=True) as cur:
-        cur.execute(
-            """
-            UPDATE bets
-            SET prediction = %s,
-                stake = %s
-            WHERE bet_id = %s
-            """,
-            (new_prediction, new_stake, bet_id),
-        )
-
-    # Write audit rows for each changed field
-    if prediction is not None and prediction != old_prediction:
-        write_bet_edit(bet_id, "prediction", old_prediction, new_prediction, source="dashboard")
-
-    if body.stake is not None and abs(body.stake - float(old_stake)) > 1e-9:
-        write_bet_edit(bet_id, "stake", str(old_stake), str(new_stake), source="dashboard")
+    # Atomic transaction: UPDATE bets + INSERT INTO bet_edits in one commit.
+    # This ensures trg_bet_edit_window trigger (which fires on bet_edits INSERT)
+    # can roll back BOTH mutations together if the window is already closed.
+    # If UPDATE committed first and trigger rejected only the audit INSERT, the
+    # forbidden bet mutation would remain live — hence the single transaction.
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE bets
+                SET prediction = %s,
+                    stake = %s
+                WHERE bet_id = %s
+                """,
+                (new_prediction, new_stake, bet_id),
+            )
+            if prediction is not None and prediction != old_prediction:
+                cur.execute(
+                    """
+                    INSERT INTO bet_edits (bet_id, field, old_value, new_value, source)
+                    VALUES (%(bet_id)s, %(field)s, %(old_value)s, %(new_value)s, %(source)s)
+                    """,
+                    {
+                        "bet_id": bet_id,
+                        "field": "prediction",
+                        "old_value": str(old_prediction) if old_prediction is not None else None,
+                        "new_value": str(new_prediction),
+                        "source": "dashboard",
+                    },
+                )
+            if body.stake is not None and abs(body.stake - float(old_stake)) > 1e-9:
+                cur.execute(
+                    """
+                    INSERT INTO bet_edits (bet_id, field, old_value, new_value, source)
+                    VALUES (%(bet_id)s, %(field)s, %(old_value)s, %(new_value)s, %(source)s)
+                    """,
+                    {
+                        "bet_id": bet_id,
+                        "field": "stake",
+                        "old_value": str(old_stake),
+                        "new_value": str(new_stake),
+                        "source": "dashboard",
+                    },
+                )
+        conn.commit()
 
     return {
         "bet_id": bet_id,

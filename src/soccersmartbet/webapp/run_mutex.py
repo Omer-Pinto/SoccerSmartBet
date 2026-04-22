@@ -55,6 +55,8 @@ _RUNNING_STATUSES: tuple[str, ...] = (
 _TRANSITIONS: frozenset[tuple[str, str]] = frozenset(
     [
         ("idle", "pre_gambling_running"),
+        # Note: pre_gambling_done → pre_gambling_running is intentionally absent; regenerating after
+        # a successful run must go through Force Override (which resets status first via _force_clear).
         ("pre_gambling_done", "gambling_running"),       # Wave 11 hook
         ("pre_gambling_done", "post_games_running"),     # B3: direct pre→post path (no gambling phase)
         ("gambling_done", "post_games_running"),

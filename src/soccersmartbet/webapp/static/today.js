@@ -536,11 +536,7 @@ function formatCountdown(msLeft) {
 function kickoffMillis(matchDate, kickoffTime) {
   if (!matchDate || !kickoffTime) return Infinity;
   // kickoffTime is "HH:MM" or "HH:MM:SS" already in ISR.
-  // We construct an ISO string and let the browser parse it as local if server
-  // is in ISR, but since this is a local-only dashboard we rely on matching TZ.
-  // The approach: build a UTC timestamp using the known ISR offset (UTC+3 standard, UTC+2 DST).
-  // However, to stay simple and avoid TZ math in JS we just treat it as local
-  // and note the uncertainty in the report.
+  // Assumption: browser TZ matches server ISR (loopback-only dashboard). DST (UTC+2/+3) is NOT compensated here.
   const dt = new Date(`${matchDate}T${kickoffTime.slice(0, 5)}:00`);
   return dt.getTime();
 }
