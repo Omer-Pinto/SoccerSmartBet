@@ -117,7 +117,7 @@ def calculate_recovery_time(team_name: str, upcoming_match_date: str) -> Dict[st
 
         # Calculate recovery days
         # Use date only (ignore time)
-        last_date_only = last_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        last_date_only = datetime(last_dt.year, last_dt.month, last_dt.day)  # naive
         recovery_days = (upcoming_dt - last_date_only).days
 
         # Classify recovery status
