@@ -1,11 +1,11 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-22 16:45 ISR (Wave 10A live — 3/5 criteria green; #1+#5 auto-close at tonight's 01:30 post-games fire) | **Branch:** Dashboard-Platform-Foundation
+> **Last updated:** 2026-04-22 18:15 ISR (Wave 11 merged — Today tab + Query DSL on branch; awaiting bot restart to serve new routes) | **Branch:** Dashboard-Platform-Foundation
 
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜] 9/15 waves done
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 11/15 waves done
 ```
 
 | What | Status |
@@ -20,7 +20,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜] 9/15 waves do
 | Gambling Flow (AI bets + validation) | **Working E2E** — Telegram UI + LangGraph AI betting + verification |
 | Post-Games Flow (results + P&L) | **Working E2E** — FotMob overviewFixtures results, PnL calculator, Telegram summary, auto-triggered |
 | Daily automation (wall-clock scheduler) | **Working E2E** — full cycle proven daily since 2026-04-12 |
-| Operator Dashboard (webapp) | **FOUNDATION LIVE** (Wave 10A: FastAPI + mutex + audit on `127.0.0.1:8083`) — Waves 11/12 build routes/UI on top |
+| Operator Dashboard (webapp) | **TODAY TAB + QUERY DSL MERGED** (Wave 11 — `/today` HTML, `POST /api/runs`, `PATCH /api/bets/{id}`, Query DSL engine with 51 unit tests; awaiting bot restart + trigger DDL apply) — Wave 12 (Stats/P&L/History + AI Insights) unblocked |
 | Cup-Tie 2-leg support | **NOT BUILT** — Wave 13 |
 
 ---
@@ -40,7 +40,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜] 9/15 waves do
 | 8 | 🟢 Done | Report refactor track: 8A + 8B + 8C + 8E done. 8D skipped. Live-DB migration applied 2026-04-19 (backup: `~/soccersmartbet_backup_before_wave8_20260418_163145.sql`, 360KB, zero row loss). |
 | 9 | 🟢 Done | Robustness carryovers: 9A missing-results alert (#55), 9B no-games-day verification + fetch-failure conflation fix (#62), 9C startup-recovery verified (no code change). Post-review pass added operator Telegram alerts on pre-gambling AND post-games crashes, `TELEGRAM_CHAT_ID` startup check, date-embedded no-games callbacks, and zeroed all remaining timezone-rule violations (two new helpers: `today_isr()`, `isr_datetime()`). Bug #63 filed for the deferred not-finished-games edge case. Branch `wave9`, 13 commits. |
 | 10 | 🟢 Live (3/5 criteria green; 2 auto-close tonight) | Dashboard platform foundation. Bot restarted on new code 16:44 ISR (pid 21381). `/api/health` 200, `/api/status/today` valid JSON. Status backfilled from existing timestamps (today: `gambling_done`). Criteria #1 (no regression) + #5 (run_events row) auto-confirm at tonight's 01:30 post-games fire. Wave 11 can start in parallel. |
-| 11 | ⬜ Not Started | Dashboard: Today tab + Query DSL (2 parallel agents, depends on Wave 10). |
+| 11 | 🟢 Done | Dashboard: Today tab + Query DSL merged onto branch. 11A (fullstack) + 11B (python-pro) ran in parallel worktrees; consultant + code-reviewer cycles caught & fixed 7 ship-stoppers (force-clear cascade, nonexistent `placed_at`, `TIME` vs TIMESTAMPTZ, ISO-date eq parser path, etc). 51/51 query tests pass. Bet-edit-window trigger DDL staged (awaiting Omer's OK). Bot restart needed to serve new routes. |
 | 12 | ⬜ Not Started | Dashboard: Stats/P&L/History tabs + AI insights (2 parallel agents, depends on Wave 11's Query DSL). |
 | 13 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
 | 14 | 🟡 Partial | Competition expansion + polish: Israeli league + CL/EL done. Euro/WC + backup pending. |
@@ -278,14 +278,56 @@ Architectural constraints (single process, `daily_runs.status` mutex with `SELEC
 
 ---
 
-## Wave 11 — Dashboard: Today Tab + Query DSL ⬜ NOT STARTED (2 parallel agents)
+## Wave 11 — Dashboard: Today Tab + Query DSL 🟢 DONE (2026-04-22, 2 parallel agents + consultant + reviewer cycle)
 
-Depends on Wave 10. Neither agent consumes the other.
+Ran via `/parallel-wave-executor` on branch `Dashboard-Platform-Foundation`. Both agents ran in isolated worktrees; zero file overlap; cherry-picked clean onto the branch.
 
 | # | Agent | Type | Status |
 |---|-------|------|--------|
-| 11A | Today tab — control panel + bet modification (`POST /api/runs`, `PATCH /api/bets/{id}`, Today HTML, countdown chips, override button) | fullstack-developer | ⬜ Pending |
-| 11B | Query DSL engine (parser + filter-to-SQL compiler + shared query service) | python-pro | ⬜ Pending |
+| 11A | Today tab — control panel + bet modification (`POST /api/runs`, `PATCH /api/bets/{id}`, Today HTML, countdown chips, override button) | fullstack-developer | 🟢 Done |
+| 11B | Query DSL engine (parser + filter-to-SQL compiler + shared query service) | python-pro | 🟢 Done |
+
+### Code shipped
+
+**11A — Today tab:**
+- `webapp/routes/today.py` — `POST /api/runs` (pre_gambling / post_games / regenerate_report, with `force=true` transactional cleanup of report rows only — games + bets preserved after the cascade-wipe reviewer catch), `PATCH /api/bets/{bet_id}` with dual-layer window enforcement (Python + DB trigger) executed in a single atomic transaction, `GET /today`, `/api/today/data`, `/api/today/pnl`.
+- `webapp/static/today.{html,css,js}` — carnival aesthetic per `docs/wave10/mockup_today_v2.html`, live status strip (2.5s poll), 4 control buttons with two-phase Force Override + retyped-date modal, inline bet-row edits with countdown chips (green/amber/red), 30-day P&L inline-SVG sparkline (no chart library).
+- `webapp/app.py` — router mount.
+- `webapp/run_mutex.py` — comment explaining why `pre_gambling_done → pre_gambling_running` is intentionally absent (regen goes via Force Override).
+
+**11B — Query DSL:**
+- `webapp/query/{parser,compiler,models,service}.py` — hand-rolled DSL parser (~180 loc, no pyparsing), parameterized SQL compiler over `bets JOIN games`, Pydantic result models, `run_filter(dsl)` entry point for Wave 12 consumers. Columns aligned to the real schema (`match_date + kickoff_time` split, no `placed_at`). `ORDER BY match_date DESC, kickoff_time DESC`. Row cap 2000.
+- `tests/webapp/query/{test_parser,test_compiler}.py` — 51 tests passing (parser grammar + SQL-injection safety + ISO date eq + month parsing).
+
+### Ship-stoppers caught & fixed
+
+1. **11A force-clear cascade:** `DELETE FROM games` would cascade-wipe `bets` (ON DELETE CASCADE) → replaced with scoped deletes on report tables only; games + bets preserved.
+2. **11A Literal widening:** `prediction: Literal["1","x","2","X"]` narrowed to canonical `["1","x","2"]`.
+3. **11A post-games NULL guard:** 400 when `daily_runs.game_ids` empty/NULL.
+4. **11A non-atomic bet-edit:** UPDATE bets + INSERT bet_edits now run in one transaction so the DB trigger actually enforces.
+5. **11A force-clear ordering:** moved INSIDE `acquire_flow` so mutex conflict doesn't lose reports.
+6. **11B nonexistent `b.placed_at`:** removed from SELECT + BetRow + service row-mapper.
+7. **11B TIME vs TIMESTAMPTZ:** `g.kickoff_time` is TIME — date filter now uses `g.match_date` directly; month filter uses `(match_date + kickoff_time)::TIMESTAMP AT TIME ZONE 'Asia/Jerusalem'`.
+8. **11B ORDER BY bug:** time-of-day only → `match_date DESC, kickoff_time DESC`.
+9. **11B ISO-date eq parse:** `date:2026-04-15` was slug-normalized to `"2026 04 15"` → short-circuit added for `YYYY-MM-DD` and `YYYY-MM` patterns.
+
+### DDL staged (not applied — awaiting Omer's OK)
+
+`deployment/db/init/001_create_schema.sql` gained `check_bet_edit_window()` PL/pgSQL trigger on `bet_edits` that re-enforces the window guards DB-side. **Do NOT apply until explicitly approved.**
+
+### Completion criteria
+
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | Today tab functional at http://127.0.0.1:8083/today — manual triggers work, bet edit works with window enforcement | ⏳ Code shipped; requires bot restart to serve new routes |
+| 2 | Query DSL parses and executes against the live `bets` table, returns correct result sets | 🟢 51/51 unit tests green; live-DB query will verify once Wave 12 routes land (no route consumes it yet) |
+
+### Pending operator actions (Omer)
+
+1. **Restart bot** — new `/today`, `/api/runs`, `PATCH /api/bets/{id}`, `/api/today/data`, `/api/today/pnl` endpoints registered at startup; existing process won't see them.
+2. **Apply bet-edit trigger DDL** — decide whether to install `check_bet_edit_window` now (defense in depth) or defer. If applying: `docker exec soccersmartbet-staging psql -U postgres -d soccersmartbet_staging -f deployment/db/init/001_create_schema.sql` (idempotent — `CREATE OR REPLACE FUNCTION`, `CREATE TRIGGER` needs a DROP guard, verify before running).
+
+Commits on branch (7): `746c2c0` `4cca4a3` `52abe80` `b0465e1` `227a1f3` `b25bd64` `59a6809`.
 
 ---
 
