@@ -1,8 +1,8 @@
 """Database connection pool for SoccerSmartBet.
 
-Module-level psycopg_pool.ConnectionPool (min=1, max=25). All modules must
-import get_conn() / get_cursor() from here instead of calling
-psycopg.connect() directly.
+Module-level psycopg_pool.ConnectionPool (min=1, max=75 — 75% of Postgres
+default max_connections=100). All modules must import get_conn() /
+get_cursor() from here instead of calling psycopg.connect() directly.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def _get_pool() -> ConnectionPool:
     """Return the module-level connection pool, creating it on first call."""
     global _pool
     if _pool is None:
-        pool_max = int(os.getenv("DATABASE_POOL_MAX", "25"))
+        pool_max = int(os.getenv("DATABASE_POOL_MAX", "75"))
         _pool = ConnectionPool(
             conninfo=DATABASE_URL,
             min_size=1,
