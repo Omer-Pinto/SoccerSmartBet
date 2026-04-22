@@ -171,12 +171,25 @@ async def _run_job(
 
 
 def _sweep_expired() -> None:
-    """Evict jobs whose ``created_at`` is older than ``_JOB_TTL``.
+    """Evict **terminal** jobs whose ``created_at`` is older than ``_JOB_TTL``.
+
+    Policy
+    ------
+    Only jobs in a terminal state (``done`` or ``failed``) are eligible for
+    eviction.  ``queued`` and ``running`` jobs are **never** swept, no matter
+    how old they are, because their background asyncio task may still hold a
+    semaphore slot — evicting them mid-flight would cause the subsequent
+    ``GET /api/insights/{id}`` poll to return 404 while the LLM call is still
+    in progress (e.g. a hung model exceeding 1h).
 
     Cheap linear scan — fine up to a few thousand entries.
     """
     cutoff = now_isr() - _JOB_TTL
-    stale = [jid for jid, j in _JOBS.items() if j.created_at < cutoff]
+    stale = [
+        jid
+        for jid, j in _JOBS.items()
+        if j.created_at < cutoff and j.state in ("done", "failed")
+    ]
     for jid in stale:
         _JOBS.pop(jid, None)
     if stale:

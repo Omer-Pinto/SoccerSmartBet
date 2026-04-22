@@ -18,6 +18,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from soccersmartbet.pre_gambling_flow.agents.game_intelligence import INTELLIGENCE_MODEL
+from soccersmartbet.utils.timezone import format_isr_date, format_isr_time
 from soccersmartbet.webapp.query.models import BetRow, FilterResult
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,11 @@ Respond in English.  Output markdown bullets only — no JSON, no preamble,
 no closing remark.  Maximum 5 bullets.  Every bullet MUST start with a
 concrete number, delta, or percentage (e.g. "-12% ROI in La Liga across
 47 bets", "AI +8pp win-rate vs you on 1.5-1.8 odds").  If the data does
-not support 5 useful bullets, return fewer — do not pad."""
+not support 5 useful bullets, return fewer — do not pad.
+
+If the user message contains a sampling-note warning, explicitly caveat
+the conclusions — state "based on recent 500 bets only" in the first or
+last bullet.  Never claim trends across the full history when sampled."""
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +70,7 @@ def _format_row(row: BetRow) -> str:
         else ""
     )
     return (
-        f"| {row.match_date.isoformat()} | {row.league} | "
+        f"| {format_isr_date(row.match_date)} | {row.league} | "
         f"{row.home_team} vs {row.away_team} | {row.bettor} | "
         f"{row.prediction} | {row.stake:.2f} | {row.odds:.2f} | "
         f"{result} | {outcome} | {score} | {pnl} |"
@@ -83,24 +88,47 @@ def _build_table(rows: Iterable[BetRow]) -> str:
     return "\n".join([header, sep, body])
 
 
+#: Hard human-readable warning prepended when ``FilterResult.row_cap_hit``
+#: is True.  The ``row_cap_hit: True`` boolean in the aggregates block is
+#: easy for an LLM to skim past; this block is written as a prose caveat so
+#: the model actually reads it and scopes its bullets accordingly.
+_SAMPLING_NOTE = (
+    "⚠️  Sampling note: the bet history shown below is the MOST RECENT 500 rows.\n"
+    "The complete filter matched more rows — older activity is not in this prompt.\n"
+    "Caveat any trend-over-time claims; caveat any \"always\"/\"never\"/\"lately\" claims."
+)
+
+
 def _build_user_message(result: FilterResult) -> str:
-    """Assemble the full user message: filter echo + aggregates + bet table."""
+    """Assemble the full user message: filter echo + aggregates + bet table.
+
+    When :attr:`FilterResult.row_cap_hit` is True, the row table has been
+    truncated to the 500 most-recent bets.  A prose ``_SAMPLING_NOTE`` is
+    prepended (in addition to the ``row_cap_hit: True`` flag in the
+    aggregates block) so the LLM cannot silently reason over a partial
+    history as if it were the whole.
+    """
     agg = result.aggregates
     win_rate = f"{agg.win_rate:.3f}" if agg.win_rate is not None else "n/a"
 
-    header_lines = [
-        "## Filter",
-        f"DSL: `{result.dsl or '(empty — full history)'}`",
-        "",
-        "## Aggregates",
-        f"- rows: {agg.count}",
-        f"- total_stake: {agg.total_stake:.2f}",
-        f"- total_pnl: {agg.total_pnl:.2f}",
-        f"- win_rate: {win_rate}",
-        f"- row_cap_hit: {result.row_cap_hit}",
-        "",
-        "## Rows",
-    ]
+    header_lines: list[str] = []
+    if result.row_cap_hit:
+        header_lines.extend([_SAMPLING_NOTE, ""])
+    header_lines.extend(
+        [
+            "## Filter",
+            f"DSL: `{result.dsl or '(empty — full history)'}`",
+            "",
+            "## Aggregates",
+            f"- rows: {agg.count}",
+            f"- total_stake: {agg.total_stake:.2f}",
+            f"- total_pnl: {agg.total_pnl:.2f}",
+            f"- win_rate: {win_rate}",
+            f"- row_cap_hit: {result.row_cap_hit}",
+            "",
+            "## Rows",
+        ]
+    )
     return "\n".join(header_lines) + "\n" + _build_table(result.rows)
 
 
