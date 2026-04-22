@@ -15,6 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from soccersmartbet.daily_runs import get_pending_post_games
 from soccersmartbet.db import get_cursor
 from soccersmartbet.utils.timezone import now_isr, today_isr
 
@@ -146,6 +147,12 @@ def _fetch_status_from_db() -> dict:
         cur.execute(events_sql, (today,))
         event_rows = cur.fetchall()
 
+    # Pending post-games: the row the scheduler would next fire post_games for.
+    # May be a prior day's run (post_games_trigger_at often crosses midnight ISR).
+    pending = get_pending_post_games()
+    pending_pg_date = pending["run_date"].isoformat() if pending else None
+    pending_pg_game_ids = list(pending["game_ids"]) if pending and pending.get("game_ids") else []
+
     events = [
         {
             "event_id": r[0],
@@ -175,6 +182,8 @@ def _fetch_status_from_db() -> dict:
             "last_trigger_source": None,
             "attempt_count": 0,
             "last_error": None,
+            "pending_post_games_date": pending_pg_date,
+            "pending_post_games_game_ids": pending_pg_game_ids,
             "events": events,
         }
 
@@ -198,6 +207,8 @@ def _fetch_status_from_db() -> dict:
         "attempt_count": run_row[12],
         "last_error": run_row[13],
         "status": run_row[14],
+        "pending_post_games_date": pending_pg_date,
+        "pending_post_games_game_ids": pending_pg_game_ids,
         "events": events,
     }
 

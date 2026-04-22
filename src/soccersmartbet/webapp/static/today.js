@@ -211,10 +211,17 @@ function updateButtons(s) {
   );
 
   // Post-Games: available when pre_gambling_done or gambling_done or failed
+  // Post-Games enables whenever the scheduler has a pending post_games run queued
+  // (i.e. some daily_runs row has post_games_trigger_at set but not completed).
+  // That pending row may belong to a prior ISR date — the trigger is scoped to
+  // the run, not to today.
+  const pendingPostGamesDate = s.pending_post_games_date;
   setBtnEnabled(
     els.btnPostGames,
-    !anyRunning && ["pre_gambling_done", "gambling_done", "failed"].includes(st),
-    anyRunning ? "Flow in progress" : null,
+    !anyRunning && !!pendingPostGamesDate,
+    anyRunning ? "Flow in progress"
+      : !pendingPostGamesDate ? "No pending post-games run"
+      : `Will run post-games for ${pendingPostGamesDate}`,
   );
 
   // Regenerate Report: same as pre_gambling but label says regen
@@ -248,7 +255,11 @@ function setBtnEnabled(btn, enabled, title) {
 // ─────────────────────────────────────────────
 
 async function triggerRun(flowType, force = false) {
-  const today = todayISO();
+  // post_games runs against the pending run (which may be a prior ISR day if the
+  // scheduled post_games_trigger_at crosses midnight).  Everything else runs for today.
+  const runDate = (flowType === "post_games" && _status?.pending_post_games_date)
+    ? _status.pending_post_games_date
+    : todayISO();
   const btn = {
     pre_gambling:      els.btnPreGambling,
     post_games:        els.btnPostGames,
@@ -267,7 +278,7 @@ async function triggerRun(flowType, force = false) {
     const resp = await fetch("/api/runs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ run_date: today, flow_type: flowType, force }),
+      body: JSON.stringify({ run_date: runDate, flow_type: flowType, force }),
     });
     if (resp.status === 409) {
       const err = await resp.json();
