@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
@@ -123,12 +124,12 @@ async def trigger_run(body: RunRequest):
                 },
             )
 
-    # Force: clear today's derived data inside the acquire transaction
-    if body.force:
-        _force_clear(run_date)
-
     try:
         with acquire_flow(run_date, target_status, triggered_by="manual") as ctx:
+            # Force: clear derived data AFTER mutex is acquired so the delete
+            # only happens if we actually took the slot.
+            if body.force:
+                _force_clear(run_date)
             event_id = write_run_event(
                 run_date,
                 _start_event_type(flow_type),
@@ -169,7 +170,7 @@ def _force_clear(run_date: date) -> None:
     This means a force-override on a day with existing games accumulates rows — that
     is an accepted trade-off documented here.  Operator can inspect via DB directly.
 
-    Called BEFORE acquire_flow so it doesn't hold the mutex longer than needed.
+    Called AFTER acquire_flow so the delete is conditional on taking the mutex slot.
     """
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -386,7 +387,7 @@ async def patch_bet(bet_id: int, body: BetPatchRequest):
 
     # Apply changes
     new_prediction = prediction if prediction is not None else old_prediction
-    new_stake = body.stake if body.stake is not None else float(old_stake)
+    new_stake = Decimal(str(body.stake)) if body.stake is not None else old_stake
 
     if new_stake <= 0:
         raise HTTPException(status_code=400, detail="stake must be positive")
