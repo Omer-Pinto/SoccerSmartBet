@@ -21,7 +21,7 @@ from soccersmartbet.telegram.bot import (
     TELEGRAM_CHAT_ID,
     is_owner,
 )
-from soccersmartbet.utils.timezone import ISR_TZ, now_isr
+from soccersmartbet.utils.timezone import now_isr
 
 logger = logging.getLogger(__name__)
 

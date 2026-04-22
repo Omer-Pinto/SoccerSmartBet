@@ -19,7 +19,7 @@ from telegram.ext import ContextTypes
 
 from soccersmartbet.reports.telegram_message import get_games_info
 from soccersmartbet.telegram.bot import TELEGRAM_CHAT_ID, is_owner
-from soccersmartbet.utils.timezone import ISR_TZ, isr_datetime, now_isr
+from soccersmartbet.utils.timezone import isr_datetime, now_isr
 
 logger = logging.getLogger(__name__)
 
