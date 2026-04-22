@@ -41,6 +41,7 @@ VALID_KEYS: frozenset[str] = frozenset(
         "outcome",
         "bettor",
         "prediction",
+        "result",
     }
 )
 
@@ -178,8 +179,10 @@ def parse(dsl: str) -> list[FilterClause]:
 
     An empty or whitespace-only string returns ``[]`` (match-everything).
 
-    Repeated keys are allowed; each occurrence produces a separate clause
-    that the compiler combines with AND.
+    Repeated keys are allowed; each occurrence produces a separate clause.
+    The compiler groups same-key clauses with OR so both
+    ``league:pl league:bundesliga`` and ``league:pl,bundesliga`` are
+    semantically equivalent (both return games from either league).
 
     Args:
         dsl: Raw filter string from the user, e.g.
@@ -234,10 +237,10 @@ def parse(dsl: str) -> list[FilterClause]:
 # ---------------------------------------------------------------------------
 # Design decisions
 # ---------------------------------------------------------------------------
-# 1. Repeated keys: AND semantics.  ``league:pl league:bundesliga`` compiles
-#    to ``g.league = %(p0)s AND g.league = %(p1)s`` which returns nothing —
-#    callers should use the comma-list form ``league:pl,bundesliga`` instead.
-#    We document this but do not raise; the semantics are unambiguous.
+# 1. Repeated keys: OR semantics within each key group.  ``league:pl league:bundesliga``
+#    compiles to ``(g.league ILIKE %(p0)s OR g.league ILIKE %(p1)s)`` — equivalent to
+#    the comma-list form ``league:pl,bundesliga``.  Both forms are accepted and produce
+#    the same result set.  Distinct keys are still AND-combined across groups.
 #
 # 2. Multi-word team slugs: bare hyphens expand to spaces
 #    (``real-madrid`` → ``real madrid``).  Quoted values are verbatim.

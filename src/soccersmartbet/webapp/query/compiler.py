@@ -32,6 +32,52 @@ from typing import Any
 from soccersmartbet.webapp.query.parser import FilterClause, ParseError
 
 # ---------------------------------------------------------------------------
+# Outcome / prediction / result value-alias normalisation
+# ---------------------------------------------------------------------------
+
+#: Keys whose values are single-char CHECK-constrained ('1'|'x'|'2').
+_ENUM_KEYS: frozenset[str] = frozenset({"outcome", "prediction", "result"})
+
+#: Alias → canonical mapping (case-insensitive lookup applied in normaliser).
+_ENUM_ALIASES: dict[str, str] = {
+    "home": "1",
+    "home_win": "1",
+    "1": "1",
+    "draw": "x",
+    "tie": "x",
+    "x": "x",
+    "away": "2",
+    "away_win": "2",
+    "2": "2",
+}
+
+_ENUM_CANONICAL_SET: str = "'home'/'home_win'/'1', 'draw'/'tie'/'x', 'away'/'away_win'/'2'"
+
+
+def _normalise_enum_value(key: str, raw: str) -> str:
+    """Map a user-supplied alias to its canonical single-char value.
+
+    Args:
+        key: DSL key (already validated as an enum key).
+        raw: Raw string value from the parsed clause.
+
+    Returns:
+        Canonical value: ``'1'``, ``'x'``, or ``'2'``.
+
+    Raises:
+        ParseError: If *raw* is not a recognised alias.
+    """
+    canonical = _ENUM_ALIASES.get(raw.lower())
+    if canonical is None:
+        raise ParseError(
+            f"Invalid value {raw!r} for {key!r}. "
+            f"Accepted aliases: {_ENUM_CANONICAL_SET}. "
+            f"Canonical values: '1' (home), 'x' (draw), '2' (away)."
+        )
+    return canonical
+
+
+# ---------------------------------------------------------------------------
 # Public SQL constant (Wave 12 routes embed this)
 # ---------------------------------------------------------------------------
 
@@ -71,6 +117,7 @@ _COLUMN_MAP: dict[str, str] = {
     "outcome": "g.outcome",
     "bettor": "b.bettor",
     "prediction": "b.prediction",
+    "result": "b.result",
 }
 
 # ---------------------------------------------------------------------------
@@ -151,29 +198,39 @@ def _compile_generic(
     idx: int,
     params: dict[str, Any],
 ) -> str:
-    """Compile a generic (non-special) clause for a direct column expression."""
+    """Compile a generic (non-special) clause for a direct column expression.
+
+    For enum keys (outcome, prediction, result) values are normalised through
+    the alias map before binding and exact-eq (not ILIKE) is emitted.
+    """
     op = clause.op
+    key = clause.key
     values = clause.values
+    is_enum = key in _ENUM_KEYS
+    is_text = _is_text_key(key)
 
     if op == "eq":
-        pname = _param_name(clause.key, idx)
-        params[pname] = values[0]
-        return f"{col} ILIKE %({pname})s" if _is_text_key(clause.key) else f"{col} = %({pname})s"
+        pname = _param_name(key, idx)
+        bound = _normalise_enum_value(key, str(values[0])) if is_enum else values[0]
+        params[pname] = bound
+        if is_text:
+            return f"{col} ILIKE %({pname})s"
+        return f"{col} = %({pname})s"
 
     if op == "negated":
-        pname = _param_name(clause.key, idx)
-        params[pname] = values[0]
-        return (
-            f"NOT ({col} ILIKE %({pname})s)"
-            if _is_text_key(clause.key)
-            else f"NOT ({col} = %({pname})s)"
-        )
+        pname = _param_name(key, idx)
+        bound = _normalise_enum_value(key, str(values[0])) if is_enum else values[0]
+        params[pname] = bound
+        if is_text:
+            return f"NOT ({col} ILIKE %({pname})s)"
+        return f"NOT ({col} = %({pname})s)"
 
     if op == "in":
         frags = []
         for sub_i, val in enumerate(values):
-            pname = _param_name(clause.key, idx, sub_i)
-            params[pname] = val
+            pname = _param_name(key, idx, sub_i)
+            bound = _normalise_enum_value(key, str(val)) if is_enum else val
+            params[pname] = bound
             frags.append(f"%({pname})s")
         in_list = ", ".join(frags)
         return f"{col} IN ({in_list})"
@@ -209,8 +266,12 @@ def _compile_generic(
 
 
 def _is_text_key(key: str) -> bool:
-    """Return True for keys whose column values are text (use ILIKE)."""
-    return key in {"league", "outcome", "bettor", "prediction"}
+    """Return True for keys whose column values are free-text (use ILIKE).
+
+    Enum keys (outcome, prediction, result) use exact-eq despite being text,
+    because their values are single-char CHECK-constrained ('1'|'x'|'2').
+    """
+    return key in {"league", "bettor"}
 
 
 def _compile_team(

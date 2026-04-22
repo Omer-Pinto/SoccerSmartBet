@@ -11,7 +11,9 @@ Covers every grammar feature defined in parser.py:
   - case-insensitive keys
   - empty / whitespace DSL → empty list
   - unknown key → ParseError
-  - repeated keys → AND semantics (two clauses)
+  - repeated keys → two clauses (compiler groups them with OR)
+  - outcome/prediction/result: alias values parse without error; canonical
+    mapping is the compiler's responsibility (parser stores raw value)
 """
 from __future__ import annotations
 
@@ -266,3 +268,45 @@ def test_prediction_eq() -> None:
     clauses = parse("prediction:1")
     assert clauses[0].key == "prediction"
     assert clauses[0].values == ("1",)
+
+
+# ---------------------------------------------------------------------------
+# 15. outcome/prediction alias values — parser accepts, stores raw value
+# ---------------------------------------------------------------------------
+
+
+def test_outcome_draw_parses_without_error() -> None:
+    """outcome:draw must parse to a clause with raw value 'draw'.
+
+    Canonical mapping (draw→x) is the compiler's job; the parser stores
+    the alias verbatim so the DSL surface is human-readable.
+    """
+    clauses = parse("outcome:draw")
+    assert len(clauses) == 1
+    c = clauses[0]
+    assert c.key == "outcome"
+    assert c.op == "eq"
+    assert c.values == ("draw",)
+
+
+def test_outcome_home_parses_without_error() -> None:
+    clauses = parse("outcome:home")
+    assert clauses[0].values == ("home",)
+
+
+def test_outcome_away_parses_without_error() -> None:
+    clauses = parse("outcome:away")
+    assert clauses[0].values == ("away",)
+
+
+def test_prediction_home_parses_without_error() -> None:
+    clauses = parse("prediction:home")
+    assert clauses[0].key == "prediction"
+    assert clauses[0].values == ("home",)
+
+
+def test_result_x_parses_without_error() -> None:
+    """Canonical value 'x' is also accepted (no one-direction mapping)."""
+    clauses = parse("result:x")
+    assert clauses[0].key == "result"
+    assert clauses[0].values == ("x",)

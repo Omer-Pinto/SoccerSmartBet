@@ -7,6 +7,7 @@ Tests verify:
   3. Row cap enforcement (hard max 2000).
   4. Empty AST → WHERE TRUE (match everything).
   5. Named %(name)s placeholders present in SQL, not f-string interpolation.
+  6. Enum value aliases (outcome/prediction/result): home/draw/away → 1/x/2.
 """
 from __future__ import annotations
 
@@ -250,3 +251,72 @@ def test_order_limit_present() -> None:
     sql, _ = _compile("")
     assert "ORDER BY g.match_date DESC, g.kickoff_time DESC" in sql
     assert "LIMIT %(row_cap)s" in sql
+
+
+# ---------------------------------------------------------------------------
+# 6. Enum value aliases — outcome / prediction / result
+# ---------------------------------------------------------------------------
+
+
+def test_outcome_draw_maps_to_x() -> None:
+    """outcome:draw must emit exact-eq (not ILIKE) with canonical value 'x'."""
+    sql, params = _compile("outcome:draw")
+    assert "g.outcome = " in sql
+    assert "ILIKE" not in sql
+    assert "x" in params.values()
+
+
+def test_outcome_home_maps_to_1() -> None:
+    sql, params = _compile("outcome:home")
+    assert "g.outcome = " in sql
+    assert "1" in params.values()
+
+
+def test_outcome_away_maps_to_2() -> None:
+    sql, params = _compile("outcome:away")
+    assert "g.outcome = " in sql
+    assert "2" in params.values()
+
+
+def test_outcome_canonical_x_accepted_verbatim() -> None:
+    """outcome:x must work — canonical values are self-aliased."""
+    sql, params = _compile("outcome:x")
+    assert "g.outcome = " in sql
+    assert "x" in params.values()
+
+
+def test_outcome_list_home_away_maps_to_in_1_2() -> None:
+    """outcome:home,away -> IN ('1', '2') with exact-eq semantics."""
+    sql, params = _compile("outcome:home,away")
+    assert "g.outcome IN" in sql
+    value_params = {k: v for k, v in params.items() if k != "row_cap"}
+    assert set(value_params.values()) == {"1", "2"}
+
+
+def test_prediction_home_maps_to_1() -> None:
+    sql, params = _compile("prediction:home")
+    assert "b.prediction = " in sql
+    assert "ILIKE" not in sql
+    assert "1" in params.values()
+
+
+def test_result_draw_maps_to_x() -> None:
+    sql, params = _compile("result:draw")
+    assert "b.result = " in sql
+    assert "x" in params.values()
+
+
+def test_outcome_unknown_value_raises_parse_error() -> None:
+    """An unrecognised alias for an enum key must raise ParseError."""
+    from soccersmartbet.webapp.query.parser import ParseError
+
+    with pytest.raises(ParseError, match="Invalid value"):
+        _compile("outcome:unknown_word")
+
+
+def test_negated_outcome_draw_maps_to_x() -> None:
+    """outcome:!draw -> NOT (g.outcome = 'x')."""
+    sql, params = _compile("outcome:!draw")
+    assert "NOT" in sql
+    assert "g.outcome = " in sql
+    assert "x" in params.values()
