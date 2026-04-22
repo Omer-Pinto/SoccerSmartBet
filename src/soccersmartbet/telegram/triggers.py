@@ -200,7 +200,36 @@ async def _fire_post_games(game_ids: list[int], today: date) -> None:
     from soccersmartbet.post_games_flow.graph_manager import run_post_games_flow  # noqa: PLC0415
 
     logger.info("Post-games flow starting for game_ids=%s", game_ids)
-    await asyncio.to_thread(run_post_games_flow, game_ids)
+    try:
+        await asyncio.to_thread(run_post_games_flow, game_ids)
+    except Exception as exc:
+        from soccersmartbet.telegram.bot import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID  # noqa: PLC0415
+        from telegram import Bot  # noqa: PLC0415
+
+        alert_text = (
+            "❗ <b>Post-games flow FAILED</b>\n\n"
+            f"<b>Error type:</b> {type(exc).__name__}\n"
+            f"<b>Message:</b> {exc}\n\n"
+            f"<b>Time:</b> {now_isr().strftime('%Y-%m-%d %H:%M ISR')}\n\n"
+            "The <code>daily_runs</code> row is being marked complete to prevent "
+            "duplicate P&L application on the next poller tick.\n\n"
+            "To re-run manually: null out <code>post_games_completed_at</code> "
+            "in the DB for this date, then wait for the next poller tick or "
+            "trigger directly."
+        )
+        try:
+            bot = Bot(token=TELEGRAM_BOT_TOKEN)
+            async with bot:
+                await bot.send_message(
+                    chat_id=int(TELEGRAM_CHAT_ID),
+                    text=alert_text,
+                    parse_mode="HTML",
+                )
+        except Exception:
+            logger.exception("Failed to send post-games failure alert via Telegram")
+        upsert_daily_run(today, post_games_completed_at=now_isr())
+        raise
+
     upsert_daily_run(today, post_games_completed_at=now_isr())
     logger.info("Post-games flow completed and daily_runs updated")
 
