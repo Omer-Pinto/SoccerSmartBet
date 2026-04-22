@@ -106,6 +106,7 @@ def acquire_flow(
     run_date: date,
     target_status: str,
     triggered_by: str = "scheduler",
+    force: bool = False,
 ) -> Generator[RunContext, None, None]:
     """Acquire the flow mutex for run_date.
 
@@ -113,7 +114,7 @@ def acquire_flow(
       1. INSERT INTO daily_runs (run_date, status) VALUES (%s, 'idle')
          ON CONFLICT DO NOTHING
       2. SELECT status FROM daily_runs WHERE run_date = %s FOR UPDATE NOWAIT
-      3. Validate current_status → target_status transition
+      3. Validate current_status → target_status transition (skipped when force=True)
       4. UPDATE daily_runs SET status = target_status,
                                last_trigger_source = triggered_by,
                                attempt_count = attempt_count + 1,
@@ -129,14 +130,19 @@ def acquire_flow(
         run_date: Date for which the flow is being acquired.
         target_status: The status to transition into.
         triggered_by: One of 'scheduler', 'manual', 'recovery'.
+        force: When True, skip _validate_transition entirely and set
+            target_status regardless of current state.  Used by Force Override
+            and Regenerate Report so operators can re-fire after pre_gambling_done
+            without manually touching DB rows.
 
     Yields:
         RunContext with run_date, previous_status, target_status, attempt_count.
 
     Raises:
         FlowConflict: If the row is locked by another session (NOWAIT) or the
-            current status does not allow the requested transition.
-        InvalidTransition: If (current, target) is not in the transition table.
+            current status is a running status (concurrent flow guard).
+        InvalidTransition: If (current, target) is not in the transition table
+            and force=False.
     """
     with get_conn() as conn:
         try:
@@ -182,8 +188,9 @@ def acquire_flow(
                     conn.rollback()
                     raise FlowConflict(current_status)
 
-                # Step 3 — validate transition
-                _validate_transition(current_status, target_status)
+                # Step 3 — validate transition (skipped when force=True)
+                if not force:
+                    _validate_transition(current_status, target_status)
 
                 # Step 4 — write new status
                 new_attempt = current_attempt + 1

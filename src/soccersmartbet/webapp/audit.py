@@ -22,6 +22,7 @@ class EventType:
     PRE_GAMBLING_STARTED: str = "pre_gambling_started"
     PRE_GAMBLING_COMPLETED: str = "pre_gambling_completed"
     PRE_GAMBLING_FAILED: str = "pre_gambling_failed"
+    PRE_GAMBLING_FORCE_RESET: str = "pre_gambling_force_reset"
     POST_GAMES_STARTED: str = "post_games_started"
     POST_GAMES_COMPLETED: str = "post_games_completed"
     POST_GAMES_FAILED: str = "post_games_failed"

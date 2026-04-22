@@ -124,12 +124,29 @@ async def trigger_run(body: RunRequest):
                 },
             )
 
+    # Determine whether to bypass the transition guard.
+    # regenerate_report: always force (the whole point is "redo no matter what").
+    # pre_gambling / post_games: force only if the operator explicitly toggled it.
+    use_force = flow_type == "regenerate_report" or body.force
+
     try:
-        with acquire_flow(run_date, target_status, triggered_by="manual") as ctx:
-            # Force: clear derived data AFTER mutex is acquired so the delete
-            # only happens if we actually took the slot.
-            if body.force:
-                _force_clear(run_date)
+        with acquire_flow(run_date, target_status, triggered_by="manual", force=use_force) as ctx:
+            # Force: write an audit event so the override is visible in run_events,
+            # then clear derived report rows AFTER acquiring the mutex slot.
+            if use_force:
+                write_run_event(
+                    run_date,
+                    EventType.PRE_GAMBLING_FORCE_RESET,
+                    "manual",
+                    {
+                        "flow_type": flow_type,
+                        "previous_status": ctx.previous_status,
+                        "triggered_at_isr": now_isr().isoformat(),
+                    },
+                )
+                # Only wipe reports for pre-gambling side; post_games doesn't produce them.
+                if flow_type in ("pre_gambling", "regenerate_report"):
+                    _force_clear(run_date)
             event_id = write_run_event(
                 run_date,
                 _start_event_type(flow_type),
@@ -138,7 +155,7 @@ async def trigger_run(body: RunRequest):
                     "flow_type": flow_type,
                     "triggered_at_isr": now_isr().isoformat(),
                     "attempt_count": ctx.attempt_count,
-                    "force": body.force,
+                    "force": use_force,
                 },
             )
     except FlowConflict as exc:
