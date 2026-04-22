@@ -5,7 +5,7 @@
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 9/13 waves done
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜] 9/15 waves done
 ```
 
 | What | Status |
@@ -20,8 +20,8 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 9/13 waves done
 | Gambling Flow (AI bets + validation) | **Working E2E** — Telegram UI + LangGraph AI betting + verification |
 | Post-Games Flow (results + P&L) | **Working E2E** — FotMob overviewFixtures results, PnL calculator, Telegram summary, auto-triggered |
 | Daily automation (wall-clock scheduler) | **Working E2E** — full cycle proven daily since 2026-04-12 |
-| Offline Analysis Flow | **NOT BUILT** — Wave 10 |
-| Cup-Tie 2-leg support | **NOT BUILT** — Wave 11 |
+| Operator Dashboard (webapp) | **NOT BUILT** — Waves 10/11/12 |
+| Cup-Tie 2-leg support | **NOT BUILT** — Wave 13 |
 
 ---
 
@@ -32,17 +32,19 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 9/13 waves done
 | 0 | 🟢 Done | Setup, curation, schema, enrichment verification |
 | 1 | 🟢 Done | FotMob client, team registry, winner client |
 | 2 | 🟢 Done | All 11 tools working against live APIs |
-| 3 | 🟢 Done | Web app works. Tests obsolete — deleted, deferred to Wave 13. |
+| 3 | 🟢 Done | Web app works. Tests obsolete — deleted, deferred to Wave 15. |
 | 4 | 🟢 Done | Subgraph architecture, E2E verified with expert summary |
 | 5 | 🟢 Done | Telegram bot, triggers, game reports HTML, ISR timezone |
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
 | 8 | 🟢 Done | Report refactor track: 8A + 8B + 8C + 8E done. 8D skipped. Live-DB migration applied 2026-04-19 (backup: `~/soccersmartbet_backup_before_wave8_20260418_163145.sql`, 360KB, zero row loss). |
 | 9 | 🟢 Done | Robustness carryovers: 9A missing-results alert (#55), 9B no-games-day verification + fetch-failure conflation fix (#62), 9C startup-recovery verified (no code change). Post-review pass added operator Telegram alerts on pre-gambling AND post-games crashes, `TELEGRAM_CHAT_ID` startup check, date-embedded no-games callbacks, and zeroed all remaining timezone-rule violations (two new helpers: `today_isr()`, `isr_datetime()`). Bug #63 filed for the deferred not-finished-games edge case. Branch `wave9`, 13 commits. |
-| 10 | ⬜ Not Started | **Operator Dashboard (webapp)** — localhost FastAPI bolted into bot process. Tabs: Today (control panel + bet modification), History (query DSL + on-demand AI insights), P&L, Team/League. Mockup approved at `docs/wave10/mockup_today_v2.html`. Scope replaces earlier "offline analysis flow" idea. 5 parallel sub-agents after platform foundation lands. |
-| 11 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
-| 12 | 🟡 Partial | Competition expansion + polish: Israeli league + CL/EL done. Euro/WC + backup pending. |
-| 13 | ⬜ TBD | Testing scheme — to be planned separately |
+| 10 | ⬜ Not Started | Dashboard platform foundation (1 agent: FastAPI, connection pool, schema additions, mutex, status endpoint). Blocks Waves 11 and 12. |
+| 11 | ⬜ Not Started | Dashboard: Today tab + Query DSL (2 parallel agents, depends on Wave 10). |
+| 12 | ⬜ Not Started | Dashboard: Stats/P&L/History tabs + AI insights (2 parallel agents, depends on Wave 11's Query DSL). |
+| 13 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
+| 14 | 🟡 Partial | Competition expansion + polish: Israeli league + CL/EL done. Euro/WC + backup pending. |
+| 15 | ⬜ TBD | Testing scheme — to be planned separately |
 
 ---
 
@@ -123,7 +125,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 9/13 waves done
 | 4 | SSE streaming | 🟢 Done |
 | 5 | Concurrent execution | 🟢 Done |
 
-> Tests (former Agent 3B) were obsolete — hardcoded dates, brittle assertions, zero coverage of Waves 4-7. Deleted. Testing redesign deferred to Wave 11.
+> Tests (former Agent 3B) were obsolete — hardcoded dates, brittle assertions, zero coverage of Waves 4-7. Deleted. Testing redesign deferred to Wave 15.
 
 ---
 
@@ -245,25 +247,45 @@ Issues: #55 closed, #62 closed, #63 filed (not-yet-finished edge case, low prior
 
 ---
 
-## Wave 10 — Operator Dashboard (Webapp) ⬜ NOT STARTED
+## Wave 10 — Dashboard Platform Foundation ⬜ NOT STARTED (1 agent)
 
-Localhost-only FastAPI dashboard bolted into the bot process. Replaces the earlier "offline analysis flow" scope. Architectural constraints (single process, `daily_runs.status` mutex with `SELECT FOR UPDATE NOWAIT`, sync `graph.invoke` + `asyncio.to_thread`, 2-5s polling, connection pool required, no async node rewrite, no SSE, no second process, no auth) are LOCKED — see `task_breakdown.md` for full list. Design mockup: `docs/wave10/mockup_today_v2.html`.
+Single-agent blocker wave. Everything in Waves 11 and 12 depends on this landing.
 
-| # | Agent | Type | Status | Notes |
-|---|-------|------|--------|-------|
-| 10A | Platform foundation | python-pro | ⬜ Pending | FastAPI app, connection pool, schema additions, mutex helper, `run_events`/`bet_edits` writers, `GET /api/status/today`. Blocks 10B-10E. |
-| 10B | Query engine (filter DSL) | python-pro | ⬜ Pending | DSL parser + filter-to-SQL compiler. Blocks 10C + 10E. |
-| 10C | Stats / P&L / History tabs | fullstack-developer | ⬜ Pending | History, P&L, Team/League pages. Carnival aesthetic. |
-| 10D | Today tab: control panel + bet modification | fullstack-developer | ⬜ Pending | Flow triggers, override, bet edit with 30-min + gambling-done guards. |
-| 10E | AI insights endpoint | ai-engineer | ⬜ Pending | `POST /api/insights` — single LLM call over filtered rows (not a LangGraph flow). Async job pattern. |
+| # | Agent | Type | Status |
+|---|-------|------|--------|
+| 10A | Platform foundation (FastAPI shell, `psycopg2.pool.ThreadedConnectionPool`, schema additions, `run_events`/`bet_edits` writers, `daily_runs.status` mutex helper, `GET /api/status/today` + `/api/health`) | python-pro | ⬜ Pending |
+
+Architectural constraints (single process, `daily_runs.status` mutex with `SELECT FOR UPDATE NOWAIT`, sync `graph.invoke` + `asyncio.to_thread`, 2-5s polling, connection pool required, no async node rewrite, no SSE, no second process, no auth) are LOCKED — see `task_breakdown.md` for full list. Design mockup: `docs/wave10/mockup_today_v2.html`.
 
 ---
 
-## Wave 11 — Cup-Tie 2-Leg Match Support ⬜ NOT STARTED
+## Wave 11 — Dashboard: Today Tab + Query DSL ⬜ NOT STARTED (2 parallel agents)
+
+Depends on Wave 10. Neither agent consumes the other.
+
+| # | Agent | Type | Status |
+|---|-------|------|--------|
+| 11A | Today tab — control panel + bet modification (`POST /api/runs`, `PATCH /api/bets/{id}`, Today HTML, countdown chips, override button) | fullstack-developer | ⬜ Pending |
+| 11B | Query DSL engine (parser + filter-to-SQL compiler + shared query service) | python-pro | ⬜ Pending |
+
+---
+
+## Wave 12 — Dashboard: Stats Pages + AI Insights ⬜ NOT STARTED (2 parallel agents)
+
+Depends on Wave 11's Query DSL (11B). Both agents consume it.
+
+| # | Agent | Type | Status |
+|---|-------|------|--------|
+| 12A | History / P&L / Team / League tabs (`GET /api/bets`, `GET /api/pnl`, per-team/league stats, carnival aesthetic) | fullstack-developer | ⬜ Pending |
+| 12B | AI insights endpoint (`POST /api/insights` + `GET /api/insights/{job_id}`, single-LLM-call — NOT a LangGraph flow, in-memory job store) | ai-engineer | ⬜ Pending |
+
+---
+
+## Wave 13 — Cup-Tie 2-Leg Match Support ⬜ NOT STARTED
 
 Trigger: pick up when an actual 2-legged cup tie appears on the schedule so the helper can be validated end-to-end.
 
-### Agent 11A: Cup-Tie First-Leg Context
+### Agent 13A: Cup-Tie First-Leg Context
 | # | Task | Status |
 |---|------|--------|
 | 1 | Create fetch_cup_tie_context.py helper (FotMob roundInfo/aggregate) | ⬜ Pending |
@@ -273,7 +295,7 @@ Trigger: pick up when an actual 2-legged cup tie appears on the schedule so the 
 
 ---
 
-## Wave 12 — Competition Expansion + Polish 🟡 PARTIALLY DONE
+## Wave 14 — Competition Expansion + Polish 🟡 PARTIALLY DONE
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
@@ -287,7 +309,7 @@ Trigger: pick up when an actual 2-legged cup tie appears on the schedule so the 
 
 ---
 
-## Wave 13 — Testing Scheme ⬜ TBD
+## Wave 15 — Testing Scheme ⬜ TBD
 
 To be planned separately.
 

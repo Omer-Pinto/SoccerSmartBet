@@ -227,17 +227,22 @@ Connect all nodes with edges, conditional routing by Phase enum.
 #### 4.3 Daily Summary Notification
 - Send results via Telegram
 
-#### 4.4 Operator Dashboard (Wave 10 — scope expanded from original "Offline Analysis Flow")
-Originally scoped as a background analysis flow; expanded to a full **localhost FastAPI operator dashboard** inside the bot process.
+#### 4.4 Operator Dashboard (Waves 10 → 11 → 12 — scope expanded from original "Offline Analysis Flow")
+Originally scoped as a background analysis flow; expanded to a full **localhost FastAPI operator dashboard** inside the bot process. Split across three sequential waves because of real dependencies.
 
-Capabilities:
-- **Today tab**: live flow status, manual triggers (run pre-gambling now, override, run post-games early, regenerate one game's report), bet modification within 30-min-before-kickoff + gambling-done window.
-- **History tab**: query DSL (`league:la-liga team:real-madrid,barcelona month:2026-12 stake:>1.5`), URL-shareable, filter panel + raw DSL edit.
-- **P&L tab**: line charts by date, filter-reactive, two-line per-user + AI comparison.
-- **Team/League tab**: per-team and per-league bet history with success rate + P&L.
-- **On-demand AI insights**: per-query LLM call over filtered rows (not a new LangGraph flow; plain async endpoint).
+**Wave 10 — Platform Foundation (1 agent)**: FastAPI app shell, `psycopg2.pool.ThreadedConnectionPool`, schema additions (`daily_runs.status/attempt_count/last_trigger_source/last_error`, `run_events`, `bet_edits`), mutex helper (`SELECT FOR UPDATE NOWAIT`), `GET /api/status/today`, `GET /api/health`. Blocks Waves 11 and 12.
 
-Architectural invariants (locked): one process, one asyncio loop, `daily_runs.status` + `SELECT FOR UPDATE NOWAIT` mutex, sync `graph.invoke` + `asyncio.to_thread`, 2-5s polling, connection-pooled `psycopg2`, no SSE, no auth, no remote access, no async node rewrite, no second process. See `task_breakdown.md` Wave 10 for full constraints + schema additions + sub-agent breakdown.
+**Wave 11 — Today Tab + Query DSL (2 parallel agents)**:
+- 11A: Today tab — control panel + manual triggers (`POST /api/runs` with `force` override) + bet modification (`PATCH /api/bets/{id}` with 30-min-before-kickoff + gambling-done guards).
+- 11B: Query DSL engine — parser + filter-to-SQL compiler. URL-shareable (`league:la-liga team:real-madrid,barcelona month:2026-12 stake:>1.5`).
+
+**Wave 12 — Stats Pages + AI Insights (2 parallel agents, depends on Wave 11's DSL)**:
+- 12A: History / P&L / Team / League tabs — line charts, filter-reactive, per-team and per-league rollups.
+- 12B: On-demand AI insights — per-query LLM call over filtered rows, async job pattern (**not** a LangGraph flow).
+
+Architectural invariants (locked): one process, one asyncio loop, `daily_runs.status` + `SELECT FOR UPDATE NOWAIT` mutex, sync `graph.invoke` + `asyncio.to_thread`, 2-5s polling, connection-pooled `psycopg2`, no SSE, no auth, no remote access, no async node rewrite, no second process. See `task_breakdown.md` Waves 10/11/12 for full constraints + schema additions + agent-level breakdown.
+
+Waves 13/14/15 (Cup-Tie / Competition Expansion / Testing) follow after.
 
 ---
 

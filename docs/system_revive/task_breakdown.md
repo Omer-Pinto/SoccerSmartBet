@@ -189,7 +189,7 @@ Depends on Wave 1: all tools need `fotmob_client.py` (1A) working. Some need tea
 | 4 | Add enrichment data display | Show any new tools from curation | New sections as needed |
 | 5 | Verify end-to-end | Test with real teams at localhost:8000 | |
 
-> **Tests**: Original Wave 3B (test suite) was obsolete — hardcoded dates, brittle assertions, no coverage of Waves 4-7. All tests deleted. Testing redesign deferred to Wave 11.
+> **Tests**: Original Wave 3B (test suite) was obsolete — hardcoded dates, brittle assertions, no coverage of Waves 4-7. All tests deleted. Testing redesign deferred to Wave 15.
 
 ### After Wave 3
 - Start web app: `uv run python src/web_app/main.py` and test at localhost:8000
@@ -417,7 +417,7 @@ End-to-end verification happens naturally on the first pre-gambling run after 8E
 |---|-------------|--------|-------|
 | 1 | Full rewrite of `html_report.py` | Mobile-first, 5" phone (≈375px portrait, ≈667px landscape) | Per ui-designer spec. Professional bettor's spreadsheet aesthetic. |
 | 2 | Layout — table comparison | 3-col table: home \| stat label \| away | Split rows: form (streak + bullets), league position (rank · pts · MP), recovery, injuries. Shared rows (full width): H2H, venue, weather. |
-| 3 | Match header | Team names, kickoff (ISR), league | Cup-tie first-leg inline rendering deferred to Wave 11. |
+| 3 | Match header | Team names, kickoff (ISR), league | Cup-tie first-leg inline rendering deferred to Wave 13. |
 | 4 | Compact odds row | Single line | `1 1.15 · X 6.60 · 2 11.10`. Source label "winner.co.il" small, right-aligned. No big cards. |
 | 5 | Implied-probability bar | Thin horizontal bar under odds row | Neutral color segments proportional to implied probability. No home/away color coding. |
 | 6 | Form as pills row | `L D D W W` visual pills | Pills first, bullets after. Last-5 games table (result, GF:GA, opponent, home/away) below pills. |
@@ -471,13 +471,15 @@ Unrelated to the report refactor. Can run any time — files are disjoint from W
 
 ---
 
-## Wave 10 — Operator Dashboard (Webapp) ⬜ NOT STARTED
+## Operator Dashboard — Three-Wave Sequence (Waves 10 → 11 → 12)
 
-Localhost-only FastAPI dashboard bolted into the existing bot process. Replaces the earlier "offline analysis flow" scope — broader and more useful: statistical bet history, query DSL, flow control, bet modification, and on-demand AI insights. Design mockup: `docs/wave10/mockup_today_v2.html` (carnival/Waka-Waka aesthetic, approved).
+The dashboard is split across three waves because of real dependencies — Wave 11 can only start after Wave 10 lands, Wave 12 can only start after Wave 11 lands. Within each wave, agents run in parallel in isolated worktrees.
 
-### Architectural constraints (LOCKED — any change requires Omer's explicit OK)
+Design mockup: `docs/wave10/mockup_today_v2.html` (carnival/Waka-Waka aesthetic, approved).
 
-1. **One process, one asyncio loop.** FastAPI + Telegram updater + wall-clock poller + LangGraph flows co-located. `uvicorn.Server(...).serve()` runs as an asyncio task alongside the poller (replaces `application.run_polling()` with the manual lifecycle: `initialize()` → `start_polling()` → `start()` → `gather(uvicorn.serve(), _wall_clock_poller())`).
+### Architectural constraints (LOCKED for all three waves — change requires Omer's explicit OK)
+
+1. **One process, one asyncio loop.** FastAPI + Telegram updater + wall-clock poller + LangGraph flows co-located. `uvicorn.Server(...).serve()` runs as an asyncio task alongside the poller (replaces `application.run_polling()` with manual lifecycle: `initialize()` → `start_polling()` → `start()` → `gather(uvicorn.serve(), _wall_clock_poller())`).
 2. **Flow mutex = `daily_runs.status` + `SELECT ... FOR UPDATE NOWAIT`.** No `asyncio.Lock`. No in-memory flags. DB is the system of record.
 3. **Keep sync `graph.invoke()` + `asyncio.to_thread` bridge.** Do NOT convert nodes to async. LangGraph's own thread pool handles `Send()` fan-out; we don't resize or touch it.
 4. **Status visibility = 2–5s polling** of `GET /api/status/today` with server-side 1s TTL cache. No SSE, no WebSocket.
@@ -488,7 +490,7 @@ Localhost-only FastAPI dashboard bolted into the existing bot process. Replaces 
 9. **No multi-user, no auth, no remote access, no SSE, no async node rewrite, no second process, no queue.** Permanently out of scope.
 10. **Live DDL only after Omer's explicit OK** per CLAUDE.md.
 
-### Schema additions (stage in `deployment/db/init/001_create_schema.sql`, apply to live DB only after Omer's OK)
+### Schema additions (stage in `deployment/db/init/001_create_schema.sql`, apply to live DB only after Omer's OK — part of Wave 10)
 
 ```sql
 ALTER TABLE daily_runs ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'idle'
@@ -502,7 +504,7 @@ ALTER TABLE daily_runs ADD COLUMN last_error TEXT;
 CREATE TABLE run_events (
     event_id      SERIAL PRIMARY KEY,
     run_date      DATE NOT NULL,
-    event_type    VARCHAR(40) NOT NULL,  -- pre_gambling_triggered, pre_gambling_completed, etc.
+    event_type    VARCHAR(40) NOT NULL,
     triggered_by  VARCHAR(20) NOT NULL CHECK (triggered_by IN ('scheduler', 'manual', 'recovery')),
     triggered_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     payload       JSONB
@@ -520,41 +522,124 @@ CREATE TABLE bet_edits (
 );
 CREATE INDEX ON bet_edits(bet_id);
 
--- Optional: indexes for bets-browser queries (non-destructive)
 CREATE INDEX IF NOT EXISTS idx_bets_bettor ON bets(bettor);
 CREATE INDEX IF NOT EXISTS idx_games_league ON games(league);
 ```
 
-### Sub-agents (can run in parallel after 10A lands)
+---
 
-| # | Agent | Type | Scope |
-|---|-------|------|-------|
-| 10A | **Platform foundation** | `python-pro` | New `src/soccersmartbet/webapp/` package: FastAPI app shell, `uvicorn` launched from `triggers.py`, `psycopg2.pool.ThreadedConnectionPool` wrapping `daily_runs.py` + new modules, schema migration file, `run_events` + `bet_edits` write helpers, `daily_runs.status`-based mutex helper (`SELECT FOR UPDATE NOWAIT` returning 409 on contention), in-process `GET /api/status/today` with 1s TTL cache. Every other agent depends on this. |
-| 10B | **Query engine** | `python-pro` | DSL parser (`league:la-liga team:real-madrid,barcelona month:2026-12 stake:>1.5`), filter-to-SQL compiler, shared query service module. Keys: `league`, `team`, `date`, `month`, `stake`, `odds`, `outcome`, `bettor`, `prediction`. Ranges (`>`, `<`, `X-Y`), lists (comma), negation (`!`). Returns Pydantic models. |
-| 10C | **Stats + P&L + History tabs** | `fullstack-developer` | Pages: History (filtered bet table, generate-insight button), P&L (line charts by date, filter-reactive), Team/League hub pages. Uses 10B's query engine. Charts as inline SVG (no chart lib build step). Carnival aesthetic from mockup v2. |
-| 10D | **Today tab: control panel + bet modification** | `fullstack-developer` | `POST /api/runs {date, flow_type, force}` → takes the `FOR UPDATE NOWAIT` lock → marks `daily_runs.status` → writes `run_events` → spawns `asyncio.create_task(...)` around the existing `run_*_flow()` via `to_thread` → returns 202 + `event_id`. `PATCH /api/bets/{bet_id}` with 30-min + gambling-done guards → writes `bet_edits`. Today tab UI (from mockup v2) with countdown chips, two-phase override button + modal with explicit date. |
-| 10E | **AI insights endpoint** | `ai-engineer` | `POST /api/insights {filter_dsl}` → runs the filter via 10B's engine → caps at N rows (default 500) → single LLM call (not a LangGraph flow) with rows formatted as a structured payload + "expert user, skip obvious stats" system prompt → returns markdown. Async job (not sync) — 202 + `job_id`, polled via `GET /api/insights/{job_id}`. Store jobs in memory per-session; no new table. |
+## Wave 10 — Dashboard Platform Foundation ⬜ NOT STARTED (1 agent)
 
-### After Wave 10
-- Operator dashboard served on `http://localhost:8083` from the same bot process.
-- Manual flow triggers + override + bet modification live.
-- Filter DSL browsable history + P&L visualizations.
-- On-demand AI insights per query.
-- All triggers audited in `run_events`; all bet edits audited in `bet_edits`.
+Single-agent wave. Blocks Waves 11 and 12. Everything downstream consumes this foundation.
 
-### Design mockup
+### Agent 10A: Platform Foundation
+**Type:** `python-pro`
+**Scope:** new `src/soccersmartbet/webapp/` package; edits to `src/soccersmartbet/telegram/triggers.py`, `src/soccersmartbet/daily_runs.py`, `deployment/db/init/001_create_schema.sql`
 
-`docs/wave10/mockup_today_v2.html` — approved aesthetic reference (carnival palette, Bebas Neue + Space Grotesk, deep indigo + magenta/yellow/emerald/vermilion/cobalt). All Wave 10 pages follow this language.
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | FastAPI app shell | `src/soccersmartbet/webapp/app.py` | Bind to `127.0.0.1:8083`. Static-file serving for HTML/JS from `webapp/static/`. Single error-handler middleware. No auth. |
+| 2 | Uvicorn lifecycle integration | `src/soccersmartbet/telegram/triggers.py` | Replace `application.run_polling()` with manual `initialize()` / `updater.start_polling()` / `start()` sequence, then `asyncio.gather(uvicorn.Server(config).serve(), _wall_clock_poller())`. Graceful shutdown. |
+| 3 | Connection pool | `src/soccersmartbet/db.py` (new module) | `psycopg2.pool.ThreadedConnectionPool` (size 5). Context-manager helper. Replace all `psycopg2.connect()` call-sites in `daily_runs.py`. Subsequent waves use this module. |
+| 4 | Schema migration | `deployment/db/init/001_create_schema.sql` | Stage the SQL block above. Do NOT apply to live DB — await Omer's explicit OK before `docker exec ... psql ...`. |
+| 5 | Audit write helpers | `src/soccersmartbet/webapp/audit.py` (new) | `write_run_event(run_date, event_type, triggered_by, payload)` and `write_bet_edit(bet_id, field, old, new, source)`. Used by every subsequent trigger/edit path. |
+| 6 | Mutex helper | `src/soccersmartbet/webapp/run_mutex.py` (new) | `acquire_flow(run_date, flow_type)` function: opens a transaction, `SELECT status FROM daily_runs WHERE run_date = %s FOR UPDATE NOWAIT`, validates state transition, writes new `status`, commits. Returns `RunContext` / raises `FlowConflict` (HTTP 409). |
+| 7 | `GET /api/status/today` | webapp route | Returns joined `daily_runs` row + last 10 `run_events`. Server-side 1s TTL cache (module-level dict with timestamp). Used by every dashboard tab as the keep-alive/heartbeat. |
+| 8 | `GET /api/health` | webapp route | Trivial: DB ping + last poller tick time + process uptime. Used for liveness checks. |
+
+### Wave 10 completion criteria
+- Bot still runs the existing flows identically (no regression on 08:35 pre-gambling or 01:30 post-games).
+- `curl http://127.0.0.1:8083/api/health` returns 200.
+- `curl http://127.0.0.1:8083/api/status/today` returns correct JSON for today.
+- New schema additions applied to live DB (after explicit OK).
+- `run_events` table gets one row per flow fire (scheduler writes via the new helper).
 
 ---
 
-## Wave 11 — Cup-Tie Context (2-Leg Match Support) ⬜ NOT STARTED
+## Wave 11 — Today Tab + Query DSL ⬜ NOT STARTED (2 agents, parallel, depends on Wave 10)
+
+Two independent agents running in parallel worktrees. Neither consumes the other; both consume Wave 10.
+
+### Agent 11A: Today Tab — Control Panel + Bet Modification
+**Type:** `fullstack-developer`
+**Scope:** new `src/soccersmartbet/webapp/routes/today.py`, new `webapp/static/today.html` + CSS + minimal JS
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | `POST /api/runs` endpoint | `{run_date, flow_type: "pre_gambling"\|"post_games"\|"regenerate_report", force: bool, params?}` | Uses Wave 10's `acquire_flow()` mutex. Writes `run_events`. Spawns `asyncio.create_task(_wrap_flow(...))` around `asyncio.to_thread(run_*_flow, ...)`. Returns 202 + `{event_id, status: "starting"}`. On force=true for completed run: transactional DELETE of today's games/reports before invoke. |
+| 2 | `PATCH /api/bets/{bet_id}` endpoint | body `{prediction?, stake?}` | Guards (SQL + API layer): `daily_runs.gambling_completed_at IS NOT NULL` AND `min(games.kickoff_time) - now_isr() > 30min`. Writes `bet_edits` row per field changed. Returns 200 + updated bet. |
+| 3 | Today tab HTML | `webapp/static/today.html` | From mockup v2 aesthetic. Live status strip, 4 control buttons, today's matches table, bankroll block, 30-day P&L sparkline (reuses aggregation from `daily_runs`). |
+| 4 | Control-button UX | same file + minimal JS | Optimistic disable on click ("Queued…" → "Running"). Two-phase override button (5s auto-revert) + modal with explicit run_date. All buttons lock while any flow is `*_running`. |
+| 5 | Bet-row edit affordance | same file + minimal JS | Inline prediction/stake edit form. Countdown chip per bet: green (>30m), amber (5-30m), red (<5m). Auto-locks visually when `now >= kickoff - 30m`. Tooltip explains lock with exact lock time. |
+| 6 | Status polling | minimal JS | `setInterval(() => fetch("/api/status/today"), 2500)`. Updates status strip + unlocks/locks buttons based on status. |
+
+### Agent 11B: Query DSL Engine
+**Type:** `python-pro`
+**Scope:** new `src/soccersmartbet/webapp/query/` package (parser, compiler, models). NO routes — routes are Wave 12's consumers.
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | DSL parser | `webapp/query/parser.py` | Grammar: `key:value` pairs separated by spaces. Keys: `league`, `team`, `date`, `month`, `stake`, `odds`, `outcome`, `bettor`, `prediction`. Values support ranges (`>2.5`, `<1.5`, `1.5-3.0`), lists (`real-madrid,barcelona`), negation (`!draw`). ~80 lines hand-rolled — no pyparsing. |
+| 2 | Filter-to-SQL compiler | `webapp/query/compiler.py` | Takes parsed filter → returns `(SQL WHERE clause string, params dict)`. Safe parameter binding throughout — no string interpolation. Returns a reusable SELECT over `bets JOIN games` with the WHERE clause injected. |
+| 3 | Pydantic result models | `webapp/query/models.py` | `BetRow`, `FilterResult` (rows + aggregates: count, total_stake, total_pnl, win_rate). |
+| 4 | Shared query service | `webapp/query/service.py` | `run_filter(filter_dsl: str) -> FilterResult`. Single entrypoint used by Wave 12 agents. Caps result set at 2000 rows (safety net; user default cap is 500 for AI insights). |
+| 5 | Unit tests | `tests/webapp/query/` | Parse 10 representative query strings. Verify SQL generation is injection-safe (pass crafted malicious input, confirm parameterization). Tests use pytest — follow existing Wave 3 test style (deleted; build from scratch or flag for Wave 15). |
+
+### Wave 11 completion criteria
+- Today tab functional at `http://127.0.0.1:8083/today` — manual triggers work, bet edit works with window enforcement.
+- Query DSL parses and executes against the live `bets` table, returns correct result sets for 5+ test queries.
+
+---
+
+## Wave 12 — Stats Pages + AI Insights ⬜ NOT STARTED (2 agents, parallel, depends on Wave 11's Query DSL)
+
+Two independent agents. Both consume the Query DSL from Wave 11B.
+
+### Agent 12A: History, P&L, Team/League Tabs
+**Type:** `fullstack-developer`
+**Scope:** new `src/soccersmartbet/webapp/routes/stats.py`, static pages for History / P&L / Team / League tabs
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | `GET /api/bets?filter=<dsl>` endpoint | | Uses 11B's query service. Returns `FilterResult` JSON. URL-shareable — dashboard sets filter in address bar. |
+| 2 | `GET /api/pnl?filter=<dsl>` endpoint | | Time-series aggregation of filtered bets — cumulative P&L by day, per-bettor. Returns JSON array consumable by chart. |
+| 3 | `GET /api/teams/{team_id}/stats` + `GET /api/leagues/{league}/stats` | | Per-team and per-league rollups: total bets, win rate, P&L, notable games. |
+| 4 | History tab HTML | `webapp/static/history.html` | Filter panel (dropdowns) + DSL text input (synced to URL). Filtered bet table in carnival aesthetic. "Generate insight" button calls Wave 12B's endpoint. |
+| 5 | P&L tab HTML | `webapp/static/pnl.html` | Two-line chart (user vs AI, cumulative P&L). Filter reactive. Inline SVG rendering — no chart library build step. |
+| 6 | Team/League hub HTML | `webapp/static/team.html`, `league.html` | Per-entity summary + full bet history for that team/league. Links from match-row team names. |
+
+### Agent 12B: AI Insights Endpoint
+**Type:** `ai-engineer`
+**Scope:** new `src/soccersmartbet/webapp/routes/insights.py`, new `src/soccersmartbet/webapp/insights/` package (prompt, job manager)
+
+| # | File / Task | Target | Notes |
+|---|-------------|--------|-------|
+| 1 | `POST /api/insights` endpoint | body `{filter_dsl}` | Runs 11B's query service (cap: 500 rows). If result is empty → 422. Otherwise enqueue an async job and return 202 + `{job_id}`. |
+| 2 | `GET /api/insights/{job_id}` endpoint | | Returns job state: `queued` / `running` / `done` (markdown body) / `failed` (error). Dashboard polls every 2-3s. |
+| 3 | Job manager | `webapp/insights/jobs.py` | In-memory `dict[job_id, InsightJob]` — no new DB table per user's request. Jobs expire after 1h. Bound concurrency to 2 concurrent LLM calls process-wide. |
+| 4 | Prompt + LLM call | `webapp/insights/prompt.py` | **NOT a LangGraph flow** — single direct `openai.chat.completions.create(...)` call. System prompt: "expert user, deep football knowledge, skip obvious stats, focus on edge against AI / stake correlation / league blind spots. Max 5 bullets." Serialize bet rows as markdown table into the user message. Structured output — force markdown, no JSON. |
+| 5 | Frontend trigger | Integrated into History tab (12A's file) | "Generate insight" button on the history page. Shows loading spinner → polls job endpoint → renders markdown below the filter table. |
+
+### Wave 12 completion criteria
+- All four tabs (Today, History, P&L, Team/League) render correctly with carnival aesthetic.
+- Filter DSL drives both query results and on-demand AI insights.
+- Dashboard complete at `http://127.0.0.1:8083/` with navigation between tabs.
+
+### After Wave 12
+- Dashboard fully operational.
+- Manual flow triggers + override + bet modification live.
+- Filter DSL drives history, P&L, and AI insights.
+- All triggers audited in `run_events`; all bet edits audited in `bet_edits`.
+
+---
+
+## Wave 13 — Cup-Tie Context (2-Leg Match Support) ⬜ NOT STARTED
 
 Extend the pre-gambling report to render 2-legged cup ties correctly: when today's game is a 2nd leg, show the 1st-leg result inline with correct team/goal attribution; when it's a 1st leg, surface return-leg info if known.
 
 Deferred from Wave 8 on 2026-04-18 — no 2-legged cup ties currently on the schedule to validate against. Pick up when an actual 2nd leg appears.
 
-### Agent 11A: Cup-Tie First-Leg Context (helper + renderer wiring)
+### Agent 13A: Cup-Tie First-Leg Context (helper + renderer wiring)
 **Type:** `python-pro`
 **Scope:** new helper `src/soccersmartbet/pre_gambling_flow/tools/game/fetch_cup_tie_context.py`; renderer updates in `src/soccersmartbet/reports/html_report.py`. No schema changes, no DB writes.
 
@@ -571,9 +656,9 @@ Deferred from Wave 8 on 2026-04-18 — no 2-legged cup ties currently on the sch
 
 ---
 
-## Wave 12 — Competition Expansion + Polish (1 agent)
+## Wave 14 — Competition Expansion + Polish (1 agent)
 
-### Agent 12A: League Expansion + Final Polish
+### Agent 14A: League Expansion + Final Polish
 **Type:** `python-pro`
 **Scope:** `db/seeds/`, `src/soccersmartbet/team_registry.py`, documentation
 
@@ -583,12 +668,12 @@ Deferred from Wave 8 on 2026-04-18 — no 2-legged cup ties currently on the sch
 | 2 | Final documentation update | Update README, ORCHESTRATION_STATE | Reflect current system state |
 | 3 | Database backup to disk | Automated pg_dump to a local backup directory | Cron or script that dumps the staging DB to `~/backups/soccersmartbet/` with date-stamped filenames. Must survive docker-compose restarts. |
 
-### After Wave 12
+### After Wave 14
 - Full system test across multiple leagues
 - Verify: DB backup file exists and is restorable
 
 ---
 
-## Wave 13 — Testing Scheme ⬜ TBD
+## Wave 15 — Testing Scheme ⬜ TBD
 
 Full testing redesign. Scope, strategy, and tooling to be planned separately.
