@@ -25,9 +25,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _PROCESS_START = now_isr()
 
-from soccersmartbet.webapp.runtime_state import LAST_POLLER_TICK
-from soccersmartbet.webapp.routes.today import router as today_router
+from soccersmartbet.webapp.routes.insights import router as insights_router
 from soccersmartbet.webapp.routes.stats import router as stats_router
+from soccersmartbet.webapp.routes.today import router as today_router
+from soccersmartbet.webapp.runtime_state import LAST_POLLER_TICK
 
 # ---------------------------------------------------------------------------
 # Status cache: key "today" → (payload_dict, cached_at_isr)
@@ -51,6 +52,9 @@ app.include_router(today_router)
 
 # Wave 12A: History / P&L / Team / League stats routes
 app.include_router(stats_router)
+
+# Wave 12B: AI insights endpoint (async job manager + LLM call)
+app.include_router(insights_router)
 
 
 # ---------------------------------------------------------------------------
