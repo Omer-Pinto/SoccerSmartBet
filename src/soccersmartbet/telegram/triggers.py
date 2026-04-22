@@ -18,6 +18,7 @@ from soccersmartbet.daily_runs import get_daily_run, get_pending_post_games, ups
 from soccersmartbet.gambling_flow.handlers import handle_gamble_callback
 from soccersmartbet.telegram.bot import (
     TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHAT_ID,
     is_owner,
 )
 from soccersmartbet.utils.timezone import ISR_TZ, now_isr
@@ -320,6 +321,8 @@ def start_scheduler() -> None:
     """
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN must be set to start the scheduler.")
+    if not TELEGRAM_CHAT_ID:
+        raise RuntimeError("TELEGRAM_CHAT_ID must be set to start the scheduler.")
 
     application = (
         Application.builder()
