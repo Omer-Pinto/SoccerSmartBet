@@ -620,10 +620,15 @@ function updateModRibbon() {
   }
 
   const lockTime = new Date(earliest - LOCK_MINUTES * 60000);
-  const hh = lockTime.getHours().toString().padStart(2, "0");
-  const mm = lockTime.getMinutes().toString().padStart(2, "0");
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jerusalem",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const hhmm = fmt.format(lockTime);
   els.modRibbon.innerHTML =
-    `Bets modifiable until&nbsp;<strong>${hh}:${mm} ISR</strong>&nbsp;&mdash;&nbsp;Click Edit on a row to modify`;
+    `Bets modifiable until&nbsp;<strong>${hhmm} ISR</strong>&nbsp;&mdash;&nbsp;Click Edit on a row to modify`;
 }
 
 // ─────────────────────────────────────────────
