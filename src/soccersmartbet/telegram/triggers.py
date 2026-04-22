@@ -44,7 +44,34 @@ async def trigger_pre_gambling_and_notify() -> None:
     logger.info("Pre-gambling flow trigger fired for %s", today)
     upsert_daily_run(today, pre_gambling_started_at=now_isr())
 
-    result = await asyncio.to_thread(run_pre_gambling_flow)
+    try:
+        result = await asyncio.to_thread(run_pre_gambling_flow)
+    except Exception as exc:
+        from soccersmartbet.telegram.bot import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID  # noqa: PLC0415
+        from telegram import Bot  # noqa: PLC0415
+
+        alert_text = (
+            "❗ <b>Pre-gambling flow FAILED</b>\n\n"
+            f"<b>Error type:</b> {type(exc).__name__}\n"
+            f"<b>Message:</b> {exc}\n\n"
+            f"<b>Time:</b> {now_isr().strftime('%Y-%m-%d %H:%M ISR')}\n\n"
+            "The <code>daily_runs</code> row is left in a crashed state "
+            "(<code>pre_gambling_started_at</code> set, "
+            "<code>pre_gambling_completed_at</code> null). "
+            "The wall-clock poller will NOT re-fire automatically.\n\n"
+            "Please investigate logs and manually re-trigger when ready."
+        )
+        try:
+            bot = Bot(token=TELEGRAM_BOT_TOKEN)
+            async with bot:
+                await bot.send_message(
+                    chat_id=int(TELEGRAM_CHAT_ID),
+                    text=alert_text,
+                    parse_mode="HTML",
+                )
+        except Exception:
+            logger.exception("Failed to send pre-gambling failure alert via Telegram")
+        raise
 
     game_ids: list[int] = result.get("games_to_analyze", [])
     games_found = len(game_ids)
