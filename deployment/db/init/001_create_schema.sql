@@ -290,8 +290,7 @@ CREATE INDEX IF NOT EXISTS idx_games_league ON games(league);
 
 -- ============================================================================
 -- Wave 11A — Bet-edit window enforcement trigger
--- STAGED ONLY — NOT YET APPLIED TO LIVE DB AS OF 2026-04-22.
--- Apply only after Omer's explicit OK via: docker exec soccersmartbet-staging psql ...
+-- APPLIED TO LIVE DB 2026-04-22 (Wave 11) — trigger active on bet_edits.
 -- ============================================================================
 
 -- Function: raise exception if a bet_edits insert falls outside the edit window.

@@ -1,6 +1,6 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-22 18:15 ISR (Wave 11 merged — Today tab + Query DSL on branch; awaiting bot restart to serve new routes) | **Branch:** Dashboard-Platform-Foundation
+> **Last updated:** 2026-04-22 19:00 ISR (Wave 11 hard-fix pass — Force Override now works from `pre_gambling_done`, JS time fully ISR, value aliases + OR semantics for DSL, bet-edit trigger LIVE; awaiting bot restart) | **Branch:** Dashboard-Platform-Foundation
 
 ## Summary
 
@@ -40,7 +40,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 11/15 waves
 | 8 | 🟢 Done | Report refactor track: 8A + 8B + 8C + 8E done. 8D skipped. Live-DB migration applied 2026-04-19 (backup: `~/soccersmartbet_backup_before_wave8_20260418_163145.sql`, 360KB, zero row loss). |
 | 9 | 🟢 Done | Robustness carryovers: 9A missing-results alert (#55), 9B no-games-day verification + fetch-failure conflation fix (#62), 9C startup-recovery verified (no code change). Post-review pass added operator Telegram alerts on pre-gambling AND post-games crashes, `TELEGRAM_CHAT_ID` startup check, date-embedded no-games callbacks, and zeroed all remaining timezone-rule violations (two new helpers: `today_isr()`, `isr_datetime()`). Bug #63 filed for the deferred not-finished-games edge case. Branch `wave9`, 13 commits. |
 | 10 | 🟢 Live (3/5 criteria green; 2 auto-close tonight) | Dashboard platform foundation. Bot restarted on new code 16:44 ISR (pid 21381). `/api/health` 200, `/api/status/today` valid JSON. Status backfilled from existing timestamps (today: `gambling_done`). Criteria #1 (no regression) + #5 (run_events row) auto-confirm at tonight's 01:30 post-games fire. Wave 11 can start in parallel. |
-| 11 | 🟢 Done | Dashboard: Today tab + Query DSL merged onto branch. 11A (fullstack) + 11B (python-pro) ran in parallel worktrees; consultant + code-reviewer cycles caught & fixed 7 ship-stoppers (force-clear cascade, nonexistent `placed_at`, `TIME` vs TIMESTAMPTZ, ISO-date eq parser path, etc). 51/51 query tests pass. Bet-edit-window trigger DDL staged (awaiting Omer's OK). Bot restart needed to serve new routes. |
+| 11 | 🟢 Done | Dashboard: Today tab + Query DSL. 11A+11B parallel wave → consultant → code-reviewer → hard-fix pass. 15 bugs caught & fixed total (9 from initial review, 6 from Omer's post-merge flag of bad deferrals). Force Override now works from `pre_gambling_done` (scenario the button was built for). All JS time handling pinned to ISR (offset-aware ISO + `Intl.DateTimeFormat('Asia/Jerusalem')`). DSL: outcome/prediction value aliases + repeated-key OR semantics. 70/70 query tests pass. Bet-edit-window trigger live (applied 2026-04-22). Pending: bot restart. |
 | 12 | ⬜ Not Started | Dashboard: Stats/P&L/History tabs + AI insights (2 parallel agents, depends on Wave 11's Query DSL). |
 | 13 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
 | 14 | 🟡 Partial | Competition expansion + polish: Israeli league + CL/EL done. Euro/WC + backup pending. |
@@ -299,7 +299,7 @@ Ran via `/parallel-wave-executor` on branch `Dashboard-Platform-Foundation`. Bot
 - `webapp/query/{parser,compiler,models,service}.py` — hand-rolled DSL parser (~180 loc, no pyparsing), parameterized SQL compiler over `bets JOIN games`, Pydantic result models, `run_filter(dsl)` entry point for Wave 12 consumers. Columns aligned to the real schema (`match_date + kickoff_time` split, no `placed_at`). `ORDER BY match_date DESC, kickoff_time DESC`. Row cap 2000.
 - `tests/webapp/query/{test_parser,test_compiler}.py` — 51 tests passing (parser grammar + SQL-injection safety + ISO date eq + month parsing).
 
-### Ship-stoppers caught & fixed
+### Ship-stoppers caught & fixed (consultant + code-reviewer cycle)
 
 1. **11A force-clear cascade:** `DELETE FROM games` would cascade-wipe `bets` (ON DELETE CASCADE) → replaced with scoped deletes on report tables only; games + bets preserved.
 2. **11A Literal widening:** `prediction: Literal["1","x","2","X"]` narrowed to canonical `["1","x","2"]`.
@@ -311,23 +311,31 @@ Ran via `/parallel-wave-executor` on branch `Dashboard-Platform-Foundation`. Bot
 8. **11B ORDER BY bug:** time-of-day only → `match_date DESC, kickoff_time DESC`.
 9. **11B ISO-date eq parse:** `date:2026-04-15` was slug-normalized to `"2026 04 15"` → short-circuit added for `YYYY-MM-DD` and `YYYY-MM` patterns.
 
-### DDL staged (not applied — awaiting Omer's OK)
+### Hard-fix pass (6 more bugs — Omer flagged the prior DEFERs as unacceptable)
 
-`deployment/db/init/001_create_schema.sql` gained `check_bet_edit_window()` PL/pgSQL trigger on `bet_edits` that re-enforces the window guards DB-side. **Do NOT apply until explicitly approved.**
+10. **Force Override + Regenerate Report 409 from `pre_gambling_done`** — the exact scenario the button was created for ("kill a bad 0-games run and re-fire"). `acquire_flow(force=True)` kwarg added; skips transition validation when force-ing. `regenerate_report` unconditionally force-fires. New `EventType.PRE_GAMBLING_FORCE_RESET` audit event.
+11. **JS kickoff parsed in browser-local time** — server now returns `kickoff_iso` with explicit ISR offset (`+03:00`/`+02:00`, DST-correct via `isr_datetime(...).isoformat()`); JS does `new Date(kickoff_iso).getTime()` — TZ-agnostic.
+12. **JS "today's date" used UTC** — now sourced from `/api/status/today.today_date` (server `today_isr()`), with a hidden-input fallback.
+13. **Lock-time display used browser-local** — now `Intl.DateTimeFormat(..., { timeZone: 'Asia/Jerusalem' })`.
+14. **`outcome:draw` / `prediction:home` returned empty silently** — value aliases (`home/draw/away/tie/home_win/away_win → 1/x/2`) added with `=`/`IN` SQL instead of `ILIKE`; unrecognised values raise `ParseError`.
+15. **`league:pl league:bundesliga` matched nothing (AND-of-substring)** — same-key clauses now group with OR inside parens; comma-list form still works and is equivalent.
+
+### DDL applied to live DB 2026-04-22
+
+`check_bet_edit_window()` PL/pgSQL function + `trg_bet_edit_window` BEFORE INSERT trigger on `bet_edits` applied via `docker exec soccersmartbet-staging psql -U postgres -d soccersmartbet_staging`. Verified via `pg_trigger` lookup (`trg_bet_edit_window BEFORE INSERT ON bet_edits FOR EACH ROW EXECUTE FUNCTION check_bet_edit_window()`). Schema SQL header updated to reflect live state.
 
 ### Completion criteria
 
 | # | Criterion | Status |
 |---|-----------|--------|
-| 1 | Today tab functional at http://127.0.0.1:8083/today — manual triggers work, bet edit works with window enforcement | ⏳ Code shipped; requires bot restart to serve new routes |
-| 2 | Query DSL parses and executes against the live `bets` table, returns correct result sets | 🟢 51/51 unit tests green; live-DB query will verify once Wave 12 routes land (no route consumes it yet) |
+| 1 | Today tab functional at http://127.0.0.1:8083/today — manual triggers work, bet edit works with window enforcement | 🟢 Code + DDL shipped; pending bot restart to serve new routes |
+| 2 | Query DSL parses and executes against the live `bets` table, returns correct result sets | 🟢 70/70 unit tests green; live-DB query verifies when Wave 12 routes land |
 
 ### Pending operator actions (Omer)
 
-1. **Restart bot** — new `/today`, `/api/runs`, `PATCH /api/bets/{id}`, `/api/today/data`, `/api/today/pnl` endpoints registered at startup; existing process won't see them.
-2. **Apply bet-edit trigger DDL** — decide whether to install `check_bet_edit_window` now (defense in depth) or defer. If applying: `docker exec soccersmartbet-staging psql -U postgres -d soccersmartbet_staging -f deployment/db/init/001_create_schema.sql` (idempotent — `CREATE OR REPLACE FUNCTION`, `CREATE TRIGGER` needs a DROP guard, verify before running).
+1. **Restart bot** — new `/today`, `/api/runs`, `PATCH /api/bets/{id}`, `/api/today/data`, `/api/today/pnl` endpoints registered at startup; existing process won't see them. Tonight's 01:30 post-games MUST run on the new code to validate Wave 10 criteria #1+#5.
 
-Commits on branch (7): `746c2c0` `4cca4a3` `52abe80` `b0465e1` `227a1f3` `b25bd64` `59a6809`.
+Commits on branch (14): `746c2c0` `4cca4a3` `52abe80` `b0465e1` `227a1f3` `b25bd64` `59a6809` `027400a` `7518054` `fe41d67` `951dc74` `43f45e4` `f514e32` `d0a3f78`.
 
 ---
 
