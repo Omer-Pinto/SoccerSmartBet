@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 ISR_TZ = ZoneInfo("Asia/Jerusalem")
@@ -24,3 +24,12 @@ def format_isr_time(dt: datetime, fmt: str = "%H:%M") -> str:
 
 def format_isr_date(dt: datetime, fmt: str = "%Y-%m-%d") -> str:
     return dt.strftime(fmt)
+
+
+def today_isr() -> date:
+    """Return today's date in the ISR timezone (Asia/Jerusalem).
+
+    Safe replacement for ``date.today()`` which uses the system-local clock
+    (UTC in Docker). Between 22:00–23:59 ISR the two values diverge.
+    """
+    return now_isr().date()

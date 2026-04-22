@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 
+from soccersmartbet.utils.timezone import today_isr
+
 load_dotenv()
 
 # API Configuration
@@ -30,7 +32,7 @@ def fetch_daily_fixtures(date: Optional[str] = None) -> Dict[str, Any]:
     requested date, regardless of competition.
 
     Args:
-        date: Date in YYYY-MM-DD format. Defaults to today (UTC).
+        date: Date in YYYY-MM-DD format. Defaults to today (ISR timezone).
 
     Returns:
         On success::
@@ -57,7 +59,7 @@ def fetch_daily_fixtures(date: Optional[str] = None) -> Dict[str, Any]:
         On error, ``fixtures`` is ``[]``, ``total`` is ``0``, and
         ``error`` contains a description string.
     """
-    resolved_date: str = date if date is not None else str(date_type.today())
+    resolved_date: str = date if date is not None else str(today_isr())
 
     error_base: Dict[str, Any] = {
         "date": resolved_date,
