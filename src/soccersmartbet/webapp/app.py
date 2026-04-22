@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from soccersmartbet.db import get_cursor
@@ -55,6 +55,11 @@ app.include_router(stats_router)
 
 # Wave 12B: AI insights endpoint (async job manager + LLM call)
 app.include_router(insights_router)
+
+
+@app.get("/", include_in_schema=False)
+async def _root_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/today", status_code=307)
 
 
 # ---------------------------------------------------------------------------
