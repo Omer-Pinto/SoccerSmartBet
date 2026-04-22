@@ -483,7 +483,7 @@ Design mockup: `docs/wave10/mockup_today_v2.html` (carnival/Waka-Waka aesthetic,
 2. **Flow mutex = `daily_runs.status` + `SELECT ... FOR UPDATE NOWAIT`.** No `asyncio.Lock`. No in-memory flags. DB is the system of record.
 3. **Keep sync `graph.invoke()` + `asyncio.to_thread` bridge.** Do NOT convert nodes to async. LangGraph's own thread pool handles `Send()` fan-out; we don't resize or touch it.
 4. **Status visibility = 2–5s polling** of `GET /api/status/today` with server-side 1s TTL cache. No SSE, no WebSocket.
-5. **Connection pool required before first HTTP endpoint.** `psycopg2.pool.ThreadedConnectionPool` (size 5). Replace per-call `psycopg2.connect()` in `daily_runs.py` and every new module.
+5. **Connection pool required before first HTTP endpoint.** `psycopg_pool.ConnectionPool` (psycopg3, min=1 / max=10). Replace per-call `psycopg2.connect()` in `daily_runs.py` and every new module. (Pre-existing flow code under `gambling_flow/`, `pre_gambling_flow/`, `post_games_flow/`, `team_registry`, `reports/` stays on direct `psycopg2.connect()` per ai-engineer verdict — fan-out width would starve a bounded pool.)
 6. **All LLM calls from HTTP handlers are async jobs.** Handlers return 202 + job_id within 200ms; dashboard polls for completion. Sync LLM-in-handler is forbidden.
 7. **Bet edits**: allowed only when `daily_runs.gambling_completed_at IS NOT NULL` for that bet's date AND `game.kickoff_time - now_isr() > 30min`. Enforce in SQL (CHECK or trigger) AND in API layer. Every edit appends to `bet_edits`.
 8. **Force-rerun path**: transactional cleanup — DELETE `games` + `game_reports` + `expert_game_reports` for that `run_date` BEFORE re-inserting. Bump `attempt_count`.
@@ -528,7 +528,7 @@ CREATE INDEX IF NOT EXISTS idx_games_league ON games(league);
 
 ---
 
-## Wave 10 — Dashboard Platform Foundation ⬜ NOT STARTED (1 agent)
+## Wave 10 — Dashboard Platform Foundation 🟡 CODE + DDL DONE — AWAITING BOT RESTART + ENDPOINT VERIFICATION (1 agent)
 
 Single-agent wave. Blocks Waves 11 and 12. Everything downstream consumes this foundation.
 
@@ -540,7 +540,7 @@ Single-agent wave. Blocks Waves 11 and 12. Everything downstream consumes this f
 |---|-------------|--------|-------|
 | 1 | FastAPI app shell | `src/soccersmartbet/webapp/app.py` | Bind to `127.0.0.1:8083`. Static-file serving for HTML/JS from `webapp/static/`. Single error-handler middleware. No auth. |
 | 2 | Uvicorn lifecycle integration | `src/soccersmartbet/telegram/triggers.py` | Replace `application.run_polling()` with manual `initialize()` / `updater.start_polling()` / `start()` sequence, then `asyncio.gather(uvicorn.Server(config).serve(), _wall_clock_poller())`. Graceful shutdown. |
-| 3 | Connection pool | `src/soccersmartbet/db.py` (new module) | `psycopg2.pool.ThreadedConnectionPool` (size 5). Context-manager helper. Replace all `psycopg2.connect()` call-sites in `daily_runs.py`. Subsequent waves use this module. |
+| 3 | Connection pool | `src/soccersmartbet/db.py` (new module) | `psycopg_pool.ConnectionPool` (psycopg3, min=1 / max=10). Context-manager helpers `get_conn()` / `get_cursor()`. Replace all `psycopg2.connect()` call-sites in `daily_runs.py`. Subsequent waves use this module. |
 | 4 | Schema migration | `deployment/db/init/001_create_schema.sql` | Stage the SQL block above. Do NOT apply to live DB — await Omer's explicit OK before `docker exec ... psql ...`. |
 | 5 | Audit write helpers | `src/soccersmartbet/webapp/audit.py` (new) | `write_run_event(run_date, event_type, triggered_by, payload)` and `write_bet_edit(bet_id, field, old, new, source)`. Used by every subsequent trigger/edit path. |
 | 6 | Mutex helper | `src/soccersmartbet/webapp/run_mutex.py` (new) | `acquire_flow(run_date, flow_type)` function: opens a transaction, `SELECT status FROM daily_runs WHERE run_date = %s FOR UPDATE NOWAIT`, validates state transition, writes new `status`, commits. Returns `RunContext` / raises `FlowConflict` (HTTP 409). |
