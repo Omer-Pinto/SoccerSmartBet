@@ -364,7 +364,7 @@ function renderMatches() {
   els.tbodyMatches.innerHTML = "";
   _matches.forEach((bet, idx) => {
     const game = bet.game || {};
-    const kickoffMs = kickoffMillis(game.match_date, game.kickoff_time);
+    const kickoffMs = kickoffMillis(game.kickoff_iso);
     const locked = isLocked(kickoffMs);
 
     // Main bet row
@@ -494,7 +494,7 @@ function tickChips() {
     const betRow = document.getElementById(`bet-row-${bet.bet_id}`);
     if (!chip) return;
 
-    const kickoffMs = kickoffMillis(game.match_date, game.kickoff_time);
+    const kickoffMs = kickoffMillis(game.kickoff_iso);
     const msLeft = kickoffMs - Date.now();
     const minLeft = msLeft / 60000;
 
@@ -533,12 +533,13 @@ function formatCountdown(msLeft) {
   return `${s}s`;
 }
 
-function kickoffMillis(matchDate, kickoffTime) {
-  if (!matchDate || !kickoffTime) return Infinity;
-  // kickoffTime is "HH:MM" or "HH:MM:SS" already in ISR.
-  // Assumption: browser TZ matches server ISR (loopback-only dashboard). DST (UTC+2/+3) is NOT compensated here.
-  const dt = new Date(`${matchDate}T${kickoffTime.slice(0, 5)}:00`);
-  return dt.getTime();
+function kickoffMillis(kickoffIso) {
+  // kickoffIso is an ISO-8601 string with explicit ISR offset supplied by the
+  // server, e.g. "2026-04-22T20:00:00+03:00".  The Date constructor respects
+  // the offset, so this is TZ-correct regardless of the browser's local TZ.
+  if (!kickoffIso) return Infinity;
+  const ms = new Date(kickoffIso).getTime();
+  return isNaN(ms) ? Infinity : ms;
 }
 
 function isLocked(kickoffMs) {
@@ -609,7 +610,7 @@ function updateModRibbon() {
   let earliest = Infinity;
   _matches.forEach(bet => {
     const game = bet.game || {};
-    const ms = kickoffMillis(game.match_date, game.kickoff_time);
+    const ms = kickoffMillis(game.kickoff_iso);
     if (ms < earliest) earliest = ms;
   });
 

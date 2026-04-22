@@ -530,6 +530,13 @@ async def today_data() -> dict:
         cur.execute(today_pnl_sql, (today,))
         pnl_rows = cur.fetchall()
 
+    def _kickoff_iso(mdate, kickoff_t) -> str:
+        """Build an ISO-8601 string with explicit ISR offset, e.g. '2026-04-22T20:00:00+03:00'."""
+        return isr_datetime(
+            mdate.year, mdate.month, mdate.day,
+            kickoff_t.hour, kickoff_t.minute, kickoff_t.second,
+        ).isoformat()
+
     bets = [
         {
             "bet_id": r[0],
@@ -544,6 +551,7 @@ async def today_data() -> dict:
             "game": {
                 "game_id": r[1],
                 "kickoff_time": r[9].strftime("%H:%M"),
+                "kickoff_iso": _kickoff_iso(r[10], r[9]),
                 "match_date": r[10].isoformat(),
                 "home_team": r[11],
                 "away_team": r[12],
