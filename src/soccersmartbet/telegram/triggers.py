@@ -518,4 +518,8 @@ async def start_scheduler() -> None:
         # Give cancelled tasks a brief chance to finalize
         await asyncio.gather(server_task, poller_task, return_exceptions=True)
 
+    # Close the psycopg3 pool so its worker threads exit and the process can terminate
+    from soccersmartbet.db import close_pool  # noqa: PLC0415
+    close_pool()
+
     logger.info("Graceful shutdown complete")

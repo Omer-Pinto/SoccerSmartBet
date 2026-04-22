@@ -1,13 +1,8 @@
 """Database connection pool for SoccerSmartBet.
 
-Module-level psycopg_pool.ConnectionPool (min=1, max=10). All Wave 10+
-modules must import get_conn() / get_cursor() from here instead of calling
+Module-level psycopg_pool.ConnectionPool (min=1, max=25). All modules must
+import get_conn() / get_cursor() from here instead of calling
 psycopg.connect() directly.
-
-NOTE: The 14 direct-connect call-sites in gambling_flow/, pre_gambling_flow/,
-post_games_flow/, team_registry.py, and reports/ are intentionally excluded
-from this pool (fan-out isolation; see ai-engineer decision).
-This pool is for Wave 10 dashboard / webapp code only.
 """
 from __future__ import annotations
 
@@ -27,13 +22,24 @@ def _get_pool() -> ConnectionPool:
     """Return the module-level connection pool, creating it on first call."""
     global _pool
     if _pool is None:
+        pool_max = int(os.getenv("DATABASE_POOL_MAX", "25"))
         _pool = ConnectionPool(
             conninfo=DATABASE_URL,
             min_size=1,
-            max_size=10,
+            max_size=pool_max,
             open=True,
         )
     return _pool
+
+
+def close_pool() -> None:
+    """Close the module-level pool. Call from start_scheduler shutdown so
+    psycopg3's pool worker threads stop and the process can exit cleanly.
+    """
+    global _pool
+    if _pool is not None:
+        _pool.close()
+        _pool = None
 
 
 @contextmanager

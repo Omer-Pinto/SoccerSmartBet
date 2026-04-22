@@ -9,16 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 
-import psycopg2
-
+from soccersmartbet.db import get_cursor
 from soccersmartbet.gambling_flow.state import GamblingState
 from soccersmartbet.telegram.bot import send_message
 
 logger = logging.getLogger(__name__)
-
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 _FETCH_GAME_NAMES_SQL = """
 SELECT game_id, home_team, away_team
@@ -86,15 +82,10 @@ def notify_gambling_result(state: GamblingState) -> dict:
     game_ids: list[int] = state.get("game_ids", [])
     game_names: dict[int, tuple[str, str]] = {}
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(_FETCH_GAME_NAMES_SQL, {"game_ids": game_ids})
-                for row in cur.fetchall():
-                    game_names[row[0]] = (row[1], row[2])
-    finally:
-        conn.close()
+    with get_cursor(commit=False) as cur:
+        cur.execute(_FETCH_GAME_NAMES_SQL, {"game_ids": game_ids})
+        for row in cur.fetchall():
+            game_names[row[0]] = (row[1], row[2])
 
     # Index bets by game_id
     user_bets_map: dict[int, dict] = {}

@@ -17,7 +17,7 @@ import threading
 import unicodedata
 from typing import Optional
 
-import psycopg2
+from soccersmartbet.db import get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -40,28 +40,23 @@ def _load_from_db() -> list[dict]:
             "DATABASE_URL environment variable is not set; cannot load team registry from DB."
         )
 
-    conn = psycopg2.connect(database_url)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        canonical_name,
-                        short_name,
-                        aliases,
-                        fotmob_id,
-                        football_data_id,
-                        winner_name_he,
-                        league,
-                        country
-                    FROM teams
-                    ORDER BY canonical_name
-                    """
-                )
-                rows = cur.fetchall()
-    finally:
-        conn.close()
+    with get_cursor(commit=False) as cur:
+        cur.execute(
+            """
+            SELECT
+                canonical_name,
+                short_name,
+                aliases,
+                fotmob_id,
+                football_data_id,
+                winner_name_he,
+                league,
+                country
+            FROM teams
+            ORDER BY canonical_name
+            """
+        )
+        rows = cur.fetchall()
 
     teams: list[dict] = []
     for row in rows:
@@ -79,7 +74,7 @@ def _load_from_db() -> list[dict]:
             {
                 "canonical_name": canonical_name,
                 "short_name": short_name,
-                # psycopg2 returns JSONB as a Python object (list or None)
+                # psycopg3 returns JSONB as a Python object (list or None)
                 "aliases": aliases if isinstance(aliases, list) else [],
                 "fotmob_id": fotmob_id,
                 "football_data_id": football_data_id,

@@ -8,16 +8,12 @@ them by real primary keys.
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
-
-import psycopg2
 
 logger = logging.getLogger(__name__)
 
+from soccersmartbet.db import get_conn
 from soccersmartbet.pre_gambling_flow.state import GameContext, Phase, PreGamblingState
-
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 _INSERT_SQL = """
 INSERT INTO games (
@@ -74,29 +70,26 @@ def persist_games(state: PreGamblingState) -> dict[str, Any]:
 
     game_ids: list[int] = []
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                for game in games:
-                    cur.execute(
-                        _INSERT_SQL,
-                        {
-                            "match_date": game["match_date"],
-                            "kickoff_time": game["kickoff_time"],
-                            "home_team": game["home_team"],
-                            "away_team": game["away_team"],
-                            "league": game["league"],
-                            "venue": game["venue"],
-                            "home_win_odd": game["home_win_odd"],
-                            "away_win_odd": game["away_win_odd"],
-                            "draw_odd": game["draw_odd"],
-                        },
-                    )
-                    row = cur.fetchone()
-                    game_ids.append(row[0])
-    finally:
-        conn.close()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for game in games:
+                cur.execute(
+                    _INSERT_SQL,
+                    {
+                        "match_date": game["match_date"],
+                        "kickoff_time": game["kickoff_time"],
+                        "home_team": game["home_team"],
+                        "away_team": game["away_team"],
+                        "league": game["league"],
+                        "venue": game["venue"],
+                        "home_win_odd": game["home_win_odd"],
+                        "away_win_odd": game["away_win_odd"],
+                        "draw_odd": game["draw_odd"],
+                    },
+                )
+                row = cur.fetchone()
+                game_ids.append(row[0])
+        conn.commit()
 
     logger.info("persist_games: inserted game_ids=%s", game_ids)
 

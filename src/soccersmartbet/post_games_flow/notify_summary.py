@@ -9,16 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 
-import psycopg2
-
+from soccersmartbet.db import get_conn
 from soccersmartbet.post_games_flow.state import PostGamesState, SkippedGame
 from soccersmartbet.telegram.bot import send_message
 
 logger = logging.getLogger(__name__)
-
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 _FETCH_GAMES_SQL = """
 SELECT game_id, home_team, away_team, home_score, away_score, outcome
@@ -74,46 +70,43 @@ def notify_daily_summary(state: PostGamesState) -> dict:
     game_ids: list[int] = state["game_ids"]
     pnl_summary: dict = state.get("pnl_summary", {})
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                # Game metadata + results
-                cur.execute(_FETCH_GAMES_SQL, {"game_ids": game_ids})
-                games = {
-                    row[0]: {
-                        "home_team": row[1],
-                        "away_team": row[2],
-                        "home_score": row[3],
-                        "away_score": row[4],
-                        "outcome": row[5],
-                    }
-                    for row in cur.fetchall()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Game metadata + results
+            cur.execute(_FETCH_GAMES_SQL, {"game_ids": game_ids})
+            games = {
+                row[0]: {
+                    "home_team": row[1],
+                    "away_team": row[2],
+                    "home_score": row[3],
+                    "away_score": row[4],
+                    "outcome": row[5],
+                }
+                for row in cur.fetchall()
+            }
+
+            # Bets indexed by (game_id, bettor)
+            cur.execute(_FETCH_BETS_SQL, {"game_ids": game_ids})
+            bets: dict[tuple, dict] = {}
+            for row in cur.fetchall():
+                bets[(row[0], row[1])] = {
+                    "prediction": row[2],
+                    "odds": float(row[3]),
+                    "stake": float(row[4]),
+                    "pnl": float(row[5]) if row[5] is not None else 0.0,
                 }
 
-                # Bets indexed by (game_id, bettor)
-                cur.execute(_FETCH_BETS_SQL, {"game_ids": game_ids})
-                bets: dict[tuple, dict] = {}
-                for row in cur.fetchall():
-                    bets[(row[0], row[1])] = {
-                        "prediction": row[2],
-                        "odds": float(row[3]),
-                        "stake": float(row[4]),
-                        "pnl": float(row[5]) if row[5] is not None else 0.0,
-                    }
-
-                # Bankroll totals
-                cur.execute(_FETCH_BANKROLL_SQL)
-                bankroll: dict[str, dict] = {
-                    row[0]: {
-                        "total": float(row[1]),
-                        "won": row[2],
-                        "lost": row[3],
-                    }
-                    for row in cur.fetchall()
+            # Bankroll totals
+            cur.execute(_FETCH_BANKROLL_SQL)
+            bankroll: dict[str, dict] = {
+                row[0]: {
+                    "total": float(row[1]),
+                    "won": row[2],
+                    "lost": row[3],
                 }
-    finally:
-        conn.close()
+                for row in cur.fetchall()
+            }
+        # read-only: no commit needed
 
     lines: list[str] = ["\U0001f4ca <b>Daily Results</b>", ""]
 
