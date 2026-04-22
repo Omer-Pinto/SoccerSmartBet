@@ -1,0 +1,347 @@
+"""Filter AST → parameterized SQL compiler.
+
+Takes the list of :class:`~soccersmartbet.webapp.query.parser.FilterClause`
+objects produced by the parser and emits a SQL WHERE clause using **named
+psycopg3 ``%(name)s`` parameter binding only** — never f-string interpolation
+of user values.
+
+Base SELECT (owned by this module; Wave 12 routes call ``compile()`` and embed
+the result)::
+
+    SELECT b.bet_id, b.bettor, b.prediction, b.stake, b.odds, b.result,
+           b.pnl, b.placed_at,
+           g.game_id, g.home_team, g.away_team, g.kickoff_time,
+           g.league, g.outcome, g.home_score, g.away_score
+    FROM bets b
+    JOIN games g ON b.game_id = g.game_id
+    WHERE <compiled_where>
+    ORDER BY g.kickoff_time DESC
+    LIMIT %(row_cap)s
+
+``b.placed_at`` is listed for completeness; it is NULL until the column is
+added to the live DB (Wave 10 DDL pending Omer's approval).
+"""
+from __future__ import annotations
+
+from typing import Any
+
+from soccersmartbet.webapp.query.parser import FilterClause, ParseError
+
+# ---------------------------------------------------------------------------
+# Public SQL constant (Wave 12 routes embed this)
+# ---------------------------------------------------------------------------
+
+BASE_SELECT: str = """
+SELECT
+    b.bet_id,
+    b.bettor,
+    b.prediction,
+    b.stake,
+    b.odds,
+    b.result,
+    b.pnl,
+    b.placed_at,
+    g.game_id,
+    g.home_team,
+    g.away_team,
+    g.kickoff_time,
+    g.league,
+    g.outcome,
+    g.home_score,
+    g.away_score
+FROM bets b
+JOIN games g ON b.game_id = g.game_id
+""".strip()
+
+_ORDER_LIMIT: str = "ORDER BY g.kickoff_time DESC\nLIMIT %(row_cap)s"
+
+# ---------------------------------------------------------------------------
+# Column mapping
+# ---------------------------------------------------------------------------
+
+# Keys that map to a simple column expression (used for eq / in / range ops).
+_COLUMN_MAP: dict[str, str] = {
+    "league": "g.league",
+    "stake": "b.stake",
+    "odds": "b.odds",
+    "outcome": "g.outcome",
+    "bettor": "b.bettor",
+    "prediction": "b.prediction",
+}
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _param_name(base: str, idx: int, sub: int | None = None) -> str:
+    """Generate a unique, safe parameter name.
+
+    Args:
+        base: DSL key name (already validated — alphanumeric only).
+        idx: Clause position in the AST (0-based).
+        sub: Sub-index within a list value, or ``None`` for scalar.
+
+    Returns:
+        A string safe for use as a psycopg3 ``%(name)s`` placeholder.
+    """
+    if sub is None:
+        return f"p_{base}_{idx}"
+    return f"p_{base}_{idx}_{sub}"
+
+
+def _compile_clause(
+    clause: FilterClause,
+    idx: int,
+    params: dict[str, Any],
+) -> str:
+    """Compile a single :class:`FilterClause` to a SQL fragment.
+
+    All user values are placed into *params* — never interpolated into SQL.
+
+    Args:
+        clause: The parsed clause to compile.
+        idx: Position index used to generate unique parameter names.
+        params: Mutable dict that receives the parameter bindings.
+
+    Returns:
+        A SQL fragment (without leading/trailing whitespace) to be joined with
+        AND.
+
+    Raises:
+        ParseError: If the key is not supported by the compiler (should not
+            happen after parser validation, but kept as a safety net).
+    """
+    key = clause.key
+    op = clause.op
+    values = clause.values
+
+    # -----------------------------------------------------------------------
+    # Special keys with custom SQL shapes
+    # -----------------------------------------------------------------------
+
+    if key == "team":
+        return _compile_team(clause, idx, params)
+
+    if key == "date":
+        return _compile_date(clause, idx, params)
+
+    if key == "month":
+        return _compile_month(clause, idx, params)
+
+    # -----------------------------------------------------------------------
+    # Generic column-mapped keys
+    # -----------------------------------------------------------------------
+
+    col = _COLUMN_MAP.get(key)
+    if col is None:
+        raise ParseError(f"Compiler has no mapping for key: {key!r}")
+
+    fragment = _compile_generic(col, clause, idx, params)
+    if clause.negated:
+        fragment = f"NOT ({fragment})"
+    return fragment
+
+
+def _compile_generic(
+    col: str,
+    clause: FilterClause,
+    idx: int,
+    params: dict[str, Any],
+) -> str:
+    """Compile a generic (non-special) clause for a direct column expression."""
+    op = clause.op
+    values = clause.values
+
+    if op == "eq":
+        pname = _param_name(clause.key, idx)
+        params[pname] = values[0]
+        return f"{col} ILIKE %({pname})s" if _is_text_key(clause.key) else f"{col} = %({pname})s"
+
+    if op == "negated":
+        pname = _param_name(clause.key, idx)
+        params[pname] = values[0]
+        return (
+            f"NOT ({col} ILIKE %({pname})s)"
+            if _is_text_key(clause.key)
+            else f"NOT ({col} = %({pname})s)"
+        )
+
+    if op == "in":
+        frags = []
+        for sub_i, val in enumerate(values):
+            pname = _param_name(clause.key, idx, sub_i)
+            params[pname] = val
+            frags.append(f"%({pname})s")
+        in_list = ", ".join(frags)
+        return f"{col} IN ({in_list})"
+
+    if op == "between":
+        lo_name = _param_name(clause.key, idx, 0)
+        hi_name = _param_name(clause.key, idx, 1)
+        params[lo_name] = values[0]
+        params[hi_name] = values[1]
+        return f"{col} BETWEEN %({lo_name})s AND %({hi_name})s"
+
+    if op == "gt":
+        pname = _param_name(clause.key, idx)
+        params[pname] = values[0]
+        return f"{col} > %({pname})s"
+
+    if op == "gte":
+        pname = _param_name(clause.key, idx)
+        params[pname] = values[0]
+        return f"{col} >= %({pname})s"
+
+    if op == "lt":
+        pname = _param_name(clause.key, idx)
+        params[pname] = values[0]
+        return f"{col} < %({pname})s"
+
+    if op == "lte":
+        pname = _param_name(clause.key, idx)
+        params[pname] = values[0]
+        return f"{col} <= %({pname})s"
+
+    raise ParseError(f"Unknown op: {op!r}")  # pragma: no cover
+
+
+def _is_text_key(key: str) -> bool:
+    """Return True for keys whose column values are text (use ILIKE)."""
+    return key in {"league", "outcome", "bettor", "prediction"}
+
+
+def _compile_team(
+    clause: FilterClause,
+    idx: int,
+    params: dict[str, Any],
+) -> str:
+    """Compile ``team`` clause to a home-or-away ILIKE pattern.
+
+    Negated: wraps in NOT (...).
+    List values: each team becomes its own home-or-away fragment, joined OR.
+    """
+    op = clause.op
+    values = clause.values
+
+    def _team_pair(val: str, pname: str) -> str:
+        params[pname] = f"%{val}%"
+        return f"(g.home_team ILIKE %({pname})s OR g.away_team ILIKE %({pname})s)"
+
+    if op in {"eq", "negated"}:
+        pname = _param_name("team", idx)
+        frag = _team_pair(values[0], pname)
+        if op == "negated" or clause.negated:
+            frag = f"NOT {frag}"
+        return frag
+
+    if op == "in":
+        sub_frags = []
+        for sub_i, val in enumerate(values):
+            pname = _param_name("team", idx, sub_i)
+            sub_frags.append(_team_pair(val, pname))
+        combined = " OR ".join(sub_frags)
+        result = f"({combined})" if len(sub_frags) > 1 else combined
+        if clause.negated:
+            result = f"NOT ({result})"
+        return result
+
+    raise ParseError(f"Operator {op!r} is not supported for 'team'")
+
+
+def _compile_date(
+    clause: FilterClause,
+    idx: int,
+    params: dict[str, Any],
+) -> str:
+    """Compile ``date`` clause.
+
+    The kickoff column is a TIMESTAMPTZ; we extract the date in ISR time.
+    ``DATE(g.kickoff_time AT TIME ZONE 'Asia/Jerusalem')``.
+    """
+    col = "DATE(g.kickoff_time AT TIME ZONE 'Asia/Jerusalem')"
+    frag = _compile_generic(col, clause, idx, params)
+    if clause.negated and clause.op not in {"negated"}:
+        frag = f"NOT ({frag})"
+    return frag
+
+
+def _compile_month(
+    clause: FilterClause,
+    idx: int,
+    params: dict[str, Any],
+) -> str:
+    """Compile ``month`` clause.
+
+    Accepts ``YYYY-MM`` (e.g. ``2026-04``) or ``MM`` (e.g. ``04``).
+
+    The parser treats ``month:2026-04`` as a ``between`` op with values
+    ``(2026.0, 4.0)`` because it looks like a numeric range.  We detect this
+    pattern here by checking for the ``between`` op and values where the first
+    is >= 1000 (i.e. a year) — treating it as a YYYY-MM eq form.
+
+    For a bare month number the op is ``eq`` with a single int/float value.
+
+    ISR-aware: extracts from ``kickoff_time AT TIME ZONE 'Asia/Jerusalem'``.
+    """
+    op = clause.op
+    values = clause.values
+    tz_expr = "g.kickoff_time AT TIME ZONE 'Asia/Jerusalem'"
+
+    # Detect YYYY-MM encoded as between(year, month) by the parser.
+    if op == "between" and len(values) == 2 and float(values[0]) >= 1000:
+        year_val = int(values[0])
+        mon_val = int(values[1])
+        year_pname = _param_name("month_year", idx)
+        mon_pname = _param_name("month_mon", idx)
+        params[year_pname] = year_val
+        params[mon_pname] = mon_val
+        frag = (
+            f"(EXTRACT(YEAR FROM {tz_expr}) = %({year_pname})s"
+            f" AND EXTRACT(MONTH FROM {tz_expr}) = %({mon_pname})s)"
+        )
+    else:
+        # Bare MM: eq / negated with a single numeric value.
+        mon_pname = _param_name("month_mon", idx)
+        params[mon_pname] = int(float(values[0]))
+        frag = f"EXTRACT(MONTH FROM {tz_expr}) = %({mon_pname})s"
+
+    if clause.negated or op == "negated":
+        frag = f"NOT ({frag})"
+    return frag
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def compile(  # noqa: A001  (shadows built-in; intentional for readability)
+    ast: list[FilterClause],
+    row_cap: int = 2000,
+) -> tuple[str, dict[str, Any]]:
+    """Compile a parsed filter AST into a full SQL query and parameter dict.
+
+    Args:
+        ast: Output of :func:`~soccersmartbet.webapp.query.parser.parse`.
+        row_cap: Maximum rows to return.  Hard cap is 2000; Wave 12 routes
+            may pass a stricter value (e.g. 500 for AI-insights endpoints).
+
+    Returns:
+        A ``(sql, params)`` tuple.  ``sql`` is the complete ready-to-execute
+        query string using ``%(name)s`` placeholders.  ``params`` is the
+        corresponding parameter dict.
+    """
+    row_cap = min(row_cap, 2000)
+    params: dict[str, Any] = {"row_cap": row_cap}
+
+    if not ast:
+        where_clause = "TRUE"
+    else:
+        fragments: list[str] = []
+        for idx, clause in enumerate(ast):
+            fragments.append(_compile_clause(clause, idx, params))
+        where_clause = "\n  AND ".join(fragments)
+
+    sql = f"{BASE_SELECT}\nWHERE {where_clause}\n{_ORDER_LIMIT}"
+    return sql, params
