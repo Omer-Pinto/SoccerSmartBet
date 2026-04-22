@@ -152,6 +152,17 @@ def test_date_clause_uses_match_date() -> None:
     assert "g.match_date" in sql
 
 
+def test_date_eq_param_is_iso_string() -> None:
+    """Regression: date eq param must be '2026-04-15', not '2026 04 15' (no spaces)."""
+    _, params = _compile("date:2026-04-15")
+    value_params = {k: v for k, v in params.items() if k != "row_cap"}
+    assert len(value_params) == 1
+    bound = next(iter(value_params.values()))
+    assert bound == "2026-04-15", (
+        f"Expected '2026-04-15' but got {bound!r} — hyphens must not be expanded to spaces"
+    )
+
+
 def test_month_clause_extracts_year_and_month() -> None:
     sql, params = _compile("month:2026-04")
     assert "EXTRACT(YEAR" in sql
@@ -160,6 +171,16 @@ def test_month_clause_extracts_year_and_month() -> None:
     assert "Asia/Jerusalem" in sql
     assert "g.match_date" in sql
     assert "g.kickoff_time" in sql
+
+
+def test_month_eq_params_are_integers() -> None:
+    """Regression: month:YYYY-MM must bind integer year and month, not floats or strings."""
+    _, params = _compile("month:2026-04")
+    value_params = {k: v for k, v in params.items() if k != "row_cap"}
+    assert len(value_params) == 2
+    values = set(value_params.values())
+    assert 2026 in values, f"Year 2026 not found in params: {value_params}"
+    assert 4 in values, f"Month 4 not found in params: {value_params}"
 
 
 def test_bettor_clause() -> None:

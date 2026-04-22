@@ -218,16 +218,36 @@ def test_unknown_key_message_contains_key() -> None:
 def test_date_plain_eq() -> None:
     clauses = parse("date:2026-04-15")
     c = clauses[0]
-    # "2026-04-15" splits to "2026", "04", "15" — three parts — so NOT between.
-    # It should be treated as an eq plain value.
+    # "2026-04-15" must NOT be slug-expanded to "2026 04 15".
+    # The ISO short-circuit must fire and return the value verbatim.
     assert c.key == "date"
     assert c.op == "eq"
+    assert c.values == ("2026-04-15",), (
+        f"Expected ('2026-04-15',) but got {c.values!r} — hyphens must not be expanded"
+    )
+
+
+def test_date_plain_eq_value_is_iso_string() -> None:
+    """Regression: date eq value must be the raw ISO string, not space-separated."""
+    clauses = parse("date:2026-04-15")
+    assert clauses[0].values[0] == "2026-04-15"
 
 
 def test_date_gte_range() -> None:
     clauses = parse("date:>=2026-04-01")
     c = clauses[0]
     assert c.op == "gte"
+    assert c.values == ("2026-04-01",)
+
+
+def test_month_plain_eq_value_is_iso_string() -> None:
+    """Regression: month:YYYY-MM value must be the raw ISO string, not parsed as between."""
+    clauses = parse("month:2026-04")
+    c = clauses[0]
+    assert c.op == "eq"
+    assert c.values == ("2026-04",), (
+        f"Expected ('2026-04',) but got {c.values!r} — hyphens must not be expanded"
+    )
 
 
 # ---------------------------------------------------------------------------

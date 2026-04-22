@@ -117,8 +117,6 @@ def _compile_clause(
             happen after parser validation, but kept as a safety net).
     """
     key = clause.key
-    op = clause.op
-    values = clause.values
 
     # -----------------------------------------------------------------------
     # Special keys with custom SQL shapes
@@ -279,12 +277,9 @@ def _compile_month(
 
     Accepts ``YYYY-MM`` (e.g. ``2026-04``) or ``MM`` (e.g. ``04``).
 
-    The parser treats ``month:2026-04`` as a ``between`` op with values
-    ``(2026.0, 4.0)`` because it looks like a numeric range.  We detect this
-    pattern here by checking for the ``between`` op and values where the first
-    is >= 1000 (i.e. a year) — treating it as a YYYY-MM eq form.
-
-    For a bare month number the op is ``eq`` with a single int/float value.
+    The parser now returns ``("eq", ("2026-04",), False)`` for YYYY-MM values
+    (ISO year-month short-circuit).  For a bare month number the op is ``eq``
+    with a single numeric string (e.g. ``"04"``).
 
     ISR-aware: ``games.kickoff_time`` is ``TIME NOT NULL`` and
     ``games.match_date`` is ``DATE NOT NULL``.  PostgreSQL's ``DATE + TIME``
@@ -296,10 +291,10 @@ def _compile_month(
     values = clause.values
     tz_expr = "(g.match_date + g.kickoff_time)::TIMESTAMP AT TIME ZONE 'Asia/Jerusalem'"
 
-    # Detect YYYY-MM encoded as between(year, month) by the parser.
-    if op == "between" and len(values) == 2 and float(values[0]) >= 1000:
-        year_val = int(values[0])
-        mon_val = int(values[1])
+    # YYYY-MM eq: parser emits ("eq", ("2026-04",), False) via ISO short-circuit.
+    if op == "eq" and len(values) == 1 and isinstance(values[0], str) and "-" in values[0]:
+        year_str, mon_str = values[0].split("-", 1)
+        year_val, mon_val = int(year_str), int(mon_str)
         year_pname = _param_name("month_year", idx)
         mon_pname = _param_name("month_mon", idx)
         params[year_pname] = year_val

@@ -78,6 +78,8 @@ _RE_RANGE_OP = re.compile(r"^(>=|<=|>|<)(.+)$")
 _RE_NUMERIC = re.compile(r"^-?\d+(\.\d+)?$")
 # Matches an ISO date string (YYYY-MM-DD) for date-key range support
 _RE_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Matches a YYYY-MM year-month string (e.g. 2026-04)
+_RE_ISO_YEAR_MONTH = re.compile(r"^\d{4}-\d{2}$")
 _RE_CLAUSE = re.compile(r'^([a-zA-Z]+):("(?:[^"]*)"|[^\s]+)')
 _RE_TOKEN_SPLIT = re.compile(r'"[^"]*"|[^,]+')
 
@@ -102,10 +104,9 @@ def _strip_quotes(token: str) -> str:
     return token
 
 
-def _parse_value(raw: str) -> FilterClause | None:
+def _parse_value(raw: str) -> tuple[str, tuple[Any, ...], bool]:
     """Parse a raw value string into ``(op, values, negated)``.
 
-    Returns ``None`` if the caller should re-parse ``raw`` as a plain list.
     This helper is called *after* the key has already been extracted.
 
     Raises:
@@ -130,6 +131,16 @@ def _parse_value(raw: str) -> FilterClause | None:
             # Date strings are kept as strings; compiler handles SQL date casting.
             return (op_map[op_sym], (val_str,), False)
         raise ParseError(f"Expected a number or date after '{op_sym}', got: {val_str!r}")
+
+    # ISO date short-circuit: YYYY-MM-DD must not be slug-expanded (hyphen→space).
+    # This must run BEFORE the numeric-range split so "2026-04-15" is not parsed
+    # as a between(2026, 4) followed by leftover "-15".
+    if _RE_ISO_DATE.match(raw):
+        return ("eq", (raw,), False)
+
+    # ISO year-month short-circuit: YYYY-MM must remain intact for the compiler.
+    if _RE_ISO_YEAR_MONTH.match(raw):
+        return ("eq", (raw,), False)
 
     # Comma-separated list (may include quoted tokens)
     list_tokens = [t.strip() for t in _RE_TOKEN_SPLIT.findall(raw)]
