@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from soccersmartbet.db import get_conn, get_cursor
-from soccersmartbet.utils.timezone import now_isr, today_isr, format_isr_time
+from soccersmartbet.utils.timezone import format_isr_time, isr_datetime, now_isr, today_isr
 from soccersmartbet.webapp.audit import EventType, write_run_event
 from soccersmartbet.webapp.run_mutex import (
     FlowConflict,
@@ -308,9 +308,6 @@ async def patch_bet(bet_id: int, body: BetPatchRequest):
     if body.prediction is None and body.stake is None:
         raise HTTPException(status_code=400, detail="Provide at least one of: prediction, stake")
 
-    # prediction is already canonical lowercase — Literal["1", "x", "2"] enforces this at the API boundary.
-    prediction = body.prediction
-
     # --- fetch current bet + game + daily_runs row ---
     with get_cursor(commit=False) as cur:
         cur.execute(
@@ -362,8 +359,6 @@ async def patch_bet(bet_id: int, body: BetPatchRequest):
         )
 
     # Guard B: must be > 30 minutes before kickoff
-    from soccersmartbet.utils.timezone import isr_datetime  # noqa: PLC0415
-
     kickoff_dt = isr_datetime(
         match_date.year,
         match_date.month,
@@ -386,7 +381,7 @@ async def patch_bet(bet_id: int, body: BetPatchRequest):
         )
 
     # Apply changes
-    new_prediction = prediction if prediction is not None else old_prediction
+    new_prediction = body.prediction if body.prediction is not None else old_prediction
     new_stake = Decimal(str(body.stake)) if body.stake is not None else old_stake
 
     if new_stake <= 0:
@@ -408,7 +403,7 @@ async def patch_bet(bet_id: int, body: BetPatchRequest):
                 """,
                 (new_prediction, new_stake, bet_id),
             )
-            if prediction is not None and prediction != old_prediction:
+            if body.prediction is not None and body.prediction != old_prediction:
                 cur.execute(
                     """
                     INSERT INTO bet_edits (bet_id, field, old_value, new_value, source)
