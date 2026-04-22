@@ -4,6 +4,7 @@ import asyncio
 import logging
 import signal
 from datetime import date
+from typing import Coroutine, Any
 
 import uvicorn
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -33,6 +34,20 @@ logger = logging.getLogger(__name__)
 # Pre-gambling trigger time (ISR) — set to 08:35 for testing, revert to 13:00 for production
 _PRE_GAMBLING_HOUR = 8
 _PRE_GAMBLING_MINUTE = 35
+
+# ---------------------------------------------------------------------------
+# In-flight flow task registry (C1/C4)
+# ---------------------------------------------------------------------------
+
+_ACTIVE_FLOW_TASKS: set[asyncio.Task] = set()
+
+
+def _spawn_flow(coro: Coroutine[Any, Any, Any]) -> asyncio.Task:
+    """Create a task, register it, and auto-remove on completion."""
+    task = asyncio.create_task(coro)
+    _ACTIVE_FLOW_TASKS.add(task)
+    task.add_done_callback(_ACTIVE_FLOW_TASKS.discard)
+    return task
 
 
 async def _send_operator_alert(text: str) -> None:
@@ -108,6 +123,7 @@ async def trigger_pre_gambling_and_notify() -> None:
             "Re-trigger manually when ready."
         )
         await _send_operator_alert(alert_text)
+        # Re-raised for future Wave 11 HTTP-route exception handling; poller's bare except logs it.
         raise
 
     game_ids: list[int] = result.get("games_to_analyze", [])
@@ -118,7 +134,12 @@ async def trigger_pre_gambling_and_notify() -> None:
         game_ids,
     )
 
-    release_flow(today, "pre_gambling_done")
+    try:
+        release_flow(today, "pre_gambling_done")
+    except Exception as exc:
+        logger.exception("release_flow failed — marking flow failed instead")
+        mark_failed(today, exc)
+        raise
     elapsed = (now_isr() - started).total_seconds()
     write_run_event(
         today,
@@ -224,7 +245,7 @@ async def _wall_clock_poller(application: Application) -> None:
                         now.strftime("%H:%M"),
                         "none" if daily is None else "no started_at",
                     )
-                    asyncio.create_task(trigger_pre_gambling_and_notify())
+                    _spawn_flow(trigger_pre_gambling_and_notify())
 
                 elif daily.get("status") in (
                     "pre_gambling_running",
@@ -249,7 +270,7 @@ async def _wall_clock_poller(application: Application) -> None:
                     pending["post_games_trigger_at"].strftime("%H:%M"),
                     pending["run_date"],
                 )
-                asyncio.create_task(_fire_post_games(pending["game_ids"], pending["run_date"]))
+                _spawn_flow(_fire_post_games(pending["game_ids"], pending["run_date"]))
 
         except Exception:
             logger.exception("Wall-clock poller: unhandled error in polling loop")
@@ -305,9 +326,15 @@ async def _fire_post_games(game_ids: list[int], today: date) -> None:
             "To re-run manually: use the dashboard or wait for the next poller tick."
         )
         await _send_operator_alert(alert_text)
+        # Re-raised for future Wave 11 HTTP-route exception handling; poller's bare except logs it.
         raise
 
-    release_flow(today, "post_games_done")
+    try:
+        release_flow(today, "post_games_done")
+    except Exception as exc:
+        logger.exception("release_flow failed — marking flow failed instead")
+        mark_failed(today, exc)
+        raise
     elapsed = (now_isr() - started).total_seconds()
     write_run_event(
         today,
@@ -464,6 +491,20 @@ async def start_scheduler() -> None:
     await application.stop()
     await application.shutdown()
     poller_task.cancel()
+
+    # Drain in-flight flow tasks before cancelling server/poller (C1/C4)
+    if _ACTIVE_FLOW_TASKS:
+        logger.info("Shutdown: draining %d in-flight flow task(s)", len(_ACTIVE_FLOW_TASKS))
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*_ACTIVE_FLOW_TASKS, return_exceptions=True),
+                timeout=20,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Shutdown: flow drain timed out — cancelling")
+            for t in _ACTIVE_FLOW_TASKS:
+                t.cancel()
+            await asyncio.gather(*_ACTIVE_FLOW_TASKS, return_exceptions=True)
 
     try:
         await asyncio.wait_for(

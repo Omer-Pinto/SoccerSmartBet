@@ -275,13 +275,15 @@ CREATE INDEX IF NOT EXISTS idx_run_events_date_time ON run_events(run_date, trig
 CREATE TABLE IF NOT EXISTS bet_edits (
     edit_id    SERIAL PRIMARY KEY,
     bet_id     INTEGER NOT NULL REFERENCES bets(bet_id) ON DELETE CASCADE,
-    field      VARCHAR(30) NOT NULL,
+    field      VARCHAR(30) NOT NULL CHECK (field IN ('prediction', 'stake')),
     old_value  TEXT,
     new_value  TEXT,
     edited_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     source     VARCHAR(20) NOT NULL DEFAULT 'dashboard'
 );
 CREATE INDEX IF NOT EXISTS idx_bet_edits_bet ON bet_edits(bet_id);
+
+COMMENT ON TABLE run_events IS 'Append-only audit log. Intentionally NO FK to daily_runs(run_date) so events outlive their parent row (e.g. after manual purge). Orphan accumulation is bounded.';
 
 CREATE INDEX IF NOT EXISTS idx_bets_bettor ON bets(bettor);
 CREATE INDEX IF NOT EXISTS idx_games_league ON games(league);

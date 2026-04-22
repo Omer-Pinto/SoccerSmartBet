@@ -5,6 +5,7 @@ No auth, no SSE, no WebSocket — polling only.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time as _time
 from pathlib import Path
@@ -30,6 +31,7 @@ from soccersmartbet.webapp.runtime_state import LAST_POLLER_TICK
 # Status cache: key "today" → (payload_dict, cached_at_isr)
 # ---------------------------------------------------------------------------
 _STATUS_CACHE: dict[str, tuple[dict, Any]] = {}
+_STATUS_LOCK = asyncio.Lock()
 
 # ---------------------------------------------------------------------------
 # FastAPI app
@@ -181,19 +183,24 @@ def _fetch_status_from_db() -> dict:
     }
 
 
-def _get_cached_status() -> dict:
-    """Return status payload with 1-second server-side TTL cache."""
+async def _get_cached_status() -> dict:
+    """Return status payload with 1-second server-side TTL cache.
+
+    Uses _STATUS_LOCK to prevent concurrent DB fetches on cache miss
+    (cache stampede / race condition guard).
+    """
     now = now_isr()
-    if "today" in _STATUS_CACHE:
-        payload, cached_at = _STATUS_CACHE["today"]
-        if (now - cached_at).total_seconds() < 1.0:
-            return payload
-    payload = _fetch_status_from_db()
-    _STATUS_CACHE["today"] = (payload, now)
-    return payload
+    async with _STATUS_LOCK:
+        if "today" in _STATUS_CACHE:
+            payload, cached_at = _STATUS_CACHE["today"]
+            if (now - cached_at).total_seconds() < 1.0:
+                return payload
+        payload = _fetch_status_from_db()
+        _STATUS_CACHE["today"] = (payload, now)
+        return payload
 
 
 @app.get("/api/status/today")
 async def status_today() -> dict:
     """Return daily_runs row + last 10 run_events for today (1s TTL cache)."""
-    return _get_cached_status()
+    return await _get_cached_status()

@@ -6,10 +6,9 @@ CURRENT_TIMESTAMP (TIMESTAMPTZ, Asia/Jerusalem).
 """
 from __future__ import annotations
 
-import json
 from datetime import date
 
-import psycopg2.extras
+from psycopg.types.json import Jsonb
 
 from soccersmartbet.db import get_cursor
 
@@ -40,7 +39,7 @@ def write_run_event(
         run_date: The date this event belongs to.
         event_type: One of the EventType constants.
         triggered_by: One of 'scheduler', 'manual', 'recovery'.
-        payload: Optional JSONB payload dict. Serialised via psycopg2 Json adapter.
+        payload: Optional JSONB payload dict. Serialised via psycopg3 Jsonb adapter.
 
     Returns:
         The new event_id (SERIAL).
@@ -54,7 +53,7 @@ def write_run_event(
         "run_date": run_date,
         "event_type": event_type,
         "triggered_by": triggered_by,
-        "payload": psycopg2.extras.Json(payload) if payload is not None else None,
+        "payload": Jsonb(payload) if payload is not None else None,
     }
     with get_cursor(commit=True) as cur:
         cur.execute(sql, params)

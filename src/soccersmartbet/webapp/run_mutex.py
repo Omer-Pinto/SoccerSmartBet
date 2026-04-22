@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Generator
 
-import psycopg2
-import psycopg2.errors
+import psycopg
+import psycopg.errors
 
 from soccersmartbet.db import get_conn
 
@@ -56,9 +56,11 @@ _TRANSITIONS: frozenset[tuple[str, str]] = frozenset(
     [
         ("idle", "pre_gambling_running"),
         ("pre_gambling_done", "gambling_running"),       # Wave 11 hook
+        ("pre_gambling_done", "post_games_running"),     # B3: direct pre→post path (no gambling phase)
         ("gambling_done", "post_games_running"),
         ("post_games_done", "idle"),                     # close-of-day reset
         ("failed", "pre_gambling_running"),              # next-day retry / same-day re-fire
+        ("failed", "gambling_running"),                  # B2: Wave 11 re-fire from failed state
         ("failed", "post_games_running"),                # post-games-only re-fire
         ("pre_gambling_running", "pre_gambling_done"),   # success terminal
         ("pre_gambling_running", "failed"),              # crash terminal
@@ -158,11 +160,16 @@ def acquire_flow(
                         """,
                         (run_date,),
                     )
-                except psycopg2.errors.LockNotAvailable:
+                except psycopg.errors.LockNotAvailable:
                     conn.rollback()
                     raise FlowConflict("locked")
 
                 row = cur.fetchone()
+                if row is None:
+                    conn.rollback()
+                    raise RuntimeError(
+                        f"daily_runs row for {run_date} disappeared after upsert — DB integrity violation"
+                    )
                 current_status: str = row[0]
                 current_attempt: int = row[1]
 
@@ -275,7 +282,7 @@ def mark_failed(run_date: date, error: Exception) -> None:
                     "SELECT status FROM daily_runs WHERE run_date = %s FOR UPDATE NOWAIT",
                     (run_date,),
                 )
-            except psycopg2.errors.LockNotAvailable:
+            except psycopg.errors.LockNotAvailable:
                 conn.rollback()
                 logger.warning(
                     "mark_failed: row for %s briefly locked by another session — skipping mark; original error: %s",
