@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from soccersmartbet.team_registry import normalize_team_name
-from soccersmartbet.utils.timezone import ISR_TZ, now_isr
+from soccersmartbet.utils.timezone import isr_datetime, now_isr
 
 FOTMOB_LEAGUES = {
     "Premier League": 47, "La Liga": 87, "Serie A": 55, "Bundesliga": 54,
@@ -24,7 +24,7 @@ _league_cache: Dict[int, Dict[str, Any]] = {}
 _cache_time: Dict[int, datetime] = {}
 CACHE_TTL = timedelta(minutes=60)
 
-_CACHE_EPOCH = datetime(2000, 1, 1, tzinfo=ISR_TZ)
+_CACHE_EPOCH = isr_datetime(2000, 1, 1)
 
 
 def _generate_xmas_header(url: str) -> str:

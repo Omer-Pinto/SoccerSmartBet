@@ -69,6 +69,7 @@ def run_post_games_flow(game_ids: list[int]) -> dict:
         "game_ids": game_ids,
         "results": {},
         "pnl_summary": {},
+        "skipped_games": [],
     }
 
     result = graph.invoke(initial_state)

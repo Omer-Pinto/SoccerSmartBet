@@ -1,11 +1,11 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-19 (post-migration) | **Branch:** major_report_refactor
+> **Last updated:** 2026-04-22 (Wave 9 complete) | **Branch:** wave9
 
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜] 8/13 waves done
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 9/13 waves done
 ```
 
 | What | Status |
@@ -38,7 +38,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜] 8/13 waves done
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
 | 8 | 🟢 Done | Report refactor track: 8A + 8B + 8C + 8E done. 8D skipped. Live-DB migration applied 2026-04-19 (backup: `~/soccersmartbet_backup_before_wave8_20260418_163145.sql`, 360KB, zero row loss). |
-| 9 | ⬜ Not Started | Robustness carryovers: 9A missing-results alert, 9B no-games verify, 9C startup-recovery verify. Independent of Wave 8. |
+| 9 | 🟢 Done | Robustness carryovers: 9A missing-results alert (#55), 9B no-games-day verification + fetch-failure conflation fix (#62), 9C startup-recovery verified (no code change). Post-review pass added operator Telegram alerts on pre-gambling AND post-games crashes, `TELEGRAM_CHAT_ID` startup check, date-embedded no-games callbacks, and zeroed all remaining timezone-rule violations (two new helpers: `today_isr()`, `isr_datetime()`). Bug #63 filed for the deferred not-finished-games edge case. Branch `wave9`, 13 commits. |
 | 10 | ⬜ Not Started | Offline Analysis Flow — multi-day gambling view. Deferred until enough betting data accumulated. |
 | 11 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
 | 12 | 🟡 Partial | Competition expansion + polish: Israeli league + CL/EL done. Euro/WC + backup pending. |
@@ -231,13 +231,17 @@ Accepted design deviations from the original plan (approved by Omer during v3–
 
 ---
 
-## Wave 9 — Robustness Carryovers ⬜ NOT STARTED (independent of Wave 8)
+## Wave 9 — Robustness Carryovers 🟢 DONE (2026-04-22)
 
-| # | Agent | Type | Status |
-|---|-------|------|--------|
-| 9A | Post-Games Missing-Results Alert (#55) | python-pro | ⬜ Pending |
-| 9B | No-Games-Day Robustness Verification | python-pro | ⬜ Pending |
-| 9C | Startup Recovery Verification | python-pro | ⬜ Pending |
+| # | Agent | Status |
+|---|-------|--------|
+| 9A | Post-Games Missing-Results Alert (#55) | 🟢 Done |
+| 9B | No-Games-Day Robustness + Fetch-Failure Fix (#62) | 🟢 Done |
+| 9C | Startup Recovery Verification | 🟢 Done (no code change) |
+
+**Bottom line**: skipped games now surface in Telegram; fetch failures no longer masquerade as no-games days; post-games can't double-fire on crash; no-games callback survives midnight; `TELEGRAM_CHAT_ID` checked at startup; zero remaining timezone-rule violations (new helpers `today_isr()`, `isr_datetime()`). No DB / schema changes. Branch `wave9`, 14 commits.
+
+Issues: #55 closed, #62 closed, #63 filed (not-yet-finished edge case, low priority).
 
 ---
 

@@ -8,13 +8,12 @@ the main site first.
 
 import json
 import uuid
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 import requests
 
 from soccersmartbet.team_registry import resolve_team, get_source_name_he
-from soccersmartbet.utils.timezone import ISR_TZ
+from soccersmartbet.utils.timezone import isr_datetime
 
 # API Configuration
 _BASE_URL = "https://www.winner.co.il"
@@ -119,7 +118,7 @@ def _parse_edate(e_date: int, m_hour: str) -> Optional[str]:
         day = int(date_str[4:6])
         hour = int(m_hour[0:2])
         minute = int(m_hour[2:4])
-        dt = datetime(year, month, day, hour, minute, tzinfo=ISR_TZ)
+        dt = isr_datetime(year, month, day, hour, minute)
         return dt.isoformat()
     except Exception:
         return None

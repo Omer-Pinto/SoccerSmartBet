@@ -11,7 +11,7 @@ import os
 
 import psycopg2
 
-from soccersmartbet.post_games_flow.state import PostGamesState
+from soccersmartbet.post_games_flow.state import PostGamesState, SkippedGame
 from soccersmartbet.pre_gambling_flow.tools.fotmob_client import get_fotmob_client
 from soccersmartbet.team_registry import resolve_team
 
@@ -96,6 +96,7 @@ def fetch_results(state: PostGamesState) -> dict:
 
     client = get_fotmob_client()
     results: dict[int, dict] = {}
+    skipped_games: list[SkippedGame] = []
 
     conn = psycopg2.connect(DATABASE_URL)
     try:
@@ -105,11 +106,25 @@ def fetch_results(state: PostGamesState) -> dict:
                     fotmob_id = _get_fotmob_id(cur, client, game["home_team"])
                     if not fotmob_id:
                         logger.warning("fetch_results: no FotMob ID for %s", game["home_team"])
+                        skipped_games.append(SkippedGame(
+                            game_id=game_id,
+                            home_team=game["home_team"],
+                            away_team=game["away_team"],
+                            match_date=game["match_date"],
+                            reason="no FotMob team ID for home team",
+                        ))
                         continue
 
                     team_data = client.get_team_data(fotmob_id)
                     if not team_data:
                         logger.warning("fetch_results: no FotMob data for %s", game["home_team"])
+                        skipped_games.append(SkippedGame(
+                            game_id=game_id,
+                            home_team=game["home_team"],
+                            away_team=game["away_team"],
+                            match_date=game["match_date"],
+                            reason="FotMob returned no team data",
+                        ))
                         continue
 
                     fixtures = team_data.get("overview", {}).get("overviewFixtures", [])
@@ -120,6 +135,13 @@ def fetch_results(state: PostGamesState) -> dict:
                             "fetch_results: game_id=%d no fixture found for %s vs %s on %s",
                             game_id, game["home_team"], game["away_team"], game["match_date"],
                         )
+                        skipped_games.append(SkippedGame(
+                            game_id=game_id,
+                            home_team=game["home_team"],
+                            away_team=game["away_team"],
+                            match_date=game["match_date"],
+                            reason="no FotMob fixture match",
+                        ))
                         continue
 
                     if not match.get("status", {}).get("finished", False):
@@ -149,5 +171,8 @@ def fetch_results(state: PostGamesState) -> dict:
     finally:
         conn.close()
 
-    logger.info("fetch_results: matched and updated %d/%d game(s)", len(results), len(game_ids))
-    return {"results": results}
+    logger.info(
+        "fetch_results: matched and updated %d/%d game(s), skipped %d",
+        len(results), len(game_ids), len(skipped_games),
+    )
+    return {"results": results, "skipped_games": skipped_games}

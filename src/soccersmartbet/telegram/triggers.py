@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime
+from datetime import date
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -18,15 +18,36 @@ from soccersmartbet.daily_runs import get_daily_run, get_pending_post_games, ups
 from soccersmartbet.gambling_flow.handlers import handle_gamble_callback
 from soccersmartbet.telegram.bot import (
     TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHAT_ID,
     is_owner,
 )
-from soccersmartbet.utils.timezone import ISR_TZ, now_isr
+from soccersmartbet.utils.timezone import now_isr
 
 logger = logging.getLogger(__name__)
 
 # Pre-gambling trigger time (ISR) — set to 08:35 for testing, revert to 13:00 for production
 _PRE_GAMBLING_HOUR = 8
 _PRE_GAMBLING_MINUTE = 35
+
+
+async def _send_operator_alert(text: str) -> None:
+    """Send an HTML-formatted operator alert to the owner chat.
+
+    Swallows send failures (logged via logger.exception) so the caller's
+    error-recovery flow is never blocked by a Telegram outage.
+    """
+    from telegram import Bot  # noqa: PLC0415
+
+    try:
+        bot = Bot(token=TELEGRAM_BOT_TOKEN)
+        async with bot:
+            await bot.send_message(
+                chat_id=int(TELEGRAM_CHAT_ID),
+                text=text,
+                parse_mode="HTML",
+            )
+    except Exception:
+        logger.exception("Failed to send operator alert via Telegram")
 
 
 async def trigger_pre_gambling_and_notify() -> None:
@@ -44,7 +65,22 @@ async def trigger_pre_gambling_and_notify() -> None:
     logger.info("Pre-gambling flow trigger fired for %s", today)
     upsert_daily_run(today, pre_gambling_started_at=now_isr())
 
-    result = await asyncio.to_thread(run_pre_gambling_flow)
+    try:
+        result = await asyncio.to_thread(run_pre_gambling_flow)
+    except Exception as exc:
+        alert_text = (
+            "❗ <b>Pre-gambling flow FAILED</b>\n\n"
+            f"<b>Error type:</b> {type(exc).__name__}\n"
+            f"<b>Message:</b> {exc}\n\n"
+            f"<b>Time:</b> {now_isr().strftime('%Y-%m-%d %H:%M ISR')}\n\n"
+            "The <code>daily_runs</code> row is left in a crashed state "
+            "(<code>pre_gambling_started_at</code> set, "
+            "<code>pre_gambling_completed_at</code> null). "
+            "The wall-clock poller will NOT re-fire automatically.\n\n"
+            "Please investigate logs and manually re-trigger when ready."
+        )
+        await _send_operator_alert(alert_text)
+        raise
 
     game_ids: list[int] = result.get("games_to_analyze", [])
     games_found = len(game_ids)
@@ -62,7 +98,6 @@ async def trigger_pre_gambling_and_notify() -> None:
 
     if not game_ids:
         logger.info("No games selected — sending no-games confirmation prompt")
-        from soccersmartbet.telegram.bot import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID  # noqa: PLC0415
         from telegram import Bot  # noqa: PLC0415
 
         text = (
@@ -71,10 +106,11 @@ async def trigger_pre_gambling_and_notify() -> None:
             "This could be a real no-games day or a bug in the picker.\n\n"
             "Does this make sense to you?"
         )
+        today_iso = today.isoformat()
         keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("\u2705 Yes, expected", callback_data="no_games_yes"),
-                InlineKeyboardButton("\u274c No, looks wrong", callback_data="no_games_no"),
+                InlineKeyboardButton("\u2705 Yes, expected", callback_data=f"no_games_yes:{today_iso}"),
+                InlineKeyboardButton("\u274c No, looks wrong", callback_data=f"no_games_no:{today_iso}"),
             ]
         ])
         bot = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -172,7 +208,24 @@ async def _fire_post_games(game_ids: list[int], today: date) -> None:
     from soccersmartbet.post_games_flow.graph_manager import run_post_games_flow  # noqa: PLC0415
 
     logger.info("Post-games flow starting for game_ids=%s", game_ids)
-    await asyncio.to_thread(run_post_games_flow, game_ids)
+    try:
+        await asyncio.to_thread(run_post_games_flow, game_ids)
+    except Exception as exc:
+        alert_text = (
+            "❗ <b>Post-games flow FAILED</b>\n\n"
+            f"<b>Error type:</b> {type(exc).__name__}\n"
+            f"<b>Message:</b> {exc}\n\n"
+            f"<b>Time:</b> {now_isr().strftime('%Y-%m-%d %H:%M ISR')}\n\n"
+            "The <code>daily_runs</code> row is being marked complete to prevent "
+            "duplicate P&L application on the next poller tick.\n\n"
+            "To re-run manually: null out <code>post_games_completed_at</code> "
+            "in the DB for this date, then wait for the next poller tick or "
+            "trigger directly."
+        )
+        await _send_operator_alert(alert_text)
+        upsert_daily_run(today, post_games_completed_at=now_isr())
+        raise
+
     upsert_daily_run(today, post_games_completed_at=now_isr())
     logger.info("Post-games flow completed and daily_runs updated")
 
@@ -207,17 +260,24 @@ async def _handle_no_games_callback(
     await query.answer()
     data: str = query.data or ""
 
-    today = now_isr().date()
+    # Parse the date embedded in callback_data (e.g. "no_games_yes:2026-04-22").
+    # Using the send-time date avoids midnight edge cases where the callback
+    # arrives after ISR midnight and now_isr().date() would be the next day.
+    action, _, date_str = data.partition(":")
+    try:
+        target_date = date.fromisoformat(date_str) if date_str else now_isr().date()
+    except ValueError:
+        target_date = now_isr().date()
 
-    if data == "no_games_yes":
-        upsert_daily_run(today, no_games_user_confirmed=True)
+    if action == "no_games_yes":
+        upsert_daily_run(target_date, no_games_user_confirmed=True)
         await query.edit_message_text(
             "\u2705 Got it — no games today, confirmed as expected.",
             parse_mode="HTML",
         )
         logger.info("No-games day confirmed by user as expected")
-    elif data == "no_games_no":
-        upsert_daily_run(today, no_games_user_confirmed=False)
+    elif action == "no_games_no":
+        upsert_daily_run(target_date, no_games_user_confirmed=False)
         await query.edit_message_text(
             "\u274c Noted — something may be wrong with game selection. "
             "Logged for investigation.",
@@ -256,6 +316,8 @@ def start_scheduler() -> None:
     """
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN must be set to start the scheduler.")
+    if not TELEGRAM_CHAT_ID:
+        raise RuntimeError("TELEGRAM_CHAT_ID must be set to start the scheduler.")
 
     application = (
         Application.builder()

@@ -13,7 +13,7 @@ import os
 
 import psycopg2
 
-from soccersmartbet.post_games_flow.state import PostGamesState
+from soccersmartbet.post_games_flow.state import PostGamesState, SkippedGame
 from soccersmartbet.telegram.bot import send_message
 
 logger = logging.getLogger(__name__)
@@ -165,8 +165,23 @@ def notify_daily_summary(state: PostGamesState) -> dict:
         total_fmt = f"{br['total']:,.0f}"
         lines.append(f"  {label}: {total_fmt} NIS ({br['won']}W / {br['lost']}L)")
 
+    skipped_games: list[SkippedGame] = state["skipped_games"]
+    if skipped_games:
+        lines.append("")
+        lines.append("━" * 16)
+        lines.append("⚠️ <b>Missing Results</b>")
+        lines.append(f"<i>{len(skipped_games)} game(s) could not be resolved — no PnL recorded.</i>")
+        for skip in skipped_games:
+            lines.append(
+                f"  • <b>{skip['home_team']} vs {skip['away_team']}</b>"
+                f" ({skip['match_date']}) — {skip['reason']}"
+            )
+
     text = "\n".join(lines)
 
     asyncio.run(send_message(text, parse_mode="HTML"))
-    logger.info("notify_daily_summary: sent summary for %d game(s)", len(game_ids))
+    logger.info(
+        "notify_daily_summary: sent summary for %d game(s), %d skipped",
+        len(game_ids), len(skipped_games),
+    )
     return {}
