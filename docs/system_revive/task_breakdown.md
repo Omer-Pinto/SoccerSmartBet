@@ -475,7 +475,7 @@ Unrelated to the report refactor. Can run any time — files are disjoint from W
 
 The dashboard is split across three waves because of real dependencies — Wave 11 can only start after Wave 10 lands, Wave 12 can only start after Wave 11 lands. Within each wave, agents run in parallel in isolated worktrees.
 
-Design mockup: `docs/wave10/mockup_today_v2.html` (carnival/Waka-Waka aesthetic, approved).
+Aesthetic: carnival/Waka-Waka — tokens live in `webapp/static/today.css` and `webapp/static/shared.css`.
 
 ### Architectural constraints (LOCKED for all three waves — change requires Omer's explicit OK)
 

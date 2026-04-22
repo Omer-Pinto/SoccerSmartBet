@@ -274,7 +274,7 @@ Two commits on this branch: `5d6c45d` (initial), `9766394` (psycopg3 migration +
 | 4 | New schema additions applied to live DB (after explicit OK) | 🟢 Done 2026-04-22 |
 | 5 | `run_events` gets one row per flow fire (scheduler writes via the new helper) | ⏳ Auto-confirms at tonight's 01:30 post-games fire (will also confirm #1) |
 
-Architectural constraints (single process, `daily_runs.status` mutex with `SELECT FOR UPDATE NOWAIT`, sync `graph.invoke` + `asyncio.to_thread`, 2-5s polling, conn pool, no async node rewrite, no SSE, no second process, no auth) are LOCKED — see `task_breakdown.md`. Design mockup: `docs/wave10/mockup_today_v2.html`.
+Architectural constraints (single process, `daily_runs.status` mutex with `SELECT FOR UPDATE NOWAIT`, sync `graph.invoke` + `asyncio.to_thread`, 2-5s polling, conn pool, no async node rewrite, no SSE, no second process, no auth) are LOCKED — see `task_breakdown.md`.
 
 ---
 
@@ -291,7 +291,7 @@ Ran via `/parallel-wave-executor` on branch `Dashboard-Platform-Foundation`. Bot
 
 **11A — Today tab:**
 - `webapp/routes/today.py` — `POST /api/runs` (pre_gambling / post_games / regenerate_report, with `force=true` transactional cleanup of report rows only — games + bets preserved after the cascade-wipe reviewer catch), `PATCH /api/bets/{bet_id}` with dual-layer window enforcement (Python + DB trigger) executed in a single atomic transaction, `GET /today`, `/api/today/data`, `/api/today/pnl`.
-- `webapp/static/today.{html,css,js}` — carnival aesthetic per `docs/wave10/mockup_today_v2.html`, live status strip (2.5s poll), 4 control buttons with two-phase Force Override + retyped-date modal, inline bet-row edits with countdown chips (green/amber/red), 30-day P&L inline-SVG sparkline (no chart library).
+- `webapp/static/today.{html,css,js}` — carnival aesthetic (tokens in `webapp/static/today.css` + `shared.css`), live status strip (2.5s poll), 4 control buttons with two-phase Force Override + retyped-date modal, inline bet-row edits with countdown chips (green/amber/red), 30-day P&L inline-SVG sparkline (no chart library).
 - `webapp/app.py` — router mount.
 - `webapp/run_mutex.py` — comment explaining why `pre_gambling_done → pre_gambling_running` is intentionally absent (regen goes via Force Override).
 
