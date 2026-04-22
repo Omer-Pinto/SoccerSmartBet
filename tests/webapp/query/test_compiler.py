@@ -320,3 +320,90 @@ def test_negated_outcome_draw_maps_to_x() -> None:
     assert "NOT" in sql
     assert "g.outcome = " in sql
     assert "x" in params.values()
+
+
+# ---------------------------------------------------------------------------
+# 7. Repeated-key OR grouping (Bug 2)
+# ---------------------------------------------------------------------------
+
+
+def _where_fragment(sql: str) -> str:
+    """Extract the WHERE clause content for comparison."""
+    return sql.split("WHERE")[1].split("ORDER BY")[0].strip()
+
+
+def test_repeated_league_compiles_to_or() -> None:
+    """league:pl league:bundesliga -> (g.league ILIKE %s OR g.league ILIKE %s)."""
+    sql, params = _compile("league:pl league:bundesliga")
+    where = _where_fragment(sql)
+    assert "OR" in where
+    # Both values bound
+    value_params = {k: v for k, v in params.items() if k != "row_cap"}
+    assert len(value_params) == 2
+    assert any("pl" in str(v) for v in value_params.values())
+    assert any("bundesliga" in str(v) for v in value_params.values())
+
+
+def test_repeated_league_parens_wrap_or_group() -> None:
+    sql, _ = _compile("league:pl league:bundesliga")
+    where = _where_fragment(sql)
+    # The OR group must be enclosed in parentheses
+    assert "(" in where
+    assert "OR" in where
+
+
+def test_repeated_league_vs_comma_list_equivalent() -> None:
+    """league:pl league:bundesliga and league:pl,bundesliga are semantically equivalent.
+
+    Both forms must bind the same set of values against the same column.
+    """
+    sql_repeated, params_repeated = _compile("league:pl league:bundesliga")
+    sql_comma, params_comma = _compile("league:pl,bundesliga")
+
+    vals_repeated = frozenset(v for k, v in params_repeated.items() if k != "row_cap")
+    vals_comma = frozenset(v for k, v in params_comma.items() if k != "row_cap")
+    assert vals_repeated == vals_comma, (
+        f"Repeated form binds {vals_repeated}, comma form binds {vals_comma}"
+    )
+
+    where_rep = _where_fragment(sql_repeated)
+    where_com = _where_fragment(sql_comma)
+    assert "g.league" in where_rep
+    assert "g.league" in where_com
+
+
+def test_repeated_key_with_other_key_grouped_correctly() -> None:
+    """league:pl team:madrid league:bundesliga -> (league OR league) AND team."""
+    sql, params = _compile("league:pl team:madrid league:bundesliga")
+    where = _where_fragment(sql)
+    # Must have AND (between league group and team)
+    assert "AND" in where
+    # Must have OR (within league group)
+    assert "OR" in where
+    # The OR must appear before the AND (league group first)
+    or_pos = where.index("OR")
+    and_pos = where.index("AND")
+    # Parens wrapping the OR group must open before the OR
+    open_paren_pos = where.index("(")
+    assert open_paren_pos < or_pos < and_pos, (
+        f"Expected (league OR league) AND team pattern; got: {where!r}"
+    )
+
+
+def test_negation_in_or_group_semantics() -> None:
+    """league:!elite league:pl -> (NOT (g.league ILIKE %s) OR g.league ILIKE %s).
+
+    Negation is expressed as ``league:!elite`` (value prefix, parser's negated op).
+    Both clauses share key 'league' so the compiler groups them with OR.
+    Negation applies per-clause within the OR group — each clause retains its
+    own NOT wrapper.  'not-elite OR pl' is unusual but not disallowed at the
+    DSL level; we assert it compiles correctly and both values are bound.
+    """
+    sql, params = _compile("league:!elite league:pl")
+    where = _where_fragment(sql)
+    assert "NOT" in where
+    assert "OR" in where
+    # Both values must be bound
+    value_params = {k: v for k, v in params.items() if k != "row_cap"}
+    assert any("elite" in str(v) for v in value_params.values())
+    assert any("pl" in str(v) for v in value_params.values())

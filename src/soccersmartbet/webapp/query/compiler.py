@@ -27,6 +27,7 @@ Note: ``games.kickoff_time`` is ``TIME NOT NULL`` (time-of-day only).
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import Any
 
 from soccersmartbet.webapp.query.parser import FilterClause, ParseError
@@ -402,10 +403,30 @@ def compile(  # noqa: A001  (shadows built-in; intentional for readability)
     if not ast:
         where_clause = "TRUE"
     else:
-        fragments: list[str] = []
+        # Group clauses by key, preserving insertion order.
+        # Clauses with the same key are combined with OR inside parentheses;
+        # distinct-key groups are combined with AND.
+        groups: dict[str, list[tuple[int, FilterClause]]] = defaultdict(list)
+        # Use a list to preserve the first-seen key order for deterministic SQL.
+        key_order: list[str] = []
         for idx, clause in enumerate(ast):
-            fragments.append(_compile_clause(clause, idx, params))
-        where_clause = "\n  AND ".join(fragments)
+            if clause.key not in groups:
+                key_order.append(clause.key)
+            groups[clause.key].append((idx, clause))
+
+        and_fragments: list[str] = []
+        for key in key_order:
+            group = groups[key]
+            if len(group) == 1:
+                idx, clause = group[0]
+                and_fragments.append(_compile_clause(clause, idx, params))
+            else:
+                or_parts: list[str] = []
+                for idx, clause in group:
+                    or_parts.append(_compile_clause(clause, idx, params))
+                and_fragments.append("(" + " OR ".join(or_parts) + ")")
+
+        where_clause = "\n  AND ".join(and_fragments)
 
     sql = f"{BASE_SELECT}\nWHERE {where_clause}\n{_ORDER_LIMIT}"
     return sql, params
