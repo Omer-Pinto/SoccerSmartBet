@@ -30,6 +30,26 @@ _PRE_GAMBLING_HOUR = 8
 _PRE_GAMBLING_MINUTE = 35
 
 
+async def _send_operator_alert(text: str) -> None:
+    """Send an HTML-formatted operator alert to the owner chat.
+
+    Swallows send failures (logged via logger.exception) so the caller's
+    error-recovery flow is never blocked by a Telegram outage.
+    """
+    from telegram import Bot  # noqa: PLC0415
+
+    try:
+        bot = Bot(token=TELEGRAM_BOT_TOKEN)
+        async with bot:
+            await bot.send_message(
+                chat_id=int(TELEGRAM_CHAT_ID),
+                text=text,
+                parse_mode="HTML",
+            )
+    except Exception:
+        logger.exception("Failed to send operator alert via Telegram")
+
+
 async def trigger_pre_gambling_and_notify() -> None:
     """Run the full Pre-Gambling Flow, then notify via Telegram.
 
@@ -48,9 +68,6 @@ async def trigger_pre_gambling_and_notify() -> None:
     try:
         result = await asyncio.to_thread(run_pre_gambling_flow)
     except Exception as exc:
-        from soccersmartbet.telegram.bot import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID  # noqa: PLC0415
-        from telegram import Bot  # noqa: PLC0415
-
         alert_text = (
             "❗ <b>Pre-gambling flow FAILED</b>\n\n"
             f"<b>Error type:</b> {type(exc).__name__}\n"
@@ -62,16 +79,7 @@ async def trigger_pre_gambling_and_notify() -> None:
             "The wall-clock poller will NOT re-fire automatically.\n\n"
             "Please investigate logs and manually re-trigger when ready."
         )
-        try:
-            bot = Bot(token=TELEGRAM_BOT_TOKEN)
-            async with bot:
-                await bot.send_message(
-                    chat_id=int(TELEGRAM_CHAT_ID),
-                    text=alert_text,
-                    parse_mode="HTML",
-                )
-        except Exception:
-            logger.exception("Failed to send pre-gambling failure alert via Telegram")
+        await _send_operator_alert(alert_text)
         raise
 
     game_ids: list[int] = result.get("games_to_analyze", [])
@@ -90,7 +98,6 @@ async def trigger_pre_gambling_and_notify() -> None:
 
     if not game_ids:
         logger.info("No games selected — sending no-games confirmation prompt")
-        from soccersmartbet.telegram.bot import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID  # noqa: PLC0415
         from telegram import Bot  # noqa: PLC0415
 
         text = (
@@ -204,9 +211,6 @@ async def _fire_post_games(game_ids: list[int], today: date) -> None:
     try:
         await asyncio.to_thread(run_post_games_flow, game_ids)
     except Exception as exc:
-        from soccersmartbet.telegram.bot import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID  # noqa: PLC0415
-        from telegram import Bot  # noqa: PLC0415
-
         alert_text = (
             "❗ <b>Post-games flow FAILED</b>\n\n"
             f"<b>Error type:</b> {type(exc).__name__}\n"
@@ -218,16 +222,7 @@ async def _fire_post_games(game_ids: list[int], today: date) -> None:
             "in the DB for this date, then wait for the next poller tick or "
             "trigger directly."
         )
-        try:
-            bot = Bot(token=TELEGRAM_BOT_TOKEN)
-            async with bot:
-                await bot.send_message(
-                    chat_id=int(TELEGRAM_CHAT_ID),
-                    text=alert_text,
-                    parse_mode="HTML",
-                )
-        except Exception:
-            logger.exception("Failed to send post-games failure alert via Telegram")
+        await _send_operator_alert(alert_text)
         upsert_daily_run(today, post_games_completed_at=now_isr())
         raise
 

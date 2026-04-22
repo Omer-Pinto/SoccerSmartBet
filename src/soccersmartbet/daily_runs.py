@@ -6,7 +6,7 @@ from datetime import date, datetime, time, timedelta
 
 import psycopg2
 
-from soccersmartbet.utils.timezone import ISR_TZ, isr_datetime
+from soccersmartbet.utils.timezone import isr_datetime
 
 logger = logging.getLogger(__name__)
 

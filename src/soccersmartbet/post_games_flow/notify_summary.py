@@ -13,7 +13,7 @@ import os
 
 import psycopg2
 
-from soccersmartbet.post_games_flow.state import PostGamesState
+from soccersmartbet.post_games_flow.state import PostGamesState, SkippedGame
 from soccersmartbet.telegram.bot import send_message
 
 logger = logging.getLogger(__name__)
@@ -165,7 +165,7 @@ def notify_daily_summary(state: PostGamesState) -> dict:
         total_fmt = f"{br['total']:,.0f}"
         lines.append(f"  {label}: {total_fmt} NIS ({br['won']}W / {br['lost']}L)")
 
-    skipped_games: list = state["skipped_games"]
+    skipped_games: list[SkippedGame] = state["skipped_games"]
     if skipped_games:
         lines.append("")
         lines.append("━" * 16)
