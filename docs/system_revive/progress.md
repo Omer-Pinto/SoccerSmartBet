@@ -1,11 +1,11 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-19 (post-migration) | **Branch:** major_report_refactor
+> **Last updated:** 2026-04-22 (Wave 9 complete) | **Branch:** wave9
 
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜] 8/13 waves done
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 9/13 waves done
 ```
 
 | What | Status |
@@ -38,7 +38,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜] 8/13 waves done
 | 6 | 🟢 Done | Gambling (6A) + Post-Games (6B). E2E tested. |
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
 | 8 | 🟢 Done | Report refactor track: 8A + 8B + 8C + 8E done. 8D skipped. Live-DB migration applied 2026-04-19 (backup: `~/soccersmartbet_backup_before_wave8_20260418_163145.sql`, 360KB, zero row loss). |
-| 9 | ⬜ Not Started | Robustness carryovers: 9A missing-results alert, 9B no-games verify, 9C startup-recovery verify. Independent of Wave 8. |
+| 9 | 🟢 Done | Robustness carryovers: 9A missing-results alert (#55), 9B no-games-day verification + fetch-failure conflation fix (#62), 9C startup-recovery verified (no code change). Post-review pass added operator Telegram alerts on pre-gambling AND post-games crashes, `TELEGRAM_CHAT_ID` startup check, date-embedded no-games callbacks, and zeroed all remaining timezone-rule violations (two new helpers: `today_isr()`, `isr_datetime()`). Bug #63 filed for the deferred not-finished-games edge case. Branch `wave9`, 13 commits. |
 | 10 | ⬜ Not Started | Offline Analysis Flow — multi-day gambling view. Deferred until enough betting data accumulated. |
 | 11 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
 | 12 | 🟡 Partial | Competition expansion + polish: Israeli league + CL/EL done. Euro/WC + backup pending. |
@@ -231,13 +231,45 @@ Accepted design deviations from the original plan (approved by Omer during v3–
 
 ---
 
-## Wave 9 — Robustness Carryovers ⬜ NOT STARTED (independent of Wave 8)
+## Wave 9 — Robustness Carryovers 🟢 DONE (2026-04-22)
 
-| # | Agent | Type | Status |
-|---|-------|------|--------|
-| 9A | Post-Games Missing-Results Alert (#55) | python-pro | ⬜ Pending |
-| 9B | No-Games-Day Robustness Verification | python-pro | ⬜ Pending |
-| 9C | Startup Recovery Verification | python-pro | ⬜ Pending |
+Executed via `/parallel-wave-executor 4 @docs/system_revive --auto-approve`. Three parallel agents in worktrees → cherry-pick → post-review cleanup → simplify. 13 commits on branch `wave9`.
+
+| # | Agent | Type | Status | Notes |
+|---|-------|------|--------|-------|
+| 9A | Post-Games Missing-Results Alert (#55) | python-pro | 🟢 Done | `SkippedGame` TypedDict + `skipped_games` state field; three silent-skip points in `fetch_results.py` now record reason; `notify_daily_summary` appends a "Missing Results" section to the existing Telegram summary when non-empty. Bug #63 filed for the intentionally-out-of-scope "not yet finished" edge case (low-priority; 3h cushion + winner.co.il auto-settles as X). |
+| 9B | No-Games-Day Robustness + Fetch-Failure Fix (#62) | python-pro | 🟢 Done | Verified no-games path is correct end-to-end. Found and fixed real bug: `smart_game_picker` was ignoring the `error` field from `fetch_daily_fixtures` / `fetch_all_winner_odds`, silently treating fetch failures as genuinely-empty days. Now raises `RuntimeError`, leaves `daily_runs` in crashed state (poller refuses to re-fire without manual intervention). |
+| 9C | Startup Recovery Verification | python-pro | 🟢 Done | No code change. Verified `_wall_clock_poller` correctly recovers missed 08:35 trigger on startup (first iteration runs immediately, no midnight gate). Crash-mid-run protection correct (started_at set, completed_at null → warn + refuse re-fire). Poller registered via `post_init`. |
+
+### Post-review cleanup (consultants + code review flagged these; all fixed in-wave, none deferred)
+
+- **Fix A**: `_fire_post_games` wrapped in try/except + operator Telegram alert + force-complete on failure — prevents double-fire on crash (was: re-run P&L and bankroll updates on next 60s tick).
+- **Fix B**: startup check for `TELEGRAM_CHAT_ID` alongside the existing `TELEGRAM_BOT_TOKEN` check — fail at boot, not buried in an exception handler.
+- **Fix C**: dropped defensive `state.get("skipped_games", [])` → direct access (required TypedDict field; CLAUDE.md no-internal-validation rule).
+- **Fix D**: two remaining raw `datetime(..., tzinfo=ISR_TZ)` calls in `daily_runs.py` and `gambling_flow/handlers.py` → `isr_datetime(...)`.
+- **Fix E**: dead `datetime` import in `triggers.py` removed.
+- **Final cleanup**: last two timezone stragglers in `fotmob_client.py` (_CACHE_EPOCH) and `calculate_recovery_time.py` (naive date-floor via `.replace()`).
+
+### New helpers added to `soccersmartbet.utils.timezone`
+
+- `today_isr() -> date` — drop-in replacement for `date.today()` (which was UTC in Docker).
+- `isr_datetime(year, month, day, hour=0, minute=0, second=0) -> datetime` — wraps the raw constructor with `tzinfo=ISR_TZ`.
+
+### Simplifier pass
+
+Extracted `_send_operator_alert(text)` helper in `triggers.py` (two crash-alert sites were mechanically identical). Dead `ISR_TZ` imports cleaned. `skipped_games` read annotated as `list[SkippedGame]` to match state definition.
+
+### Verification
+
+- Import smoke: `uv run python -c "import ..."` across all 14 touched modules → ALL IMPORTS OK.
+- Timezone grep: zero violations outside `utils/timezone.py`.
+- No live-bot restart: the running 08:35 pre-gambling flow completed before work started; post-games flow at 01:30 tonight will execute on the still-cached (known-good) code. Restart after tonight's post-games completes to pick up Wave 9.
+
+### Issues closed / filed this wave
+
+- #55 — resolved by 9A (missing-results alert)
+- #62 — resolved by 9B (fetch-failure conflation)
+- #63 — filed (not-yet-finished-game edge case, low priority)
 
 ---
 
