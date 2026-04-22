@@ -19,7 +19,7 @@ from telegram.ext import ContextTypes
 
 from soccersmartbet.reports.telegram_message import get_games_info
 from soccersmartbet.telegram.bot import TELEGRAM_CHAT_ID, is_owner
-from soccersmartbet.utils.timezone import ISR_TZ, now_isr
+from soccersmartbet.utils.timezone import ISR_TZ, isr_datetime, now_isr
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ def _fetch_min_kickoff(game_ids: list[int]) -> datetime | None:
 
     kt = row[0]  # datetime.time from psycopg2
     today = now_isr().date()
-    return datetime(today.year, today.month, today.day, kt.hour, kt.minute, tzinfo=ISR_TZ)
+    return isr_datetime(today.year, today.month, today.day, kt.hour, kt.minute)
 
 
 def _fetch_odds(game_ids: list[int]) -> dict[int, tuple[float, float, float]]:

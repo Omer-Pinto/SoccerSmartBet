@@ -6,7 +6,7 @@ from datetime import date, datetime, time, timedelta
 
 import psycopg2
 
-from soccersmartbet.utils.timezone import ISR_TZ
+from soccersmartbet.utils.timezone import ISR_TZ, isr_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -175,11 +175,10 @@ def get_max_kickoff_for_games(game_ids: list[int]) -> datetime | None:
 
     match_date: date = row[0]
     kickoff: time = row[1]
-    return datetime(
+    return isr_datetime(
         match_date.year,
         match_date.month,
         match_date.day,
         kickoff.hour,
         kickoff.minute,
-        tzinfo=ISR_TZ,
     )
