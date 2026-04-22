@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime
+from datetime import date
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
