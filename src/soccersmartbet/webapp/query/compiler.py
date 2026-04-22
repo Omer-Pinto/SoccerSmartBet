@@ -9,17 +9,21 @@ Base SELECT (owned by this module; Wave 12 routes call ``compile()`` and embed
 the result)::
 
     SELECT b.bet_id, b.bettor, b.prediction, b.stake, b.odds, b.result,
-           b.pnl, b.placed_at,
-           g.game_id, g.home_team, g.away_team, g.kickoff_time,
+           b.pnl,
+           g.game_id, g.home_team, g.away_team, g.match_date, g.kickoff_time,
            g.league, g.outcome, g.home_score, g.away_score
     FROM bets b
     JOIN games g ON b.game_id = g.game_id
     WHERE <compiled_where>
-    ORDER BY g.kickoff_time DESC
+    ORDER BY g.match_date DESC, g.kickoff_time DESC
     LIMIT %(row_cap)s
 
-``b.placed_at`` is listed for completeness; it is NULL until the column is
-added to the live DB (Wave 10 DDL pending Omer's approval).
+Note: ``bets`` has no ``placed_at`` column (as of schema v1).  If a future DDL
+adds it, restore it here per CLAUDE.md's live-DDL approval policy.
+
+Note: ``games.kickoff_time`` is ``TIME NOT NULL`` (time-of-day only).
+      ``games.match_date`` is ``DATE NOT NULL`` (ISR-local match date).
+      Both columns are selected and ORDER BY uses both for deterministic sort.
 """
 from __future__ import annotations
 
@@ -40,10 +44,10 @@ SELECT
     b.odds,
     b.result,
     b.pnl,
-    b.placed_at,
     g.game_id,
     g.home_team,
     g.away_team,
+    g.match_date,
     g.kickoff_time,
     g.league,
     g.outcome,
@@ -53,7 +57,7 @@ FROM bets b
 JOIN games g ON b.game_id = g.game_id
 """.strip()
 
-_ORDER_LIMIT: str = "ORDER BY g.kickoff_time DESC\nLIMIT %(row_cap)s"
+_ORDER_LIMIT: str = "ORDER BY g.match_date DESC, g.kickoff_time DESC\nLIMIT %(row_cap)s"
 
 # ---------------------------------------------------------------------------
 # Column mapping
@@ -256,10 +260,10 @@ def _compile_date(
 ) -> str:
     """Compile ``date`` clause.
 
-    The kickoff column is a TIMESTAMPTZ; we extract the date in ISR time.
-    ``DATE(g.kickoff_time AT TIME ZONE 'Asia/Jerusalem')``.
+    ``games.match_date`` is a ``DATE NOT NULL`` column already in ISR-local
+    calendar — no timezone conversion required.  Compare directly.
     """
-    col = "DATE(g.kickoff_time AT TIME ZONE 'Asia/Jerusalem')"
+    col = "g.match_date"
     frag = _compile_generic(col, clause, idx, params)
     if clause.negated and clause.op not in {"negated"}:
         frag = f"NOT ({frag})"
@@ -282,11 +286,15 @@ def _compile_month(
 
     For a bare month number the op is ``eq`` with a single int/float value.
 
-    ISR-aware: extracts from ``kickoff_time AT TIME ZONE 'Asia/Jerusalem'``.
+    ISR-aware: ``games.kickoff_time`` is ``TIME NOT NULL`` and
+    ``games.match_date`` is ``DATE NOT NULL``.  PostgreSQL's ``DATE + TIME``
+    arithmetic yields a ``TIMESTAMP`` (documented), which we then cast to
+    ``TIMESTAMPTZ AT TIME ZONE 'Asia/Jerusalem'`` for correct ISR-local
+    month/year extraction.
     """
     op = clause.op
     values = clause.values
-    tz_expr = "g.kickoff_time AT TIME ZONE 'Asia/Jerusalem'"
+    tz_expr = "(g.match_date + g.kickoff_time)::TIMESTAMP AT TIME ZONE 'Asia/Jerusalem'"
 
     # Detect YYYY-MM encoded as between(year, month) by the parser.
     if op == "between" and len(values) == 2 and float(values[0]) >= 1000:

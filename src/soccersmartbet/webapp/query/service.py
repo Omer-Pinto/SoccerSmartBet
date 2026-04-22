@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 # Column positions in the SELECT (0-based) — must stay in sync with
 # compiler.BASE_SELECT.
+# SELECT order: bet_id, bettor, prediction, stake, odds, result, pnl,
+#               game_id, home_team, away_team, match_date, kickoff_time,
+#               league, outcome, home_score, away_score
 _COL_BET_ID = 0
 _COL_BETTOR = 1
 _COL_PREDICTION = 2
@@ -29,10 +32,10 @@ _COL_STAKE = 3
 _COL_ODDS = 4
 _COL_RESULT = 5
 _COL_PNL = 6
-_COL_PLACED_AT = 7
-_COL_GAME_ID = 8
-_COL_HOME_TEAM = 9
-_COL_AWAY_TEAM = 10
+_COL_GAME_ID = 7
+_COL_HOME_TEAM = 8
+_COL_AWAY_TEAM = 9
+_COL_MATCH_DATE = 10
 _COL_KICKOFF_TIME = 11
 _COL_LEAGUE = 12
 _COL_OUTCOME = 13
@@ -57,10 +60,10 @@ def _row_to_bet_row(raw: tuple) -> BetRow:  # type: ignore[type-arg]
         odds=Decimal(str(raw[_COL_ODDS])),
         result=raw[_COL_RESULT],
         pnl=Decimal(str(raw[_COL_PNL])) if raw[_COL_PNL] is not None else None,
-        placed_at=raw[_COL_PLACED_AT],
         game_id=raw[_COL_GAME_ID],
         home_team=raw[_COL_HOME_TEAM],
         away_team=raw[_COL_AWAY_TEAM],
+        match_date=raw[_COL_MATCH_DATE],
         kickoff_time=raw[_COL_KICKOFF_TIME],
         league=raw[_COL_LEAGUE],
         outcome=raw[_COL_OUTCOME],

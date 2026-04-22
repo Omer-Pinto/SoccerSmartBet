@@ -146,17 +146,20 @@ def test_team_compiles_to_home_or_away() -> None:
     assert "OR" in sql
 
 
-def test_date_clause_uses_at_time_zone() -> None:
+def test_date_clause_uses_match_date() -> None:
+    """date: compiles to direct g.match_date comparison (already ISR-local DATE)."""
     sql, params = _compile("date:2026-04-15")
-    assert "AT TIME ZONE" in sql
-    assert "Asia/Jerusalem" in sql
+    assert "g.match_date" in sql
 
 
 def test_month_clause_extracts_year_and_month() -> None:
     sql, params = _compile("month:2026-04")
     assert "EXTRACT(YEAR" in sql
     assert "EXTRACT(MONTH" in sql
+    # month: builds a TIMESTAMP from match_date + kickoff_time then converts to ISR
     assert "Asia/Jerusalem" in sql
+    assert "g.match_date" in sql
+    assert "g.kickoff_time" in sql
 
 
 def test_bettor_clause() -> None:
@@ -210,11 +213,19 @@ def test_multiple_clauses_joined_with_and() -> None:
 
 def test_base_select_contains_expected_columns() -> None:
     sql, _ = _compile("")
-    for col in ("b.bet_id", "b.stake", "b.odds", "g.league", "g.outcome", "g.kickoff_time"):
+    for col in (
+        "b.bet_id",
+        "b.stake",
+        "b.odds",
+        "g.league",
+        "g.outcome",
+        "g.match_date",
+        "g.kickoff_time",
+    ):
         assert col in sql, f"Expected column {col!r} missing from SELECT"
 
 
 def test_order_limit_present() -> None:
     sql, _ = _compile("")
-    assert "ORDER BY g.kickoff_time DESC" in sql
+    assert "ORDER BY g.match_date DESC, g.kickoff_time DESC" in sql
     assert "LIMIT %(row_cap)s" in sql

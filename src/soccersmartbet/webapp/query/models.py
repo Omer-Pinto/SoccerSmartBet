@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, time
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
@@ -17,6 +17,11 @@ class BetRow(BaseModel):
 
     Column names mirror the SELECT in ``compiler.py`` exactly; no derived
     fields are added here so the model stays a pure mirror of the DB shape.
+
+    Schema notes:
+    - ``bets`` has no ``placed_at`` column (schema v1). Restore if DDL adds it.
+    - ``games.match_date`` is ``DATE NOT NULL`` (ISR-local calendar date).
+    - ``games.kickoff_time`` is ``TIME NOT NULL`` (time-of-day, no TZ info).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -34,14 +39,12 @@ class BetRow(BaseModel):
     game_id: int
     home_team: str
     away_team: str
-    kickoff_time: datetime
+    match_date: date
+    kickoff_time: time
     league: str
     outcome: str | None
     home_score: int | None
     away_score: int | None
-
-    # placed_at may be absent on older rows (column added later)
-    placed_at: datetime | None = None
 
 
 class FilterAggregates(BaseModel):
