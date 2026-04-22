@@ -214,7 +214,7 @@ function renderBetRow(bet) {
   const slug = pathParts[pathParts.length - 1] || "";
   const teamName = decodeURIComponent(slug);
 
-  // Update page title
+  // Update page title with raw slug initially; updated to canonical after API responds
   if (teamName) {
     document.title = `SoccerSmartBet — ${teamName}`;
     document.getElementById("page-title").innerHTML =
@@ -245,6 +245,14 @@ function renderBetRow(bet) {
     errEl.textContent = "Network error: " + e.message;
     errEl.style.display = "block";
     return;
+  }
+
+  // Update heading to canonical name returned by API
+  const canonical = data.team_name;
+  if (canonical) {
+    document.title = `SoccerSmartBet — ${canonical}`;
+    document.getElementById("page-title").innerHTML =
+      `${canonical.toUpperCase().slice(0, 20)}<br><em>STATS</em>`;
   }
 
   // Summary block

@@ -388,6 +388,22 @@ async function fetchAndRender(dsl) {
   container.innerHTML = `<div id="chart-tooltip" class="chart-tooltip"></div>` + buildSvg(points);
   document.getElementById("x-labels").innerHTML = buildXLabels(points);
   attachTooltip();
+
+  // Row cap warning banner
+  const existing = document.getElementById("row-cap-banner");
+  if (existing) existing.remove();
+  if (data.row_cap_hit) {
+    const banner = document.createElement("div");
+    banner.id = "row-cap-banner";
+    banner.style.cssText =
+      "background:#f26130;color:#fdf6e3;padding:10px 18px;border-radius:6px;" +
+      "font-family:var(--font-body,Space Grotesk,sans-serif);font-size:13px;" +
+      "font-weight:600;margin-bottom:16px;letter-spacing:0.2px;";
+    banner.textContent =
+      "Showing partial results — filter matched >2000 bets. Tighten your filter to see the full series.";
+    const chartSection = document.querySelector(".chart-full");
+    chartSection.parentNode.insertBefore(banner, chartSection);
+  }
 }
 
 let _debounceTimer = null;

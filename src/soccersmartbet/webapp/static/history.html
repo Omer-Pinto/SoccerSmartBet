@@ -298,6 +298,22 @@ async function fetchAndRender(dsl) {
     ? `<span class="neg">2000 (cap hit)</span>`
     : `<span class="sub">No cap</span>`;
 
+  // Row cap warning banner above the table
+  const existingBanner = document.getElementById("row-cap-banner");
+  if (existingBanner) existingBanner.remove();
+  if (data.row_cap_hit) {
+    const banner = document.createElement("div");
+    banner.id = "row-cap-banner";
+    banner.style.cssText =
+      "background:#f26130;color:#fdf6e3;padding:10px 18px;border-radius:6px;" +
+      "font-family:var(--font-body,Space Grotesk,sans-serif);font-size:13px;" +
+      "font-weight:600;margin-bottom:16px;letter-spacing:0.2px;";
+    banner.textContent =
+      "Showing partial results — filter matched >2000 bets. Tighten your filter to see the full series.";
+    const table = document.querySelector(".matches-table");
+    table.parentNode.insertBefore(banner, table);
+  }
+
   renderRows(data.rows);
 
   // Disable insight button when result set is empty (422 would happen)

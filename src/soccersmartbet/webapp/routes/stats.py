@@ -41,6 +41,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from soccersmartbet.db import get_cursor
+from soccersmartbet.team_registry import resolve_team
 from soccersmartbet.webapp.query.parser import ParseError
 from soccersmartbet.webapp.query.service import run_filter
 
@@ -202,7 +203,7 @@ async def get_pnl(
             "cumulative_ai": round(ai_cum, 2),
         })
 
-    return {"points": points, "dsl": result.dsl}
+    return {"points": points, "row_cap_hit": result.row_cap_hit, "dsl": result.dsl}
 
 
 # ---------------------------------------------------------------------------
@@ -229,8 +230,15 @@ async def get_team_stats(slug: str) -> dict:
     Raises:
         HTTP 404 when no bets match the slug.
     """
-    team_name = urllib.parse.unquote(slug)
-    pattern = f"%{team_name}%"
+    raw_name = urllib.parse.unquote(slug)
+    canonical = resolve_team(raw_name)
+    if canonical is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "unknown_team", "slug": slug},
+        )
+    # ILIKE without wildcards is a case-insensitive exact match
+    team_name = canonical
 
     sql = """
         SELECT
@@ -252,20 +260,20 @@ async def get_team_stats(slug: str) -> dict:
             g.away_score
         FROM bets b
         JOIN games g ON g.game_id = b.game_id
-        WHERE g.home_team ILIKE %s
-           OR g.away_team ILIKE %s
+        WHERE g.home_team ILIKE %(name)s
+           OR g.away_team ILIKE %(name)s
         ORDER BY g.match_date DESC, g.kickoff_time DESC
         LIMIT 2000
     """
 
     with get_cursor(commit=False) as cur:
-        cur.execute(sql, (pattern, pattern))
+        cur.execute(sql, {"name": canonical})
         rows = cur.fetchall()
 
     if not rows:
         raise HTTPException(
             status_code=404,
-            detail={"error": "not_found", "detail": f"No bets found for team matching '{team_name}'"},
+            detail={"error": "not_found", "detail": f"No bets found for team '{canonical}'"},
         )
 
     total_stake = 0.0
@@ -344,7 +352,10 @@ async def get_league_stats(slug: str) -> dict:
         HTTP 404 when no bets match the slug.
     """
     league_name = urllib.parse.unquote(slug)
-    pattern = f"%{league_name}%"
+    # Design decision: prefix match (starts-with) to avoid "pl" matching "Italian Playoff".
+    # "Premier" still matches "Premier League". Flagged for Omer: substring was previous
+    # behaviour; prefix prevents false positives but may miss mid-word abbreviations.
+    pattern = f"{league_name}%"
 
     sql = """
         SELECT
