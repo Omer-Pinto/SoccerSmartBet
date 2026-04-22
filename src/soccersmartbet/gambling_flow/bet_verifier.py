@@ -8,15 +8,11 @@ bets table with ON CONFLICT UPDATE.
 from __future__ import annotations
 
 import logging
-import os
 
-import psycopg2
-
+from soccersmartbet.db import get_cursor
 from soccersmartbet.gambling_flow.state import BetSelection, GamblingState
 
 logger = logging.getLogger(__name__)
-
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 _VALID_PREDICTIONS = {"1", "x", "2"}
 
@@ -98,31 +94,26 @@ def verify_and_persist_bets(state: GamblingState) -> dict:
         }
 
     # Persist all bets
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                for bet in user_bets:
-                    cur.execute(_UPSERT_BET_SQL, {
-                        "game_id": bet["game_id"],
-                        "bettor": "user",
-                        "prediction": bet["prediction"].lower(),
-                        "odds": bet["odds"],
-                        "stake": bet["stake"],
-                        "justification": None,
-                    })
+    with get_cursor(commit=True) as cur:
+        for bet in user_bets:
+            cur.execute(_UPSERT_BET_SQL, {
+                "game_id": bet["game_id"],
+                "bettor": "user",
+                "prediction": bet["prediction"].lower(),
+                "odds": bet["odds"],
+                "stake": bet["stake"],
+                "justification": None,
+            })
 
-                for bet in ai_bets:
-                    cur.execute(_UPSERT_BET_SQL, {
-                        "game_id": bet["game_id"],
-                        "bettor": "ai",
-                        "prediction": bet["prediction"].lower(),
-                        "odds": bet["odds"],
-                        "stake": bet["stake"],
-                        "justification": bet.get("justification"),
-                    })
-    finally:
-        conn.close()
+        for bet in ai_bets:
+            cur.execute(_UPSERT_BET_SQL, {
+                "game_id": bet["game_id"],
+                "bettor": "ai",
+                "prediction": bet["prediction"].lower(),
+                "odds": bet["odds"],
+                "stake": bet["stake"],
+                "justification": bet.get("justification"),
+            })
 
     logger.info(
         "verify_and_persist_bets: accepted and persisted %d total bet(s)",

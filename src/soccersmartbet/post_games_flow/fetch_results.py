@@ -7,17 +7,13 @@ Uses FotMob overviewFixtures to find specific match results by opponent + date.
 from __future__ import annotations
 
 import logging
-import os
 
-import psycopg2
-
+from soccersmartbet.db import get_conn, get_cursor
 from soccersmartbet.post_games_flow.state import PostGamesState, SkippedGame
 from soccersmartbet.pre_gambling_flow.tools.fotmob_client import get_fotmob_client
 from soccersmartbet.team_registry import resolve_team
 
 logger = logging.getLogger(__name__)
-
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 _FETCH_GAMES_SQL = """
 SELECT game_id, home_team, away_team, match_date
@@ -80,14 +76,9 @@ def fetch_results(state: PostGamesState) -> dict:
     game_ids: list[int] = state["game_ids"]
     logger.info("fetch_results: processing %d game(s)", len(game_ids))
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(_FETCH_GAMES_SQL, {"game_ids": game_ids})
-                rows = cur.fetchall()
-    finally:
-        conn.close()
+    with get_cursor(commit=False) as cur:
+        cur.execute(_FETCH_GAMES_SQL, {"game_ids": game_ids})
+        rows = cur.fetchall()
 
     db_games: dict[int, dict] = {
         row[0]: {"home_team": row[1], "away_team": row[2], "match_date": str(row[3])}
@@ -98,78 +89,75 @@ def fetch_results(state: PostGamesState) -> dict:
     results: dict[int, dict] = {}
     skipped_games: list[SkippedGame] = []
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                for game_id, game in db_games.items():
-                    fotmob_id = _get_fotmob_id(cur, client, game["home_team"])
-                    if not fotmob_id:
-                        logger.warning("fetch_results: no FotMob ID for %s", game["home_team"])
-                        skipped_games.append(SkippedGame(
-                            game_id=game_id,
-                            home_team=game["home_team"],
-                            away_team=game["away_team"],
-                            match_date=game["match_date"],
-                            reason="no FotMob team ID for home team",
-                        ))
-                        continue
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for game_id, game in db_games.items():
+                fotmob_id = _get_fotmob_id(cur, client, game["home_team"])
+                if not fotmob_id:
+                    logger.warning("fetch_results: no FotMob ID for %s", game["home_team"])
+                    skipped_games.append(SkippedGame(
+                        game_id=game_id,
+                        home_team=game["home_team"],
+                        away_team=game["away_team"],
+                        match_date=game["match_date"],
+                        reason="no FotMob team ID for home team",
+                    ))
+                    continue
 
-                    team_data = client.get_team_data(fotmob_id)
-                    if not team_data:
-                        logger.warning("fetch_results: no FotMob data for %s", game["home_team"])
-                        skipped_games.append(SkippedGame(
-                            game_id=game_id,
-                            home_team=game["home_team"],
-                            away_team=game["away_team"],
-                            match_date=game["match_date"],
-                            reason="FotMob returned no team data",
-                        ))
-                        continue
+                team_data = client.get_team_data(fotmob_id)
+                if not team_data:
+                    logger.warning("fetch_results: no FotMob data for %s", game["home_team"])
+                    skipped_games.append(SkippedGame(
+                        game_id=game_id,
+                        home_team=game["home_team"],
+                        away_team=game["away_team"],
+                        match_date=game["match_date"],
+                        reason="FotMob returned no team data",
+                    ))
+                    continue
 
-                    fixtures = team_data.get("overview", {}).get("overviewFixtures", [])
-                    match = _find_match_in_fixtures(fixtures, game["away_team"], game["match_date"])
+                fixtures = team_data.get("overview", {}).get("overviewFixtures", [])
+                match = _find_match_in_fixtures(fixtures, game["away_team"], game["match_date"])
 
-                    if not match:
-                        logger.warning(
-                            "fetch_results: game_id=%d no fixture found for %s vs %s on %s",
-                            game_id, game["home_team"], game["away_team"], game["match_date"],
-                        )
-                        skipped_games.append(SkippedGame(
-                            game_id=game_id,
-                            home_team=game["home_team"],
-                            away_team=game["away_team"],
-                            match_date=game["match_date"],
-                            reason="no FotMob fixture match",
-                        ))
-                        continue
-
-                    if not match.get("status", {}).get("finished", False):
-                        logger.info("fetch_results: game_id=%d not finished yet", game_id)
-                        continue
-
-                    home_score = match.get("home", {}).get("score", 0)
-                    away_score = match.get("away", {}).get("score", 0)
-                    outcome = _determine_outcome(home_score, away_score)
-
-                    cur.execute(_UPDATE_GAME_SQL, {
-                        "home_score": home_score,
-                        "away_score": away_score,
-                        "outcome": outcome,
-                        "game_id": game_id,
-                    })
-
-                    results[game_id] = {
-                        "home_score": home_score,
-                        "away_score": away_score,
-                        "outcome": outcome,
-                    }
-                    logger.info(
-                        "fetch_results: game_id=%d %s %d-%d %s outcome=%s",
-                        game_id, game["home_team"], home_score, away_score, game["away_team"], outcome,
+                if not match:
+                    logger.warning(
+                        "fetch_results: game_id=%d no fixture found for %s vs %s on %s",
+                        game_id, game["home_team"], game["away_team"], game["match_date"],
                     )
-    finally:
-        conn.close()
+                    skipped_games.append(SkippedGame(
+                        game_id=game_id,
+                        home_team=game["home_team"],
+                        away_team=game["away_team"],
+                        match_date=game["match_date"],
+                        reason="no FotMob fixture match",
+                    ))
+                    continue
+
+                if not match.get("status", {}).get("finished", False):
+                    logger.info("fetch_results: game_id=%d not finished yet", game_id)
+                    continue
+
+                home_score = match.get("home", {}).get("score", 0)
+                away_score = match.get("away", {}).get("score", 0)
+                outcome = _determine_outcome(home_score, away_score)
+
+                cur.execute(_UPDATE_GAME_SQL, {
+                    "home_score": home_score,
+                    "away_score": away_score,
+                    "outcome": outcome,
+                    "game_id": game_id,
+                })
+
+                results[game_id] = {
+                    "home_score": home_score,
+                    "away_score": away_score,
+                    "outcome": outcome,
+                }
+                logger.info(
+                    "fetch_results: game_id=%d %s %d-%d %s outcome=%s",
+                    game_id, game["home_team"], home_score, away_score, game["away_team"], outcome,
+                )
+        conn.commit()  # MANDATORY: persist game scores/outcomes
 
     logger.info(
         "fetch_results: matched and updated %d/%d game(s), skipped %d",

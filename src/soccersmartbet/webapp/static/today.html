@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SoccerSmartBet &mdash; Matchday Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/shared.css">
+<link rel="stylesheet" href="/static/today.css">
+</head>
+<body>
+
+<!-- Hidden: today's ISO date for JS to read -->
+<input type="hidden" id="today-date-iso" value="">
+<script>
+  document.getElementById("today-date-iso").value = new Date().toLocaleDateString("sv-SE");
+</script>
+
+<!-- ═══════════════════════════════════════════
+     MASTHEAD
+═══════════════════════════════════════════ -->
+<header class="masthead">
+  <div class="stripe-bar">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <div class="masthead-inner">
+    <div class="masthead-left">
+      <div class="brand-tag">SoccerSmartBet &middot; Operator Dashboard</div>
+      <div class="masthead-title">
+        MATCHDAY<br><em>CONSOLE</em>
+      </div>
+      <div class="masthead-date" id="masthead-date"></div>
+    </div>
+    <div class="masthead-accent">
+      <div class="masthead-accent-text">
+        WAVE 11<br>LIVE DATA<br>TODAY
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav class="nav-bar">
+  <div class="nav-bar-inner">
+    <a class="nav-tab active" href="/today">Today</a>
+    <a class="nav-tab" href="/history">History</a>
+    <a class="nav-tab" href="/pnl">P&amp;L</a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     LIVE STATUS STRIP
+═══════════════════════════════════════════ -->
+<div class="status-strip">
+  <div class="status-strip-inner">
+    <div class="stat-tile">
+      <div class="stat-tile-label">Flow Status</div>
+      <div class="stat-tile-value" id="status-value">Loading&hellip;</div>
+    </div>
+    <div class="stat-tile" id="tile-pre-gambling">
+      <div class="stat-tile-label">Pre-Gambling</div>
+      <div class="stat-tile-value"><span class="sub">&mdash;</span></div>
+    </div>
+    <div class="stat-tile" id="tile-gambling">
+      <div class="stat-tile-label">Gambling</div>
+      <div class="stat-tile-value"><span class="sub">&mdash;</span></div>
+    </div>
+    <div class="stat-tile" id="tile-post-games">
+      <div class="stat-tile-label">Post-Games</div>
+      <div class="stat-tile-value"><span class="sub">&mdash;</span></div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-tile-label">Attempt</div>
+      <div class="stat-tile-value" id="status-attempts"><span class="sub">&mdash;</span></div>
+    </div>
+    <div class="stat-tile" style="flex:2;">
+      <div class="stat-tile-label">Last Error</div>
+      <div class="stat-tile-value" id="status-error"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PAGE BODY GRID
+═══════════════════════════════════════════ -->
+<main class="page-body">
+
+  <!-- ── CONTROLS ── -->
+  <section class="controls-section full-row">
+    <div class="section-label">
+      <div class="section-label-bar" style="background:var(--cobalt);"></div>
+      <h2>Operations</h2>
+    </div>
+    <div class="controls-row">
+      <button class="btn btn-action" id="btn-pre-gambling" disabled>
+        Run Pre-Gambling
+      </button>
+      <button class="btn btn-action" id="btn-post-games" disabled>
+        Run Post-Games
+      </button>
+      <button class="btn btn-secondary" id="btn-regen" disabled>
+        Regenerate Report&hellip;
+      </button>
+      <button class="btn btn-override" id="btn-override" disabled>
+        Force Override
+      </button>
+    </div>
+  </section>
+
+  <!-- ── MATCHES ── -->
+  <section class="matches-section">
+    <div class="section-label">
+      <div class="section-label-bar" style="background:var(--magenta);"></div>
+      <h2>Today&rsquo;s Fixtures &amp; Bets</h2>
+    </div>
+
+    <div class="mod-ribbon" id="mod-ribbon">
+      Loading bets&hellip;
+    </div>
+
+    <table class="matches-table">
+      <thead>
+        <tr>
+          <th>Kickoff</th>
+          <th>League</th>
+          <th>Match</th>
+          <th class="center">1 &nbsp;/&nbsp; X &nbsp;/&nbsp; 2</th>
+          <th class="center">User</th>
+          <th class="center">AI</th>
+          <th class="center">Status</th>
+          <th class="center">Edit</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-matches">
+        <tr>
+          <td colspan="8" class="empty-state">Loading&hellip;</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar-column">
+
+    <!-- BANKROLL BLOCK -->
+    <div class="bankroll-block">
+      <div class="bankroll-stripe"><span></span><span></span><span></span></div>
+      <div class="bankroll-header">
+        <div class="bankroll-title">Bankroll</div>
+      </div>
+
+      <div class="bankroll-row">
+        <div class="bankroll-row-label">User</div>
+        <div class="bankroll-amount neutral" id="bankroll-user">
+          <span class="bankroll-currency">NIS</span>&mdash;
+        </div>
+        <div class="bankroll-delta neutral" id="bankroll-user-delta">
+          <span>Since 10,000</span>&mdash;
+        </div>
+      </div>
+
+      <div class="bankroll-row">
+        <div class="bankroll-row-label">AI</div>
+        <div class="bankroll-amount neutral" id="bankroll-ai">
+          <span class="bankroll-currency">NIS</span>&mdash;
+        </div>
+        <div class="bankroll-delta neutral" id="bankroll-ai-delta">
+          <span>Since 10,000</span>&mdash;
+        </div>
+      </div>
+
+      <div class="bankroll-today">
+        <div id="today-pnl-user">Today P&L (User): &mdash;</div>
+        <div id="today-pnl-ai"  style="margin-top:4px;">Today P&L (AI): &mdash;</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── P&L CHART ── -->
+  <section class="chart-section">
+    <div class="section-label">
+      <div class="section-label-bar" style="background:var(--emerald);"></div>
+      <h2>Form Guide &mdash; 30-Day P&amp;L</h2>
+    </div>
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">THIRTY DAY <span>FORM</span></div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-dot user"></div>
+            User
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot ai"></div>
+            AI
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-svg-wrap">
+        <div id="sparkline-svg"></div>
+      </div>
+
+      <div class="chart-x-labels" id="x-labels">
+        <span class="chart-x-label">&mdash;</span>
+        <span class="chart-x-label">&mdash;</span>
+        <span class="chart-x-label">&mdash;</span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════ -->
+<footer class="page-footer">
+  <div class="footer-brand">SoccerSmartBet</div>
+  <div class="footer-info">Operator Console &nbsp;&middot;&nbsp; Wave 11 &nbsp;&middot;&nbsp; ISR Timezone</div>
+</footer>
+
+<!-- ═══════════════════════════════════════════
+     FORCE OVERRIDE MODAL
+═══════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal">
+    <h3>Confirm Force Override</h3>
+    <p>
+      This will <strong>delete all today's games, reports, and bets</strong> and re-run
+      the pre-gambling pipeline from scratch.<br><br>
+      Type today&rsquo;s date (<strong id="modal-date-hint"></strong>) to confirm:
+    </p>
+    <input type="text" id="modal-date-input" placeholder="YYYY-MM-DD" autocomplete="off">
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-cancel-edit" id="modal-cancel">Cancel</button>
+      <button class="btn btn-override" id="modal-confirm">Force Override</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Set masthead date and modal hint
+  (function () {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("sv-SE"); // "YYYY-MM-DD"
+    document.getElementById("today-date-iso").value = dateStr;
+    const hint = document.getElementById("modal-date-hint");
+    if (hint) hint.textContent = dateStr;
+    const mh = document.getElementById("masthead-date");
+    if (mh) {
+      const opts = { weekday: "long", year: "numeric", month: "long", day: "numeric" };
+      mh.textContent =
+        now.toLocaleDateString("en-US", opts) + " · " +
+        now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) + " ISR";
+    }
+  })();
+</script>
+<script src="/static/today.js"></script>
+</body>
+</html>

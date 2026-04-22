@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SoccerSmartBet &mdash; League Stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+
+<!-- MASTHEAD -->
+<header class="masthead">
+  <div class="stripe-bar">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <div class="masthead-inner">
+    <div class="masthead-left">
+      <div class="brand-tag">SoccerSmartBet &middot; Operator Dashboard</div>
+      <div class="masthead-title" id="page-title">
+        LEAGUE<br><em>STATS</em>
+      </div>
+      <div class="masthead-date" id="masthead-date"></div>
+    </div>
+    <div class="masthead-accent">
+      <div class="masthead-accent-text">
+        WAVE 12<br>STATS<br>LEAGUE
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav class="nav-bar">
+  <div class="nav-bar-inner">
+    <a class="nav-tab" href="/today">Today</a>
+    <a class="nav-tab" href="/history">History</a>
+    <a class="nav-tab" href="/pnl">P&amp;L</a>
+  </div>
+</nav>
+
+<!-- PAGE BODY -->
+<main class="page-body">
+
+  <!-- SUMMARY BLOCK -->
+  <div class="summary-block" id="summary-block" style="display:none;">
+    <div class="summary-stripe"><span></span><span></span><span></span></div>
+    <div class="summary-tiles">
+      <div class="summary-tile">
+        <div class="summary-tile-label">Total Bets</div>
+        <div class="summary-tile-value" id="sum-bets">&mdash;</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile-label">Win Rate</div>
+        <div class="summary-tile-value" id="sum-wr">&mdash;</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile-label">Total Stake</div>
+        <div class="summary-tile-value" id="sum-stake">&mdash;</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile-label">Total P&amp;L</div>
+        <div class="summary-tile-value" id="sum-pnl">&mdash;</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="error-msg" class="error-state" style="display:none;"></div>
+
+  <!-- NOTABLE GAMES -->
+  <div id="notable-section" style="display:none;">
+    <div class="section-label">
+      <div class="section-label-bar" style="background:var(--yellow);"></div>
+      <h2>Notable Games (Top 5 by |P&amp;L|)</h2>
+    </div>
+    <table class="matches-table" style="margin-bottom:32px;">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Match</th>
+          <th class="center">Bettor</th>
+          <th class="center">Pick</th>
+          <th class="center">Odds</th>
+          <th class="center">Stake</th>
+          <th class="center">P&amp;L</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-notable"></tbody>
+    </table>
+  </div>
+
+  <!-- FULL BET HISTORY -->
+  <div id="history-section" style="display:none;">
+    <div class="section-label">
+      <div class="section-label-bar" style="background:var(--cobalt);"></div>
+      <h2>All Bets</h2>
+    </div>
+    <table class="matches-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Kickoff</th>
+          <th>Match</th>
+          <th class="center">Bettor</th>
+          <th class="center">Pick</th>
+          <th class="center">Odds</th>
+          <th class="center">Stake</th>
+          <th class="center">Result</th>
+          <th class="center">P&amp;L</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-bets">
+        <tr><td colspan="9" class="empty-state">Loading&hellip;</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="page-footer">
+  <div class="footer-brand">SoccerSmartBet</div>
+  <div class="footer-info">League &nbsp;&middot;&nbsp; Wave 12 &nbsp;&middot;&nbsp; ISR Timezone</div>
+</footer>
+
+<script>
+// ─── Masthead ────────────────────────────────────────────────────────────────
+(function () {
+  const mh = document.getElementById("masthead-date");
+  if (!mh) return;
+  const now = new Date();
+  mh.textContent =
+    now.toLocaleDateString("en-US", {
+      weekday:"long", year:"numeric", month:"long", day:"numeric",
+      timeZone:"Asia/Jerusalem"
+    }) + " · " +
+    now.toLocaleTimeString("en-US", {
+      hour:"2-digit", minute:"2-digit", hour12:false, timeZone:"Asia/Jerusalem"
+    }) + " ISR";
+})();
+
+// ─── Shared renderers ────────────────────────────────────────────────────────
+function pnlClass(pnl) { return pnl === null ? "pnl-null" : pnl >= 0 ? "pnl-pos" : "pnl-neg"; }
+function pnlLabel(pnl) {
+  if (pnl === null || pnl === undefined) return "&mdash;";
+  return (pnl >= 0 ? "+" : "") + pnl.toFixed(2);
+}
+function resultClass(pnl) {
+  if (pnl === null || pnl === undefined) return "result-open";
+  return pnl > 0 ? "result-win" : "result-loss";
+}
+function resultLabel(bet) {
+  if (!bet.result) return "Open";
+  if (bet.pnl !== null && bet.pnl > 0) return "Win";
+  if (bet.pnl !== null && bet.pnl < 0) return "Loss";
+  return bet.result;
+}
+
+function renderNotableRow(bet) {
+  return `<tr>
+    <td class="match-date-cell">${bet.match_date}</td>
+    <td class="team-name">
+      <a href="/team/${encodeURIComponent(bet.home_team)}">${bet.home_team}</a>
+      <span class="vs-sep">vs</span>
+      <a href="/team/${encodeURIComponent(bet.away_team)}">${bet.away_team}</a>
+      ${bet.home_score !== null ? `<span style="font-size:11px;color:var(--text-sub);margin-left:6px;">(${bet.home_score}–${bet.away_score})</span>` : ""}
+    </td>
+    <td class="bet-cell ${bet.bettor === 'user' ? 'bet-user' : 'bet-ai'}">${bet.bettor.toUpperCase()}</td>
+    <td class="bet-cell">${bet.prediction.toUpperCase()}</td>
+    <td class="odds-cell">${parseFloat(bet.odds).toFixed(2)}</td>
+    <td class="bet-cell">${parseFloat(bet.stake).toFixed(0)}</td>
+    <td class="bet-cell"><span class="${pnlClass(bet.pnl)}">${pnlLabel(bet.pnl)}</span></td>
+  </tr>`;
+}
+
+function renderBetRow(bet) {
+  return `<tr>
+    <td class="match-date-cell">${bet.match_date}</td>
+    <td class="kickoff-time">${bet.kickoff_time}</td>
+    <td class="team-name">
+      <a href="/team/${encodeURIComponent(bet.home_team)}">${bet.home_team}</a>
+      <span class="vs-sep">vs</span>
+      <a href="/team/${encodeURIComponent(bet.away_team)}">${bet.away_team}</a>
+      ${bet.home_score !== null ? `<span style="font-size:11px;color:var(--text-sub);margin-left:6px;">(${bet.home_score}–${bet.away_score})</span>` : ""}
+    </td>
+    <td class="bet-cell ${bet.bettor === 'user' ? 'bet-user' : 'bet-ai'}">${bet.bettor.toUpperCase()}</td>
+    <td class="bet-cell">${bet.prediction.toUpperCase()}</td>
+    <td class="odds-cell">${parseFloat(bet.odds).toFixed(2)}</td>
+    <td class="bet-cell">${parseFloat(bet.stake).toFixed(0)}</td>
+    <td class="bet-cell"><span class="result-badge ${resultClass(bet.pnl)}">${resultLabel(bet)}</span></td>
+    <td class="bet-cell"><span class="${pnlClass(bet.pnl)}">${pnlLabel(bet.pnl)}</span></td>
+  </tr>`;
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+(async function init() {
+  const pathParts = window.location.pathname.split("/");
+  const slug = pathParts[pathParts.length - 1] || "";
+  const leagueName = decodeURIComponent(slug);
+
+  if (leagueName) {
+    document.title = `SoccerSmartBet — ${leagueName}`;
+    document.getElementById("page-title").innerHTML =
+      `${leagueName.toUpperCase().slice(0, 20)}<br><em>STATS</em>`;
+  }
+
+  const errEl = document.getElementById("error-msg");
+  const tbodyBets = document.getElementById("tbody-bets");
+
+  let data;
+  try {
+    const resp = await fetch(`/api/leagues/${encodeURIComponent(slug)}/stats`);
+    if (resp.status === 404) {
+      errEl.textContent = `No bets found for league matching "${leagueName}".`;
+      errEl.style.display = "block";
+      tbodyBets.innerHTML = `<tr><td colspan="9" class="empty-state">No data.</td></tr>`;
+      document.getElementById("history-section").style.display = "block";
+      return;
+    }
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({}));
+      errEl.textContent = e.detail?.detail || e.detail || `Error ${resp.status}`;
+      errEl.style.display = "block";
+      return;
+    }
+    data = await resp.json();
+  } catch (e) {
+    errEl.textContent = "Network error: " + e.message;
+    errEl.style.display = "block";
+    return;
+  }
+
+  // Summary block
+  document.getElementById("summary-block").style.display = "block";
+  document.getElementById("sum-bets").textContent = data.total_bets;
+  const wr = data.win_rate;
+  const wrEl = document.getElementById("sum-wr");
+  wrEl.textContent = wr !== null ? (wr * 100).toFixed(1) + "%" : "—";
+  wrEl.className = "summary-tile-value" + (wr !== null ? (wr >= 0.5 ? " pos" : " neg") : "");
+  document.getElementById("sum-stake").textContent = "NIS " + data.total_stake.toFixed(0);
+  const pnlEl = document.getElementById("sum-pnl");
+  pnlEl.textContent = (data.total_pnl >= 0 ? "+" : "") + data.total_pnl.toFixed(2);
+  pnlEl.className = "summary-tile-value" + (data.total_pnl >= 0 ? " pos" : " neg");
+
+  // Notable games
+  if (data.notable_games && data.notable_games.length > 0) {
+    document.getElementById("notable-section").style.display = "block";
+    document.getElementById("tbody-notable").innerHTML =
+      data.notable_games.map(renderNotableRow).join("");
+  }
+
+  // Full bet history
+  document.getElementById("history-section").style.display = "block";
+  if (data.bets && data.bets.length > 0) {
+    tbodyBets.innerHTML = data.bets.map(renderBetRow).join("");
+  } else {
+    tbodyBets.innerHTML = `<tr><td colspan="9" class="empty-state">No bets found.</td></tr>`;
+  }
+})();
+</script>
+</body>
+</html>

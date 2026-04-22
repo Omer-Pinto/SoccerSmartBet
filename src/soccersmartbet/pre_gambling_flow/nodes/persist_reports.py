@@ -7,15 +7,11 @@ intelligence reports have been combined by the combine_reports node.
 from __future__ import annotations
 
 import logging
-import os
-
-import psycopg2
 
 logger = logging.getLogger(__name__)
 
+from soccersmartbet.db import get_cursor
 from soccersmartbet.pre_gambling_flow.state import PreGamblingState
-
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 _UPDATE_SQL = """
 UPDATE games
@@ -45,13 +41,8 @@ def persist_reports(state: PreGamblingState) -> dict:
     if not game_ids:
         return {}
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(_UPDATE_SQL, {"game_ids": game_ids})
-    finally:
-        conn.close()
+    with get_cursor(commit=True) as cur:
+        cur.execute(_UPDATE_SQL, {"game_ids": game_ids})
 
     logger.info("persist_reports: done")
     return {}

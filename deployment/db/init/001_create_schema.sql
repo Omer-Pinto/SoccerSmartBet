@@ -247,3 +247,107 @@ COMMENT ON COLUMN daily_runs.game_ids IS 'game_ids selected today; empty array m
 COMMENT ON COLUMN daily_runs.post_games_trigger_at IS 'max(kickoff_time) + 3h — calculated once when gambling completes';
 COMMENT ON COLUMN daily_runs.games_found IS 'Number of games the pre-gambling picker found (before LLM selection)';
 COMMENT ON COLUMN daily_runs.no_games_user_confirmed IS 'User response to no-games-day prompt: TRUE = expected, FALSE = suspicious';
+
+-- ============================================================================
+-- Wave 10 — Dashboard Platform Foundation
+-- NOT YET APPLIED TO LIVE DB AS OF 2026-04-22.
+-- Apply only after Omer's explicit OK via: docker exec soccersmartbet-staging psql ...
+-- ============================================================================
+
+ALTER TABLE daily_runs ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'idle'
+    CHECK (status IN ('idle', 'pre_gambling_running', 'pre_gambling_done',
+                      'gambling_running', 'gambling_done',
+                      'post_games_running', 'post_games_done', 'failed'));
+ALTER TABLE daily_runs ADD COLUMN IF NOT EXISTS last_trigger_source VARCHAR(20);
+ALTER TABLE daily_runs ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE daily_runs ADD COLUMN IF NOT EXISTS last_error TEXT;
+
+CREATE TABLE IF NOT EXISTS run_events (
+    event_id      SERIAL PRIMARY KEY,
+    run_date      DATE NOT NULL,
+    event_type    VARCHAR(40) NOT NULL,
+    triggered_by  VARCHAR(20) NOT NULL CHECK (triggered_by IN ('scheduler', 'manual', 'recovery')),
+    triggered_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    payload       JSONB
+);
+CREATE INDEX IF NOT EXISTS idx_run_events_date_time ON run_events(run_date, triggered_at);
+
+CREATE TABLE IF NOT EXISTS bet_edits (
+    edit_id    SERIAL PRIMARY KEY,
+    bet_id     INTEGER NOT NULL REFERENCES bets(bet_id) ON DELETE CASCADE,
+    field      VARCHAR(30) NOT NULL CHECK (field IN ('prediction', 'stake')),
+    old_value  TEXT,
+    new_value  TEXT,
+    edited_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    source     VARCHAR(20) NOT NULL DEFAULT 'dashboard'
+);
+CREATE INDEX IF NOT EXISTS idx_bet_edits_bet ON bet_edits(bet_id);
+
+COMMENT ON TABLE run_events IS 'Append-only audit log. Intentionally NO FK to daily_runs(run_date) so events outlive their parent row (e.g. after manual purge). Orphan accumulation is bounded.';
+
+CREATE INDEX IF NOT EXISTS idx_bets_bettor ON bets(bettor);
+CREATE INDEX IF NOT EXISTS idx_games_league ON games(league);
+
+-- ============================================================================
+-- Wave 11A — Bet-edit window enforcement trigger
+-- APPLIED TO LIVE DB 2026-04-22 (Wave 11) — trigger active on bet_edits.
+-- ============================================================================
+
+-- Function: raise exception if a bet_edits insert falls outside the edit window.
+-- The edit window is: gambling_completed_at IS NOT NULL
+--   AND kickoff_time - NOW() AT TIME ZONE 'Asia/Jerusalem' > INTERVAL '30 minutes'
+CREATE OR REPLACE FUNCTION check_bet_edit_window()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_game_id       INTEGER;
+    v_match_date    DATE;
+    v_kickoff_time  TIME;
+    v_kickoff_dt    TIMESTAMPTZ;
+    v_gambling_done TIMESTAMPTZ;
+    v_now           TIMESTAMPTZ;
+BEGIN
+    -- Resolve the game for this bet
+    SELECT b.game_id, g.match_date, g.kickoff_time
+    INTO   v_game_id, v_match_date, v_kickoff_time
+    FROM   bets b
+    JOIN   games g ON g.game_id = b.game_id
+    WHERE  b.bet_id = NEW.bet_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'bet_edits: bet_id % not found', NEW.bet_id;
+    END IF;
+
+    -- Build an ISR-aware kickoff timestamp
+    v_kickoff_dt := (v_match_date::TEXT || ' ' || v_kickoff_time::TEXT)::TIMESTAMP
+                    AT TIME ZONE 'Asia/Jerusalem';
+
+    -- Check gambling_completed_at
+    SELECT gambling_completed_at
+    INTO   v_gambling_done
+    FROM   daily_runs
+    WHERE  run_date = v_match_date;
+
+    IF v_gambling_done IS NULL THEN
+        RAISE EXCEPTION
+            'bet_edits: gambling phase not yet complete for % — edits not allowed',
+            v_match_date;
+    END IF;
+
+    -- Check 30-minute window
+    v_now := NOW();
+    IF v_kickoff_dt - v_now <= INTERVAL '30 minutes' THEN
+        RAISE EXCEPTION
+            'bet_edits: edit window closed — kickoff at % ISR is within 30 minutes',
+            TO_CHAR(v_kickoff_dt AT TIME ZONE 'Asia/Jerusalem', 'HH24:MI');
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_bet_edit_window
+BEFORE INSERT ON bet_edits
+FOR EACH ROW
+EXECUTE FUNCTION check_bet_edit_window();

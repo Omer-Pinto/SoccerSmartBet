@@ -7,17 +7,14 @@ combines them into a single AIMessage for downstream consumption.
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
-import psycopg2
 from langchain_core.messages import AIMessage
 
+from soccersmartbet.db import get_conn
 from soccersmartbet.pre_gambling_flow.state import Phase, PreGamblingState
 
 logger = logging.getLogger(__name__)
-
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 _EL_LEAGUES = {
     "Europa League",
@@ -181,84 +178,81 @@ def combine_reports(state: PreGamblingState) -> dict[str, Any]:
 
     blocks: list[str] = []
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                for game_id in game_ids:
-                    cur.execute(_FETCH_GAME_SQL, {"game_id": game_id})
-                    game_row = cur.fetchone()
-                    if game_row is None:
-                        continue
-                    home_team, away_team, league, home_win_odd, away_win_odd, draw_odd = game_row
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for game_id in game_ids:
+                cur.execute(_FETCH_GAME_SQL, {"game_id": game_id})
+                game_row = cur.fetchone()
+                if game_row is None:
+                    continue
+                home_team, away_team, league, home_win_odd, away_win_odd, draw_odd = game_row
 
-                    h2h_home = h2h_away = None
-                    h2h_hw = h2h_aw = h2h_d = h2h_total = None
-                    h2h_bullets: list[str] = []
-                    weather_bullets: list[str] = []
-                    cancel_risk: str | None = None
-                    venue: str | None = None
+                h2h_home = h2h_away = None
+                h2h_hw = h2h_aw = h2h_d = h2h_total = None
+                h2h_bullets: list[str] = []
+                weather_bullets: list[str] = []
+                cancel_risk: str | None = None
+                venue: str | None = None
 
-                    cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
-                    report_row = cur.fetchone()
-                    if report_row is not None:
-                        (
-                            h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total,
-                            h2h_bullets_raw, weather_bullets_raw, cancel_risk, venue,
-                        ) = report_row
-                        h2h_bullets = h2h_bullets_raw or []
-                        weather_bullets = weather_bullets_raw or []
+                cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
+                report_row = cur.fetchone()
+                if report_row is not None:
+                    (
+                        h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total,
+                        h2h_bullets_raw, weather_bullets_raw, cancel_risk, venue,
+                    ) = report_row
+                    h2h_bullets = h2h_bullets_raw or []
+                    weather_bullets = weather_bullets_raw or []
 
-                    cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
-                    team_rows = cur.fetchall()
+                cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
+                team_rows = cur.fetchall()
 
-                    team_map: dict[str, dict[str, Any]] = {}
-                    for row in team_rows:
-                        (
-                            t_name, recovery_days, form_streak, last5_raw, form_bullets_raw,
-                            league_rank, league_points, league_mp, league_bullets_raw,
-                            injury_bullets_raw, news_bullets_raw,
-                        ) = row
-                        team_map[t_name] = {
-                            "recovery_days": recovery_days,
-                            "form_streak": form_streak,
-                            "last_5_games": last5_raw or [],
-                            "form_bullets": form_bullets_raw or [],
-                            "league_rank": league_rank,
-                            "league_points": league_points,
-                            "league_matches_played": league_mp,
-                            "league_bullets": league_bullets_raw or [],
-                            "injury_bullets": injury_bullets_raw or [],
-                            "news_bullets": news_bullets_raw or [],
-                        }
+                team_map: dict[str, dict[str, Any]] = {}
+                for row in team_rows:
+                    (
+                        t_name, recovery_days, form_streak, last5_raw, form_bullets_raw,
+                        league_rank, league_points, league_mp, league_bullets_raw,
+                        injury_bullets_raw, news_bullets_raw,
+                    ) = row
+                    team_map[t_name] = {
+                        "recovery_days": recovery_days,
+                        "form_streak": form_streak,
+                        "last_5_games": last5_raw or [],
+                        "form_bullets": form_bullets_raw or [],
+                        "league_rank": league_rank,
+                        "league_points": league_points,
+                        "league_matches_played": league_mp,
+                        "league_bullets": league_bullets_raw or [],
+                        "injury_bullets": injury_bullets_raw or [],
+                        "news_bullets": news_bullets_raw or [],
+                    }
 
-                    home_report = team_map.get(home_team)
-                    away_report = team_map.get(away_team)
+                home_report = team_map.get(home_team)
+                away_report = team_map.get(away_team)
 
-                    blocks.append(
-                        _format_game_block(
-                            home_team=home_team,
-                            away_team=away_team,
-                            league=league,
-                            home_win_odd=home_win_odd,
-                            away_win_odd=away_win_odd,
-                            draw_odd=draw_odd,
-                            h2h_home=h2h_home,
-                            h2h_away=h2h_away,
-                            h2h_hw=h2h_hw,
-                            h2h_aw=h2h_aw,
-                            h2h_draws=h2h_d,
-                            h2h_total=h2h_total,
-                            h2h_bullets=h2h_bullets,
-                            weather_bullets=weather_bullets,
-                            cancel_risk=cancel_risk,
-                            venue=venue,
-                            home_report=home_report,
-                            away_report=away_report,
-                        )
+                blocks.append(
+                    _format_game_block(
+                        home_team=home_team,
+                        away_team=away_team,
+                        league=league,
+                        home_win_odd=home_win_odd,
+                        away_win_odd=away_win_odd,
+                        draw_odd=draw_odd,
+                        h2h_home=h2h_home,
+                        h2h_away=h2h_away,
+                        h2h_hw=h2h_hw,
+                        h2h_aw=h2h_aw,
+                        h2h_draws=h2h_d,
+                        h2h_total=h2h_total,
+                        h2h_bullets=h2h_bullets,
+                        weather_bullets=weather_bullets,
+                        cancel_risk=cancel_risk,
+                        venue=venue,
+                        home_report=home_report,
+                        away_report=away_report,
                     )
-    finally:
-        conn.close()
+                )
+        # read-only: no commit needed
 
     combined_text = "\n\n".join(blocks)
     logger.info("combine_reports: combined %d game reports", len(blocks))

@@ -1,6 +1,7 @@
 """Entry point: start the SoccerSmartBet Telegram bot with daily scheduler."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from dotenv import load_dotenv
@@ -16,4 +17,4 @@ logging.basicConfig(
 from soccersmartbet.telegram.triggers import start_scheduler
 
 if __name__ == "__main__":
-    start_scheduler()
+    asyncio.run(start_scheduler())

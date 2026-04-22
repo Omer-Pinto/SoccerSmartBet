@@ -8,18 +8,14 @@ Schema v2 — Wave 8B: structured fields plus JSONB bullet arrays.
 
 from __future__ import annotations
 
-import os
+from psycopg.types.json import Jsonb
 
-import psycopg2
-from psycopg2.extras import Json
-
+from soccersmartbet.db import get_cursor
 from soccersmartbet.pre_gambling_flow.structured_outputs import (
     ExpertGameReport,
     GameReport,
     TeamReport,
 )
-
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 # ---------------------------------------------------------------------------
 # game_reports: H2H aggregate + weather + venue
@@ -156,30 +152,25 @@ def insert_game_report(game_id: int, report: GameReport) -> str:
         h2h_draws = None
         h2h_total_meetings = None
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    _INSERT_GAME_REPORT_SQL,
-                    {
-                        "game_id": game_id,
-                        "h2h_home_team": h2h_home_team,
-                        "h2h_away_team": h2h_away_team,
-                        "h2h_home_team_wins": h2h_home_team_wins,
-                        "h2h_away_team_wins": h2h_away_team_wins,
-                        "h2h_draws": h2h_draws,
-                        "h2h_total_meetings": h2h_total_meetings,
-                        "h2h_bullets": Json(list(report.h2h_bullets)),
-                        "weather_bullets": Json(list(report.weather_bullets)),
-                        "weather_cancellation_risk": report.weather_cancellation_risk,
-                        "venue": report.venue,
-                    },
-                )
-                row = cur.fetchone()
-                return str(row[0])
-    finally:
-        conn.close()
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            _INSERT_GAME_REPORT_SQL,
+            {
+                "game_id": game_id,
+                "h2h_home_team": h2h_home_team,
+                "h2h_away_team": h2h_away_team,
+                "h2h_home_team_wins": h2h_home_team_wins,
+                "h2h_away_team_wins": h2h_away_team_wins,
+                "h2h_draws": h2h_draws,
+                "h2h_total_meetings": h2h_total_meetings,
+                "h2h_bullets": Jsonb(list(report.h2h_bullets)),
+                "weather_bullets": Jsonb(list(report.weather_bullets)),
+                "weather_cancellation_risk": report.weather_cancellation_risk,
+                "venue": report.venue,
+            },
+        )
+        row = cur.fetchone()
+        return str(row[0])
 
 
 def insert_team_report(game_id: int, team_name: str, report: TeamReport) -> str:
@@ -195,31 +186,26 @@ def insert_team_report(game_id: int, team_name: str, report: TeamReport) -> str:
     """
     last_5_payload = [m.model_dump() for m in report.last_5_games]
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    _INSERT_TEAM_REPORT_SQL,
-                    {
-                        "game_id": game_id,
-                        "team_name": team_name,
-                        "recovery_days": report.recovery_days,
-                        "form_streak": report.form_streak,
-                        "last_5_games": Json(last_5_payload),
-                        "form_bullets": Json(list(report.form_bullets)),
-                        "league_rank": report.league_rank,
-                        "league_points": report.league_points,
-                        "league_matches_played": report.league_matches_played,
-                        "league_bullets": Json(list(report.league_bullets)),
-                        "injury_bullets": Json(list(report.injury_bullets)),
-                        "news_bullets": Json(list(report.news_bullets)),
-                    },
-                )
-                row = cur.fetchone()
-                return str(row[0])
-    finally:
-        conn.close()
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            _INSERT_TEAM_REPORT_SQL,
+            {
+                "game_id": game_id,
+                "team_name": team_name,
+                "recovery_days": report.recovery_days,
+                "form_streak": report.form_streak,
+                "last_5_games": Jsonb(last_5_payload),
+                "form_bullets": Jsonb(list(report.form_bullets)),
+                "league_rank": report.league_rank,
+                "league_points": report.league_points,
+                "league_matches_played": report.league_matches_played,
+                "league_bullets": Jsonb(list(report.league_bullets)),
+                "injury_bullets": Jsonb(list(report.injury_bullets)),
+                "news_bullets": Jsonb(list(report.news_bullets)),
+            },
+        )
+        row = cur.fetchone()
+        return str(row[0])
 
 
 def insert_expert_report(game_id: int, report: ExpertGameReport) -> str:
@@ -232,21 +218,16 @@ def insert_expert_report(game_id: int, report: ExpertGameReport) -> str:
     Returns:
         The ``report_id`` UUID assigned by the database, as a plain string.
     """
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    _INSERT_EXPERT_REPORT_SQL,
-                    {
-                        "game_id": game_id,
-                        "expert_analysis": Json(list(report.expert_analysis)),
-                    },
-                )
-                row = cur.fetchone()
-                return str(row[0])
-    finally:
-        conn.close()
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            _INSERT_EXPERT_REPORT_SQL,
+            {
+                "game_id": game_id,
+                "expert_analysis": Jsonb(list(report.expert_analysis)),
+            },
+        )
+        row = cur.fetchone()
+        return str(row[0])
 
 
 def update_game_status(game_id: int, status: str) -> None:
@@ -256,16 +237,11 @@ def update_game_status(game_id: int, status: str) -> None:
         game_id: Primary key of the game to update.
         status: New status value (e.g., ``'analyzed'``, ``'ready'``).
     """
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    _UPDATE_GAME_STATUS_SQL,
-                    {
-                        "status": status,
-                        "game_id": game_id,
-                    },
-                )
-    finally:
-        conn.close()
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            _UPDATE_GAME_STATUS_SQL,
+            {
+                "status": status,
+                "game_id": game_id,
+            },
+        )

@@ -13,10 +13,10 @@ import logging
 import os
 from datetime import datetime, timedelta
 
-import psycopg2
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from soccersmartbet.db import get_cursor
 from soccersmartbet.reports.telegram_message import get_games_info
 from soccersmartbet.telegram.bot import TELEGRAM_CHAT_ID, is_owner
 from soccersmartbet.utils.timezone import isr_datetime, now_isr
@@ -54,14 +54,9 @@ def _fetch_todays_game_ids() -> list[int]:
         WHERE match_date = %(today)s AND status = 'ready_for_betting'
         ORDER BY kickoff_time ASC
     """
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, {"today": today})
-                return [row[0] for row in cur.fetchall()]
-    finally:
-        conn.close()
+    with get_cursor(commit=False) as cur:
+        cur.execute(sql, {"today": today})
+        return [row[0] for row in cur.fetchall()]
 
 def _fetch_min_kickoff(game_ids: list[int]) -> datetime | None:
     """Return the earliest kickoff_time for the given game IDs as a datetime.
@@ -82,19 +77,14 @@ def _fetch_min_kickoff(game_ids: list[int]) -> datetime | None:
         ORDER BY kickoff_time ASC
         LIMIT 1
     """
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, {"game_ids": game_ids})
-                row = cur.fetchone()
-    finally:
-        conn.close()
+    with get_cursor(commit=False) as cur:
+        cur.execute(sql, {"game_ids": game_ids})
+        row = cur.fetchone()
 
     if row is None:
         return None
 
-    kt = row[0]  # datetime.time from psycopg2
+    kt = row[0]  # datetime.time
     today = now_isr().date()
     return isr_datetime(today.year, today.month, today.day, kt.hour, kt.minute)
 
@@ -116,17 +106,12 @@ def _fetch_odds(game_ids: list[int]) -> dict[int, tuple[float, float, float]]:
         FROM games
         WHERE game_id = ANY(%(game_ids)s)
     """
-    conn = psycopg2.connect(DATABASE_URL)
     odds: dict[int, tuple[float, float, float]] = {}
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, {"game_ids": game_ids})
-                for row in cur.fetchall():
-                    gid, h, d, a = row
-                    odds[gid] = (float(h), float(d), float(a))
-    finally:
-        conn.close()
+    with get_cursor(commit=False) as cur:
+        cur.execute(sql, {"game_ids": game_ids})
+        for row in cur.fetchall():
+            gid, h, d, a = row
+            odds[gid] = (float(h), float(d), float(a))
 
     return odds
 
@@ -140,16 +125,9 @@ def _fetch_user_balance() -> float:
     if not DATABASE_URL:
         return 0.0
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT total_bankroll FROM bankroll WHERE bettor = 'user'"
-                )
-                row = cur.fetchone()
-    finally:
-        conn.close()
+    with get_cursor(commit=False) as cur:
+        cur.execute("SELECT total_bankroll FROM bankroll WHERE bettor = 'user'")
+        row = cur.fetchone()
 
     return float(row[0]) if row else 0.0
 

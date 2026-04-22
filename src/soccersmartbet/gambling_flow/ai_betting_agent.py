@@ -11,16 +11,14 @@ import logging
 import os
 from typing import Any
 
-import psycopg2
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
+from soccersmartbet.db import get_conn
 from soccersmartbet.gambling_flow.state import GamblingState
 
 logger = logging.getLogger(__name__)
-
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 AI_BETTING_MODEL = os.getenv("AI_BETTING_MODEL", "gpt-5.4-mini")
 
@@ -239,86 +237,83 @@ def ai_betting_agent(state: GamblingState) -> dict:
     games_data: list[dict[str, Any]] = []
     ai_bankroll = 10000.0
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(_FETCH_AI_BANKROLL_SQL)
-                row = cur.fetchone()
-                if row:
-                    ai_bankroll = float(row[0])
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(_FETCH_AI_BANKROLL_SQL)
+            row = cur.fetchone()
+            if row:
+                ai_bankroll = float(row[0])
 
-                for game_id in game_ids:
-                    game_data: dict[str, Any] = {"game_id": game_id}
+            for game_id in game_ids:
+                game_data: dict[str, Any] = {"game_id": game_id}
 
-                    cur.execute(_FETCH_GAME_SQL, {"game_id": game_id})
-                    game_row = cur.fetchone()
-                    if game_row is None:
-                        logger.info("ai_betting_agent: game_id=%d not found, skipping", game_id)
-                        continue
-                    home_team, away_team, league, home_win_odd, draw_odd, away_win_odd = game_row
+                cur.execute(_FETCH_GAME_SQL, {"game_id": game_id})
+                game_row = cur.fetchone()
+                if game_row is None:
+                    logger.info("ai_betting_agent: game_id=%d not found, skipping", game_id)
+                    continue
+                home_team, away_team, league, home_win_odd, draw_odd, away_win_odd = game_row
+                game_data.update({
+                    "home_team": home_team,
+                    "away_team": away_team,
+                    "league": league,
+                    "home_win_odd": home_win_odd,
+                    "draw_odd": draw_odd,
+                    "away_win_odd": away_win_odd,
+                })
+
+                cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
+                report_row = cur.fetchone()
+                if report_row:
+                    (
+                        h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total,
+                        h2h_bullets_raw, weather_bullets_raw, cancel_risk,
+                    ) = report_row
                     game_data.update({
-                        "home_team": home_team,
-                        "away_team": away_team,
-                        "league": league,
-                        "home_win_odd": home_win_odd,
-                        "draw_odd": draw_odd,
-                        "away_win_odd": away_win_odd,
+                        "h2h_home_team": h2h_home,
+                        "h2h_away_team": h2h_away,
+                        "h2h_home_team_wins": h2h_hw,
+                        "h2h_away_team_wins": h2h_aw,
+                        "h2h_draws": h2h_d,
+                        "h2h_total_meetings": h2h_total,
+                        "h2h_bullets": h2h_bullets_raw or [],
+                        "weather_bullets": weather_bullets_raw or [],
+                        "weather_cancellation_risk": cancel_risk,
                     })
 
-                    cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
-                    report_row = cur.fetchone()
-                    if report_row:
-                        (
-                            h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total,
-                            h2h_bullets_raw, weather_bullets_raw, cancel_risk,
-                        ) = report_row
-                        game_data.update({
-                            "h2h_home_team": h2h_home,
-                            "h2h_away_team": h2h_away,
-                            "h2h_home_team_wins": h2h_hw,
-                            "h2h_away_team_wins": h2h_aw,
-                            "h2h_draws": h2h_d,
-                            "h2h_total_meetings": h2h_total,
-                            "h2h_bullets": h2h_bullets_raw or [],
-                            "weather_bullets": weather_bullets_raw or [],
-                            "weather_cancellation_risk": cancel_risk,
-                        })
+                cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
+                team_rows = cur.fetchall()
+                team_map: dict[str, dict[str, Any]] = {}
+                for t_row in team_rows:
+                    (
+                        t_name, recovery_days, form_streak, form_bullets_raw,
+                        league_rank, league_pts, league_mp, league_bullets_raw,
+                        injury_bullets_raw, news_bullets_raw,
+                    ) = t_row
+                    team_map[t_name] = {
+                        "recovery_days": recovery_days,
+                        "form_streak": form_streak,
+                        "form_bullets": form_bullets_raw or [],
+                        "league_rank": league_rank,
+                        "league_points": league_pts,
+                        "league_matches_played": league_mp,
+                        "league_bullets": league_bullets_raw or [],
+                        "injury_bullets": injury_bullets_raw or [],
+                        "news_bullets": news_bullets_raw or [],
+                    }
+                game_data["home_report"] = team_map.get(home_team)
+                game_data["away_report"] = team_map.get(away_team)
 
-                    cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
-                    team_rows = cur.fetchall()
-                    team_map: dict[str, dict[str, Any]] = {}
-                    for t_row in team_rows:
-                        (
-                            t_name, recovery_days, form_streak, form_bullets_raw,
-                            league_rank, league_pts, league_mp, league_bullets_raw,
-                            injury_bullets_raw, news_bullets_raw,
-                        ) = t_row
-                        team_map[t_name] = {
-                            "recovery_days": recovery_days,
-                            "form_streak": form_streak,
-                            "form_bullets": form_bullets_raw or [],
-                            "league_rank": league_rank,
-                            "league_points": league_pts,
-                            "league_matches_played": league_mp,
-                            "league_bullets": league_bullets_raw or [],
-                            "injury_bullets": injury_bullets_raw or [],
-                            "news_bullets": news_bullets_raw or [],
-                        }
-                    game_data["home_report"] = team_map.get(home_team)
-                    game_data["away_report"] = team_map.get(away_team)
+                cur.execute(_FETCH_EXPERT_REPORT_SQL, {"game_id": game_id})
+                expert_row = cur.fetchone()
+                if expert_row and expert_row[0]:
+                    bullets = expert_row[0]
+                    if not isinstance(bullets, list):
+                        bullets = [str(bullets)]
+                    game_data["expert_analysis"] = bullets
 
-                    cur.execute(_FETCH_EXPERT_REPORT_SQL, {"game_id": game_id})
-                    expert_row = cur.fetchone()
-                    if expert_row and expert_row[0]:
-                        bullets = expert_row[0]
-                        if not isinstance(bullets, list):
-                            bullets = [str(bullets)]
-                        game_data["expert_analysis"] = bullets
-
-                    games_data.append(game_data)
-    finally:
-        conn.close()
+                games_data.append(game_data)
+        # read-only: no commit needed
 
     if not games_data:
         logger.info("ai_betting_agent: no valid games found in DB")

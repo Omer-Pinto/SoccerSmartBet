@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import base64
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
-import psycopg2
 import requests
 
 logger = logging.getLogger(__name__)
@@ -38,7 +36,7 @@ def _fetch_logo_data_uri(url: str) -> str | None:
         _LOGO_CACHE[url] = None
         return None
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+from soccersmartbet.db import get_conn
 
 _EL_LEAGUES = {"Europa League", "UEFA Europa League", "UEFA Europa Conference League", "Conference League"}
 
@@ -645,69 +643,66 @@ def _cmp_header_row(home_team: str, away_team: str) -> str:
 
 def generate_game_report_html(game_id: int) -> str:
     """Query DB and return a complete self-contained HTML string for one game."""
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(_FETCH_GAME_SQL, {"game_id": game_id})
-                game_row = cur.fetchone()
-                if game_row is None:
-                    return f"<html><body><p>Game {game_id} not found.</p></body></html>"
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(_FETCH_GAME_SQL, {"game_id": game_id})
+            game_row = cur.fetchone()
+            if game_row is None:
+                return f"<html><body><p>Game {game_id} not found.</p></body></html>"
 
+            (
+                _gid, match_date, kickoff_time, home_team, away_team, league,
+                venue_from_games, home_win_odd, away_win_odd, draw_odd,
+                home_fotmob_id, away_fotmob_id,
+            ) = game_row
+
+            h2h_home = h2h_away = None
+            h2h_hw = h2h_aw = h2h_d = h2h_total = None
+            h2h_bullets: list[str] = []
+            weather_bullets: list[str] = []
+            cancel_risk: str | None = None
+            venue_from_report: str | None = None
+
+            cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
+            report_row = cur.fetchone()
+            if report_row is not None:
                 (
-                    _gid, match_date, kickoff_time, home_team, away_team, league,
-                    venue_from_games, home_win_odd, away_win_odd, draw_odd,
-                    home_fotmob_id, away_fotmob_id,
-                ) = game_row
+                    h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total,
+                    h2h_bullets_raw, weather_bullets_raw, cancel_risk, venue_from_report,
+                ) = report_row
+                h2h_bullets = h2h_bullets_raw or []
+                weather_bullets = weather_bullets_raw or []
 
-                h2h_home = h2h_away = None
-                h2h_hw = h2h_aw = h2h_d = h2h_total = None
-                h2h_bullets: list[str] = []
-                weather_bullets: list[str] = []
-                cancel_risk: str | None = None
-                venue_from_report: str | None = None
+            venue_display = venue_from_report or venue_from_games
 
-                cur.execute(_FETCH_GAME_REPORT_SQL, {"game_id": game_id})
-                report_row = cur.fetchone()
-                if report_row is not None:
-                    (
-                        h2h_home, h2h_away, h2h_hw, h2h_aw, h2h_d, h2h_total,
-                        h2h_bullets_raw, weather_bullets_raw, cancel_risk, venue_from_report,
-                    ) = report_row
-                    h2h_bullets = h2h_bullets_raw or []
-                    weather_bullets = weather_bullets_raw or []
+            cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
+            team_rows = cur.fetchall()
+            team_map: dict[str, dict[str, Any]] = {}
+            for row in team_rows:
+                (
+                    t_name, recovery_days, form_streak, last5_raw, form_bullets_raw,
+                    league_rank, league_points, league_mp, league_bullets_raw,
+                    injury_bullets_raw, news_bullets_raw,
+                ) = row
+                team_map[t_name] = {
+                    "recovery_days": recovery_days,
+                    "form_streak": form_streak,
+                    "last_5_games": last5_raw or [],
+                    "form_bullets": form_bullets_raw or [],
+                    "league_rank": league_rank,
+                    "league_points": league_points,
+                    "league_matches_played": league_mp,
+                    "league_bullets": league_bullets_raw or [],
+                    "injury_bullets": injury_bullets_raw or [],
+                    "news_bullets": news_bullets_raw or [],
+                }
 
-                venue_display = venue_from_report or venue_from_games
-
-                cur.execute(_FETCH_TEAM_REPORTS_SQL, {"game_id": game_id})
-                team_rows = cur.fetchall()
-                team_map: dict[str, dict[str, Any]] = {}
-                for row in team_rows:
-                    (
-                        t_name, recovery_days, form_streak, last5_raw, form_bullets_raw,
-                        league_rank, league_points, league_mp, league_bullets_raw,
-                        injury_bullets_raw, news_bullets_raw,
-                    ) = row
-                    team_map[t_name] = {
-                        "recovery_days": recovery_days,
-                        "form_streak": form_streak,
-                        "last_5_games": last5_raw or [],
-                        "form_bullets": form_bullets_raw or [],
-                        "league_rank": league_rank,
-                        "league_points": league_points,
-                        "league_matches_played": league_mp,
-                        "league_bullets": league_bullets_raw or [],
-                        "injury_bullets": injury_bullets_raw or [],
-                        "news_bullets": news_bullets_raw or [],
-                    }
-
-                cur.execute(_FETCH_EXPERT_SQL, {"game_id": game_id})
-                expert_row = cur.fetchone()
-                expert_bullets: list[str] = expert_row[0] if expert_row else []
-                if not isinstance(expert_bullets, list):
-                    expert_bullets = [str(expert_bullets)] if expert_bullets else []
-    finally:
-        conn.close()
+            cur.execute(_FETCH_EXPERT_SQL, {"game_id": game_id})
+            expert_row = cur.fetchone()
+            expert_bullets: list[str] = expert_row[0] if expert_row else []
+            if not isinstance(expert_bullets, list):
+                expert_bullets = [str(expert_bullets)] if expert_bullets else []
+        # read-only: no commit needed
 
     home_report = team_map.get(home_team)
     away_report = team_map.get(away_team)

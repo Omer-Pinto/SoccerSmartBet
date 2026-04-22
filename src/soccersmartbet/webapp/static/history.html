@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SoccerSmartBet &mdash; Bet History</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     MASTHEAD
+═══════════════════════════════════════════ -->
+<header class="masthead">
+  <div class="stripe-bar">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <div class="masthead-inner">
+    <div class="masthead-left">
+      <div class="brand-tag">SoccerSmartBet &middot; Operator Dashboard</div>
+      <div class="masthead-title">
+        BET<br><em>HISTORY</em>
+      </div>
+      <div class="masthead-date" id="masthead-date"></div>
+    </div>
+    <div class="masthead-accent">
+      <div class="masthead-accent-text">
+        WAVE 12<br>STATS<br>HISTORY
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════
+     NAV
+═══════════════════════════════════════════ -->
+<nav class="nav-bar">
+  <div class="nav-bar-inner">
+    <a class="nav-tab" href="/today">Today</a>
+    <a class="nav-tab active" href="/history">History</a>
+    <a class="nav-tab" href="/pnl">P&amp;L</a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     AGGREGATE STRIP
+═══════════════════════════════════════════ -->
+<div class="status-strip">
+  <div class="status-strip-inner">
+    <div class="stat-tile">
+      <div class="stat-tile-label">Bets</div>
+      <div class="stat-tile-value" id="agg-count"><span class="sub">&mdash;</span></div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-tile-label">Win Rate</div>
+      <div class="stat-tile-value" id="agg-win-rate"><span class="sub">&mdash;</span></div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-tile-label">Total Stake</div>
+      <div class="stat-tile-value" id="agg-stake"><span class="sub">&mdash;</span></div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-tile-label">Total P&amp;L</div>
+      <div class="stat-tile-value" id="agg-pnl"><span class="sub">&mdash;</span></div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-tile-label">Row Cap</div>
+      <div class="stat-tile-value" id="agg-cap"><span class="sub">&mdash;</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PAGE BODY
+═══════════════════════════════════════════ -->
+<main class="page-body">
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <div class="filter-input-wrap">
+      <div class="filter-label">Filter DSL</div>
+      <input class="filter-input" id="filter-input" type="text"
+             placeholder="league:pl  date:2026-04  bettor:user  result:1 ..."
+             autocomplete="off" spellcheck="false">
+      <div class="filter-hint">
+        Keys: league, team, date, month, stake, odds, outcome, bettor, prediction, result
+        &nbsp;&middot;&nbsp; Ranges: &gt;2.5, 1.5-3.0 &nbsp;&middot;&nbsp; Lists: pl,bundesliga
+        &nbsp;&middot;&nbsp; Negation: !draw
+      </div>
+    </div>
+    <button class="btn btn-insight" id="btn-insight" disabled>
+      Generate Insight
+    </button>
+  </div>
+
+  <!-- SECTION LABEL -->
+  <div class="section-label">
+    <div class="section-label-bar" style="background:var(--magenta);"></div>
+    <h2>Filtered Results</h2>
+  </div>
+
+  <!-- BET TABLE -->
+  <table class="matches-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Kickoff</th>
+        <th>League</th>
+        <th>Match</th>
+        <th class="center">Bettor</th>
+        <th class="center">Pick</th>
+        <th class="center">Odds</th>
+        <th class="center">Stake</th>
+        <th class="center">Result</th>
+        <th class="center">P&amp;L</th>
+      </tr>
+    </thead>
+    <tbody id="tbody-history">
+      <tr><td colspan="10" class="empty-state">Loading&hellip;</td></tr>
+    </tbody>
+  </table>
+
+  <!-- INSIGHT PANEL (hidden until triggered) -->
+  <div class="insight-panel" id="insight-panel" style="display:none;">
+    <div class="insight-panel-header">
+      <div class="insight-panel-title">AI Insight</div>
+      <div id="insight-status" style="font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:1px;text-transform:uppercase;"></div>
+    </div>
+    <div class="insight-panel-body" id="insight-body">Waiting&hellip;</div>
+  </div>
+
+</main>
+
+<!-- ═══════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════ -->
+<footer class="page-footer">
+  <div class="footer-brand">SoccerSmartBet</div>
+  <div class="footer-info">History &nbsp;&middot;&nbsp; Wave 12 &nbsp;&middot;&nbsp; ISR Timezone</div>
+</footer>
+
+<script>
+// ─── Masthead date ───────────────────────────────────────────────────────────
+(function () {
+  const mh = document.getElementById("masthead-date");
+  if (mh) {
+    const now = new Date();
+    const opts = { weekday: "long", year: "numeric", month: "long", day: "numeric",
+                   timeZone: "Asia/Jerusalem" };
+    const timeOpts = { hour: "2-digit", minute: "2-digit", hour12: false,
+                       timeZone: "Asia/Jerusalem" };
+    mh.textContent =
+      now.toLocaleDateString("en-US", opts) + " · " +
+      now.toLocaleTimeString("en-US", timeOpts) + " ISR";
+  }
+})();
+
+// ─── URL filter-sync helper ──────────────────────────────────────────────────
+function getFilterFromUrl() {
+  return new URLSearchParams(window.location.search).get("filter") || "";
+}
+
+function pushFilterToUrl(dsl) {
+  const params = new URLSearchParams(window.location.search);
+  if (dsl) {
+    params.set("filter", dsl);
+  } else {
+    params.delete("filter");
+  }
+  const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+  history.replaceState(null, "", newUrl);
+}
+
+// ─── DOM refs ────────────────────────────────────────────────────────────────
+const filterInput  = document.getElementById("filter-input");
+const tbody        = document.getElementById("tbody-history");
+const btnInsight   = document.getElementById("btn-insight");
+const insightPanel = document.getElementById("insight-panel");
+const insightBody  = document.getElementById("insight-body");
+const insightStat  = document.getElementById("insight-status");
+
+let _lastDsl = "";
+let _insightPollTimer = null;
+
+// ─── Aggregates display ──────────────────────────────────────────────────────
+function setAgg(agg) {
+  document.getElementById("agg-count").textContent = agg.count.toLocaleString();
+
+  const wr = agg.win_rate;
+  const wrEl = document.getElementById("agg-win-rate");
+  wrEl.innerHTML = wr !== null && wr !== undefined
+    ? `<span class="${wr >= 0.5 ? 'pos' : 'neg'}">${(wr * 100).toFixed(1)}%</span>`
+    : `<span class="sub">&mdash;</span>`;
+
+  document.getElementById("agg-stake").textContent =
+    "NIS " + agg.total_stake.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+  const pnlEl = document.getElementById("agg-pnl");
+  const pnlSign = agg.total_pnl >= 0 ? "+" : "";
+  pnlEl.innerHTML = `<span class="${agg.total_pnl >= 0 ? 'pos' : 'neg'}">${pnlSign}${agg.total_pnl.toFixed(2)}</span>`;
+
+  const capEl = document.getElementById("agg-cap");
+  // row_cap_hit shown later after fetch
+}
+
+// ─── Table rendering ─────────────────────────────────────────────────────────
+function resultClass(pnl) {
+  if (pnl === null || pnl === undefined) return "result-open";
+  return pnl > 0 ? "result-win" : "result-loss";
+}
+function resultLabel(bet) {
+  if (bet.result === null || bet.result === undefined) return "Open";
+  if (bet.pnl !== null && bet.pnl > 0) return "Win";
+  if (bet.pnl !== null && bet.pnl < 0) return "Loss";
+  return bet.result ?? "Open";
+}
+function pnlClass(pnl) {
+  if (pnl === null || pnl === undefined) return "pnl-null";
+  return pnl >= 0 ? "pnl-pos" : "pnl-neg";
+}
+function pnlLabel(pnl) {
+  if (pnl === null || pnl === undefined) return "&mdash;";
+  const sign = pnl >= 0 ? "+" : "";
+  return sign + pnl.toFixed(2);
+}
+function leagueClass(league) {
+  const l = (league || "").toLowerCase().replace(/\s/g, "");
+  if (l.includes("premier")) return "premier";
+  if (l.includes("laliga") || l.includes("liga")) return "laliga";
+  if (l.includes("bundesliga")) return "bundesliga";
+  if (l.includes("seriea") || l.includes("serie")) return "seriea";
+  return "";
+}
+
+function renderRows(rows) {
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No bets found for this filter.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(bet => {
+    const slug = encodeURIComponent(bet.home_team);
+    const awaySlug = encodeURIComponent(bet.away_team);
+    const leagueSlug = encodeURIComponent(bet.league);
+    const lClass = leagueClass(bet.league);
+    return `<tr>
+      <td class="match-date-cell">${bet.match_date}</td>
+      <td class="kickoff-time">${bet.kickoff_time}</td>
+      <td><a class="league-pill ${lClass}" href="/league/${leagueSlug}" title="${bet.league}">${bet.league}</a></td>
+      <td class="team-name">
+        <a href="/team/${slug}">${bet.home_team}</a>
+        <span class="vs-sep">vs</span>
+        <a href="/team/${awaySlug}">${bet.away_team}</a>
+        ${bet.home_score !== null ? `<span style="font-size:11px;color:var(--text-sub);margin-left:6px;">(${bet.home_score}–${bet.away_score})</span>` : ""}
+      </td>
+      <td class="bet-cell ${bet.bettor === 'user' ? 'bet-user' : 'bet-ai'}">${bet.bettor.toUpperCase()}</td>
+      <td class="bet-cell">${bet.prediction.toUpperCase()}</td>
+      <td class="odds-cell">${parseFloat(bet.odds).toFixed(2)}</td>
+      <td class="bet-cell">${parseFloat(bet.stake).toFixed(0)}</td>
+      <td class="bet-cell"><span class="result-badge ${resultClass(bet.pnl)}">${resultLabel(bet)}</span></td>
+      <td class="bet-cell"><span class="${pnlClass(bet.pnl)}">${pnlLabel(bet.pnl)}</span></td>
+    </tr>`;
+  }).join("");
+}
+
+// ─── Fetch & render ──────────────────────────────────────────────────────────
+let _debounceTimer = null;
+
+async function fetchAndRender(dsl) {
+  _lastDsl = dsl;
+  tbody.innerHTML = `<tr><td colspan="10" class="empty-state">Loading&hellip;</td></tr>`;
+
+  let url = "/api/bets";
+  if (dsl) url += "?filter=" + encodeURIComponent(dsl);
+
+  let data;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      tbody.innerHTML = `<tr><td colspan="10" class="error-state">${err.detail?.detail || err.detail || "Request failed"}</td></tr>`;
+      btnInsight.disabled = true;
+      return;
+    }
+    data = await resp.json();
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="10" class="error-state">Network error: ${e.message}</td></tr>`;
+    btnInsight.disabled = true;
+    return;
+  }
+
+  setAgg(data.aggregates);
+
+  const capEl = document.getElementById("agg-cap");
+  capEl.innerHTML = data.row_cap_hit
+    ? `<span class="neg">2000 (cap hit)</span>`
+    : `<span class="sub">No cap</span>`;
+
+  // Row cap warning banner above the table
+  const existingBanner = document.getElementById("row-cap-banner");
+  if (existingBanner) existingBanner.remove();
+  if (data.row_cap_hit) {
+    const banner = document.createElement("div");
+    banner.id = "row-cap-banner";
+    banner.style.cssText =
+      "background:#f26130;color:#fdf6e3;padding:10px 18px;border-radius:6px;" +
+      "font-family:var(--font-body,Space Grotesk,sans-serif);font-size:13px;" +
+      "font-weight:600;margin-bottom:16px;letter-spacing:0.2px;";
+    banner.textContent =
+      "Showing partial results — filter matched >2000 bets. Tighten your filter to see the full series.";
+    const table = document.querySelector(".matches-table");
+    table.parentNode.insertBefore(banner, table);
+  }
+
+  renderRows(data.rows);
+
+  // Disable insight button when result set is empty (422 would happen)
+  btnInsight.disabled = (data.aggregates.count === 0);
+}
+
+function onFilterChange() {
+  clearTimeout(_debounceTimer);
+  const dsl = filterInput.value.trim();
+  pushFilterToUrl(dsl);
+  _debounceTimer = setTimeout(() => fetchAndRender(dsl), 350);
+}
+
+filterInput.addEventListener("input", onFilterChange);
+
+// ─── Insight polling ─────────────────────────────────────────────────────────
+function stopInsightPoll() {
+  if (_insightPollTimer) {
+    clearInterval(_insightPollTimer);
+    _insightPollTimer = null;
+  }
+}
+
+// Very basic markdown→HTML converter (bold, headers, bullet lists only)
+function simpleMarkdown(md) {
+  if (!md) return "";
+  return md
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/^[-*] (.+)$/gm, "<li>$1</li>")
+    .replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>")
+    .replace(/\n/g, "<br>");
+}
+
+async function pollInsightJob(jobId) {
+  stopInsightPoll();
+  insightStat.textContent = "Queued";
+  insightBody.className = "insight-panel-body loading";
+  insightBody.textContent = "Waiting for AI analysis...";
+
+  _insightPollTimer = setInterval(async () => {
+    let resp;
+    try {
+      resp = await fetch(`/api/insights/${jobId}`);
+    } catch (e) {
+      stopInsightPoll();
+      insightStat.textContent = "Error";
+      insightBody.className = "insight-panel-body error";
+      insightBody.textContent = "Network error polling insight.";
+      return;
+    }
+    if (!resp.ok) {
+      stopInsightPoll();
+      insightStat.textContent = "Error";
+      insightBody.className = "insight-panel-body error";
+      insightBody.textContent = `Error ${resp.status} polling insight job.`;
+      return;
+    }
+    const job = await resp.json();
+    insightStat.textContent = job.state.toUpperCase();
+
+    if (job.state === "done") {
+      stopInsightPoll();
+      insightBody.className = "insight-panel-body";
+      insightBody.innerHTML = simpleMarkdown(job.markdown || "");
+      btnInsight.disabled = false;
+    } else if (job.state === "failed") {
+      stopInsightPoll();
+      insightBody.className = "insight-panel-body error";
+      insightBody.textContent = job.error || "Insight generation failed.";
+      btnInsight.disabled = false;
+    }
+    // queued/running: keep polling
+  }, 2500);
+}
+
+btnInsight.addEventListener("click", async () => {
+  const dsl = filterInput.value.trim();
+
+  stopInsightPoll();
+  insightPanel.style.display = "block";
+  insightStat.textContent = "Starting";
+  insightBody.className = "insight-panel-body loading";
+  insightBody.textContent = "Submitting insight request...";
+  btnInsight.disabled = true;
+
+  let resp;
+  try {
+    resp = await fetch("/api/insights", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filter_dsl: dsl }),
+    });
+  } catch (e) {
+    insightBody.className = "insight-panel-body error";
+    insightBody.textContent = "Network error submitting insight request.";
+    btnInsight.disabled = false;
+    return;
+  }
+
+  if (resp.status === 422) {
+    // Empty result set
+    insightPanel.style.display = "none";
+    btnInsight.disabled = true;
+    return;
+  }
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    insightBody.className = "insight-panel-body error";
+    insightBody.textContent = err.detail || `Error ${resp.status}`;
+    btnInsight.disabled = false;
+    return;
+  }
+
+  const { job_id } = await resp.json();
+  pollInsightJob(job_id);
+});
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+(function init() {
+  const initialDsl = getFilterFromUrl();
+  filterInput.value = initialDsl;
+  fetchAndRender(initialDsl);
+})();
+</script>
+</body>
+</html>

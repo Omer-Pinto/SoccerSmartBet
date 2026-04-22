@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import logging
-import os
 
-import psycopg2
-
-DATABASE_URL = os.getenv("DATABASE_URL")
+from soccersmartbet.db import get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -43,30 +40,25 @@ def get_games_info(game_ids: list[int]) -> list[dict]:
         return []
 
     games: list[dict] = []
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                for game_id in game_ids:
-                    cur.execute(_FETCH_GAME_SQL, {"game_id": game_id})
-                    row = cur.fetchone()
-                    if row is None:
-                        logger.warning("game_id=%s not found in DB, skipping", game_id)
-                        continue
-                    gid, match_date, kickoff_time, home_team, away_team, league, venue = row
-                    games.append(
-                        {
-                            "game_id": gid,
-                            "home_team": home_team,
-                            "away_team": away_team,
-                            "match_date": str(match_date) if match_date else "TBD",
-                            "kickoff_time": kickoff_time.strftime("%H:%M") if kickoff_time else "TBD",
-                            "league": league or "Unknown League",
-                            "venue": _extract_venue_name(venue or ""),
-                        }
-                    )
-    finally:
-        conn.close()
+    with get_cursor(commit=False) as cur:
+        for game_id in game_ids:
+            cur.execute(_FETCH_GAME_SQL, {"game_id": game_id})
+            row = cur.fetchone()
+            if row is None:
+                logger.warning("game_id=%s not found in DB, skipping", game_id)
+                continue
+            gid, match_date, kickoff_time, home_team, away_team, league, venue = row
+            games.append(
+                {
+                    "game_id": gid,
+                    "home_team": home_team,
+                    "away_team": away_team,
+                    "match_date": str(match_date) if match_date else "TBD",
+                    "kickoff_time": kickoff_time.strftime("%H:%M") if kickoff_time else "TBD",
+                    "league": league or "Unknown League",
+                    "venue": _extract_venue_name(venue or ""),
+                }
+            )
 
     return games
 
