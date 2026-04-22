@@ -98,10 +98,11 @@ async def trigger_pre_gambling_and_notify() -> None:
             "This could be a real no-games day or a bug in the picker.\n\n"
             "Does this make sense to you?"
         )
+        today_iso = today.isoformat()
         keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("\u2705 Yes, expected", callback_data="no_games_yes"),
-                InlineKeyboardButton("\u274c No, looks wrong", callback_data="no_games_no"),
+                InlineKeyboardButton("\u2705 Yes, expected", callback_data=f"no_games_yes:{today_iso}"),
+                InlineKeyboardButton("\u274c No, looks wrong", callback_data=f"no_games_no:{today_iso}"),
             ]
         ])
         bot = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -234,17 +235,24 @@ async def _handle_no_games_callback(
     await query.answer()
     data: str = query.data or ""
 
-    today = now_isr().date()
+    # Parse the date embedded in callback_data (e.g. "no_games_yes:2026-04-22").
+    # Using the send-time date avoids midnight edge cases where the callback
+    # arrives after ISR midnight and now_isr().date() would be the next day.
+    action, _, date_str = data.partition(":")
+    try:
+        target_date = date.fromisoformat(date_str) if date_str else now_isr().date()
+    except ValueError:
+        target_date = now_isr().date()
 
-    if data == "no_games_yes":
-        upsert_daily_run(today, no_games_user_confirmed=True)
+    if action == "no_games_yes":
+        upsert_daily_run(target_date, no_games_user_confirmed=True)
         await query.edit_message_text(
             "\u2705 Got it — no games today, confirmed as expected.",
             parse_mode="HTML",
         )
         logger.info("No-games day confirmed by user as expected")
-    elif data == "no_games_no":
-        upsert_daily_run(today, no_games_user_confirmed=False)
+    elif action == "no_games_no":
+        upsert_daily_run(target_date, no_games_user_confirmed=False)
         await query.edit_message_text(
             "\u274c Noted — something may be wrong with game selection. "
             "Logged for investigation.",
