@@ -287,3 +287,68 @@ COMMENT ON TABLE run_events IS 'Append-only audit log. Intentionally NO FK to da
 
 CREATE INDEX IF NOT EXISTS idx_bets_bettor ON bets(bettor);
 CREATE INDEX IF NOT EXISTS idx_games_league ON games(league);
+
+-- ============================================================================
+-- Wave 11A — Bet-edit window enforcement trigger
+-- STAGED ONLY — NOT YET APPLIED TO LIVE DB AS OF 2026-04-22.
+-- Apply only after Omer's explicit OK via: docker exec soccersmartbet-staging psql ...
+-- ============================================================================
+
+-- Function: raise exception if a bet_edits insert falls outside the edit window.
+-- The edit window is: gambling_completed_at IS NOT NULL
+--   AND kickoff_time - NOW() AT TIME ZONE 'Asia/Jerusalem' > INTERVAL '30 minutes'
+CREATE OR REPLACE FUNCTION check_bet_edit_window()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_game_id       INTEGER;
+    v_match_date    DATE;
+    v_kickoff_time  TIME;
+    v_kickoff_dt    TIMESTAMPTZ;
+    v_gambling_done TIMESTAMPTZ;
+    v_now           TIMESTAMPTZ;
+BEGIN
+    -- Resolve the game for this bet
+    SELECT b.game_id, g.match_date, g.kickoff_time
+    INTO   v_game_id, v_match_date, v_kickoff_time
+    FROM   bets b
+    JOIN   games g ON g.game_id = b.game_id
+    WHERE  b.bet_id = NEW.bet_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'bet_edits: bet_id % not found', NEW.bet_id;
+    END IF;
+
+    -- Build an ISR-aware kickoff timestamp
+    v_kickoff_dt := (v_match_date::TEXT || ' ' || v_kickoff_time::TEXT)::TIMESTAMP
+                    AT TIME ZONE 'Asia/Jerusalem';
+
+    -- Check gambling_completed_at
+    SELECT gambling_completed_at
+    INTO   v_gambling_done
+    FROM   daily_runs
+    WHERE  run_date = v_match_date;
+
+    IF v_gambling_done IS NULL THEN
+        RAISE EXCEPTION
+            'bet_edits: gambling phase not yet complete for % — edits not allowed',
+            v_match_date;
+    END IF;
+
+    -- Check 30-minute window
+    v_now := NOW();
+    IF v_kickoff_dt - v_now <= INTERVAL '30 minutes' THEN
+        RAISE EXCEPTION
+            'bet_edits: edit window closed — kickoff at % ISR is within 30 minutes',
+            TO_CHAR(v_kickoff_dt AT TIME ZONE 'Asia/Jerusalem', 'HH24:MI');
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_bet_edit_window
+BEFORE INSERT ON bet_edits
+FOR EACH ROW
+EXECUTE FUNCTION check_bet_edit_window();
