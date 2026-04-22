@@ -726,9 +726,16 @@ function leagueCssClass(league) {
 }
 
 function todayISO() {
-  // Use the date shown in the masthead (set by server at page render)
+  // Prefer the server-supplied ISR date from the polled status payload so we
+  // never roll to the next UTC date at 22:00–23:59 ISR in summer.
+  if (_status && _status.today_date) return _status.today_date;
+  // Fallback: hidden input set by server at page render (pre-poll).
   const el = document.getElementById("today-date-iso");
-  return el ? el.value : new Date().toISOString().slice(0, 10);
+  if (el && el.value) return el.value;
+  // Last resort: if the status payload hasn't arrived yet, use run_date.
+  if (_status && _status.run_date) return _status.run_date;
+  // Should never reach here after first poll — but avoids a blank date.
+  return new Date().toISOString().slice(0, 10);
 }
 
 // ─────────────────────────────────────────────

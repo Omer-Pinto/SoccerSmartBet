@@ -147,6 +147,7 @@ def _fetch_status_from_db() -> dict:
     if run_row is None:
         return {
             "run_date": today_iso,
+            "today_date": today_iso,
             "status": "idle",
             "pre_gambling_started_at": None,
             "pre_gambling_completed_at": None,
@@ -169,6 +170,7 @@ def _fetch_status_from_db() -> dict:
 
     return {
         "run_date": run_row[0].isoformat() if run_row[0] is not None else today_iso,
+        "today_date": today_iso,
         "pre_gambling_started_at": _iso(run_row[1]),
         "pre_gambling_completed_at": _iso(run_row[2]),
         "gambling_completed_at": _iso(run_row[3]),
