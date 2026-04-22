@@ -27,6 +27,7 @@ _PROCESS_START = now_isr()
 
 from soccersmartbet.webapp.runtime_state import LAST_POLLER_TICK
 from soccersmartbet.webapp.routes.today import router as today_router
+from soccersmartbet.webapp.routes.stats import router as stats_router
 
 # ---------------------------------------------------------------------------
 # Status cache: key "today" → (payload_dict, cached_at_isr)
@@ -47,6 +48,9 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 # Wave 11A: Today tab routes
 app.include_router(today_router)
+
+# Wave 12A: History / P&L / Team / League stats routes
+app.include_router(stats_router)
 
 
 # ---------------------------------------------------------------------------
