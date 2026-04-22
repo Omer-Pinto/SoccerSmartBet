@@ -1,11 +1,11 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-22 19:00 ISR (Wave 11 hard-fix pass — Force Override now works from `pre_gambling_done`, JS time fully ISR, value aliases + OR semantics for DSL, bet-edit trigger LIVE; awaiting bot restart) | **Branch:** Dashboard-Platform-Foundation
+> **Last updated:** 2026-04-22 19:45 ISR (Wave 12 merged — Stats/P&L/History/Team/League + AI Insights endpoint; dashboard route-complete; bot pending restart to serve new routes) | **Branch:** Dashboard-Platform-Foundation
 
 ## Summary
 
 ```
-Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 11/15 waves done
+Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜] 12/15 waves done
 ```
 
 | What | Status |
@@ -20,7 +20,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 11/15 waves
 | Gambling Flow (AI bets + validation) | **Working E2E** — Telegram UI + LangGraph AI betting + verification |
 | Post-Games Flow (results + P&L) | **Working E2E** — FotMob overviewFixtures results, PnL calculator, Telegram summary, auto-triggered |
 | Daily automation (wall-clock scheduler) | **Working E2E** — full cycle proven daily since 2026-04-12 |
-| Operator Dashboard (webapp) | **TODAY TAB + QUERY DSL MERGED** (Wave 11 — `/today` HTML, `POST /api/runs`, `PATCH /api/bets/{id}`, Query DSL engine with 51 unit tests; awaiting bot restart + trigger DDL apply) — Wave 12 (Stats/P&L/History + AI Insights) unblocked |
+| Operator Dashboard (webapp) | **FULLY ROUTED** (Wave 10 foundation + Wave 11 Today/DSL + Wave 12 Stats/Insights) — 19 routes live: `/today`, `/history`, `/pnl`, `/team/{slug}`, `/league/{slug}`, full `/api/*` surface. 70/70 DSL tests, bet-edit trigger live, AI insights job-backed. Pending: bot restart. |
 | Cup-Tie 2-leg support | **NOT BUILT** — Wave 13 |
 
 ---
@@ -41,7 +41,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 11/15 waves
 | 9 | 🟢 Done | Robustness carryovers: 9A missing-results alert (#55), 9B no-games-day verification + fetch-failure conflation fix (#62), 9C startup-recovery verified (no code change). Post-review pass added operator Telegram alerts on pre-gambling AND post-games crashes, `TELEGRAM_CHAT_ID` startup check, date-embedded no-games callbacks, and zeroed all remaining timezone-rule violations (two new helpers: `today_isr()`, `isr_datetime()`). Bug #63 filed for the deferred not-finished-games edge case. Branch `wave9`, 13 commits. |
 | 10 | 🟢 Live (3/5 criteria green; 2 auto-close tonight) | Dashboard platform foundation. Bot restarted on new code 16:44 ISR (pid 21381). `/api/health` 200, `/api/status/today` valid JSON. Status backfilled from existing timestamps (today: `gambling_done`). Criteria #1 (no regression) + #5 (run_events row) auto-confirm at tonight's 01:30 post-games fire. Wave 11 can start in parallel. |
 | 11 | 🟢 Done | Dashboard: Today tab + Query DSL. 11A+11B parallel wave → consultant → code-reviewer → hard-fix pass. 15 bugs caught & fixed total (9 from initial review, 6 from Omer's post-merge flag of bad deferrals). Force Override now works from `pre_gambling_done` (scenario the button was built for). All JS time handling pinned to ISR (offset-aware ISO + `Intl.DateTimeFormat('Asia/Jerusalem')`). DSL: outcome/prediction value aliases + repeated-key OR semantics. 70/70 query tests pass. Bet-edit-window trigger live (applied 2026-04-22). Pending: bot restart. |
-| 12 | ⬜ Not Started | Dashboard: Stats/P&L/History tabs + AI insights (2 parallel agents, depends on Wave 11's Query DSL). |
+| 12 | 🟢 Done | Dashboard: Stats/P&L/History tabs + AI insights. 12A (fullstack) + 12B (ai-engineer) parallel → consultant → code-reviewer → simplifier. 8 bugs caught & fixed (team slug conflation, row_cap_hit banner, expiration sweep racing running jobs, LLM blind to truncation, match_date formatting via `format_isr_date`, LIKE-metachar escaping, load-bearing NameError on `team_name`, app.py merge resolved manually). Shared.css carved out from today.css tokens. Pending: bot restart. |
 | 13 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
 | 14 | 🟡 Partial | Competition expansion + polish: Israeli league + CL/EL done. Euro/WC + backup pending. |
 | 15 | ⬜ TBD | Testing scheme — to be planned separately |
@@ -341,12 +341,51 @@ Commits on branch (14): `746c2c0` `4cca4a3` `52abe80` `b0465e1` `227a1f3` `b25bd
 
 ## Wave 12 — Dashboard: Stats Pages + AI Insights ⬜ NOT STARTED (2 parallel agents)
 
-Depends on Wave 11's Query DSL (11B). Both agents consume it.
+Depends on Wave 11's Query DSL (11B). Both agents consume it. Ran 2026-04-22 via `/parallel-wave-executor` — 2 agents in isolated worktrees → consultant gate → cherry-pick (one manual app.py resolution) → code-reviewer → post-review fix pass → simplifier.
 
 | # | Agent | Type | Status |
 |---|-------|------|--------|
-| 12A | History / P&L / Team / League tabs (`GET /api/bets`, `GET /api/pnl`, per-team/league stats, carnival aesthetic) | fullstack-developer | ⬜ Pending |
-| 12B | AI insights endpoint (`POST /api/insights` + `GET /api/insights/{job_id}`, single-LLM-call — NOT a LangGraph flow, in-memory job store) | ai-engineer | ⬜ Pending |
+| 12A | History / P&L / Team / League tabs | fullstack-developer | 🟢 Done |
+| 12B | AI insights endpoint | ai-engineer | 🟢 Done |
+
+### Code shipped
+
+**12A — Stats side:**
+- `webapp/routes/stats.py` — 8 routes: `/history`, `/pnl`, `/team/{slug}`, `/league/{slug}` (HTML), `GET /api/bets?filter=<dsl>`, `GET /api/pnl?filter=<dsl>`, `GET /api/teams/{slug}/stats`, `GET /api/leagues/{slug}/stats`. All consume Wave 11B's `run_filter(dsl)`.
+- `webapp/static/history.html` — DSL filter input synced to URL, filtered bet table, "Generate insight" button that POSTs to 12B's endpoint + polls every 2.5s + renders markdown.
+- `webapp/static/pnl.html` — two-line inline-SVG chart (user vs AI cumulative P&L), zero-baseline y-axis with 5% padding.
+- `webapp/static/team.html` + `league.html` — per-entity rollups + full bet history.
+- `webapp/static/shared.css` — carnival tokens carved out of today.css (same color palette, Bebas Neue + Space Grotesk).
+
+**12B — AI insights:**
+- `webapp/routes/insights.py` — `POST /api/insights` (202 + job_id; 422 on empty result), `GET /api/insights/{job_id}` (state polling).
+- `webapp/insights/jobs.py` — in-memory `dict[str, InsightJob]`, `asyncio.Semaphore(2)` process-wide concurrency cap, 1h expiration sweep (TERMINAL-only — running jobs never evicted).
+- `webapp/insights/prompt.py` — `ChatOpenAI(INTELLIGENCE_MODEL, temperature=0.2)` direct call (NOT a LangGraph flow per spec). System prompt demands numeric-prefix bullets, max 5, anti-flourish, skip-obvious-facts. User message includes explicit sampling-note when `row_cap_hit=True`.
+
+### Ship-stoppers caught & fixed (consultant + code-reviewer + simplifier cycle)
+
+1. **12A team slug substring** conflated Manchester/Sheffield/Leeds United → `team_registry.resolve_team()` disambiguates, then substring ILIKE on canonical widens only to storage variants (e.g. "Arsenal" → "Arsenal FC").
+2. **12A P&L chart silently truncates at row_cap** → `row_cap_hit` surfaced in `/api/pnl` + `/api/bets` JSON, banner rendered in both history and pnl pages.
+3. **12B sweep evicts running jobs by `created_at`** → only terminal (`done`/`failed`) jobs swept.
+4. **12B prompt blind to truncation** → explicit sampling-note prepended when `row_cap_hit=True` + system prompt rule forcing caveats.
+5. **12B raw `.isoformat()` on date in prompt** → `format_isr_date()` from utils/timezone.
+6. **12A LIKE-metachar injection** (`/league/%25` → matches everything) → `%` `_` `\` escaped + `ESCAPE '\\'` clause.
+7. **12A NameError on `team_name` return** (would 500 every `/api/teams/...` call) → caught by simplifier; fixed to use `canonical`.
+8. **app.py merge conflict** on 3-way include_router — resolved manually to keep all three routers mounted.
+
+### Completion criteria
+
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | Today + History + P&L + Team/League render with carnival aesthetic | 🟢 Code shipped; requires bot restart |
+| 2 | Filter DSL drives query results AND on-demand AI insights | 🟢 70/70 DSL tests; insights endpoint smoke-imports clean |
+| 3 | Dashboard complete at 127.0.0.1:8083 with navigation between tabs | ⏳ Auto-verifies after bot restart |
+
+### Pending operator actions (Omer)
+
+1. **Restart bot** to serve 19 total routes (Wave 10 + 11 + 12).
+
+Commits on branch (6): `52d2f60` `dc52d5e` `e080abb` `0805b4a` `62dc2e7` `700f337`.
 
 ---
 
