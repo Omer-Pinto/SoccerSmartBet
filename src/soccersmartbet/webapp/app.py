@@ -71,13 +71,21 @@ async def _root_redirect() -> RedirectResponse:
 @app.middleware("http")
 async def _unhandled_exception_middleware(request: Request, call_next: Any) -> Any:
     try:
-        return await call_next(request)
+        response = await call_next(request)
     except Exception as exc:
         logger.exception("Unhandled exception in %s %s", request.method, request.url)
         return JSONResponse(
             status_code=500,
             content={"error": "internal", "detail": "An internal error occurred"},
         )
+    # Force browsers to revalidate static assets on every load so JS/CSS changes
+    # aren't stuck behind stale disk cache.  The single-operator localhost use
+    # case doesn't need aggressive caching and the debugging pain isn't worth it.
+    if request.url.path.startswith("/static") or request.url.path in (
+        "/today", "/history", "/pnl"
+    ) or request.url.path.startswith("/team/") or request.url.path.startswith("/league/"):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
 
 
 # ---------------------------------------------------------------------------
