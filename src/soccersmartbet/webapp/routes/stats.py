@@ -237,11 +237,9 @@ async def get_team_stats(slug: str) -> dict:
             status_code=404,
             detail={"error": "unknown_team", "slug": slug},
         )
-    # resolve_team returns a single disambiguated canonical team name (e.g. "Arsenal").
-    # Substring ILIKE on it only widens to DB-storage variants of that same team
-    # (e.g. "Arsenal FC"), never to other teams — cross-team conflation is prevented
-    # because resolve_team never returns ambiguous canonicals like bare "United".
-    # Escape LIKE metacharacters in the canonical so "_" and "%" in names are literals.
+    # resolve_team returns a disambiguated canonical (e.g. "Arsenal") — substring
+    # ILIKE only widens to storage variants ("Arsenal FC"), not to other teams.
+    # Escape LIKE metacharacters so "_" / "%" in names are treated as literals.
     _safe = canonical.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{_safe}%"
 
@@ -325,7 +323,7 @@ async def get_team_stats(slug: str) -> dict:
     )[:5]
 
     return {
-        "team_name": team_name,
+        "team_name": canonical,
         "total_bets": len(bet_list),
         "total_stake": round(total_stake, 2),
         "total_pnl": round(total_pnl, 2),
@@ -357,10 +355,9 @@ async def get_league_stats(slug: str) -> dict:
         HTTP 404 when no bets match the slug.
     """
     league_name = urllib.parse.unquote(slug)
-    # Design decision: prefix match (starts-with) to avoid "pl" matching "Italian Playoff".
-    # "Premier" still matches "Premier League". Flagged for Omer: substring was previous
-    # behaviour; prefix prevents false positives but may miss mid-word abbreviations.
-    # Escape LIKE metacharacters so "_" and "%" in URL slugs are treated as literals.
+    # Prefix match (starts-with) so "pl" doesn't pull in "Italian Playoff" while
+    # "Premier" still matches "Premier League". Escape LIKE metacharacters so
+    # "_" / "%" in slugs are treated as literals.
     _safe_league = league_name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     pattern = f"{_safe_league}%"
 
