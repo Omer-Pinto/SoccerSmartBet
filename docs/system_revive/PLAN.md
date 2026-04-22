@@ -227,9 +227,17 @@ Connect all nodes with edges, conditional routing by Phase enum.
 #### 4.3 Daily Summary Notification
 - Send results via Telegram
 
-#### 4.4 Offline Analysis Flow (Stretch)
-- Query historical P&L
-- AI-generated insights
+#### 4.4 Operator Dashboard (Wave 10 — scope expanded from original "Offline Analysis Flow")
+Originally scoped as a background analysis flow; expanded to a full **localhost FastAPI operator dashboard** inside the bot process.
+
+Capabilities:
+- **Today tab**: live flow status, manual triggers (run pre-gambling now, override, run post-games early, regenerate one game's report), bet modification within 30-min-before-kickoff + gambling-done window.
+- **History tab**: query DSL (`league:la-liga team:real-madrid,barcelona month:2026-12 stake:>1.5`), URL-shareable, filter panel + raw DSL edit.
+- **P&L tab**: line charts by date, filter-reactive, two-line per-user + AI comparison.
+- **Team/League tab**: per-team and per-league bet history with success rate + P&L.
+- **On-demand AI insights**: per-query LLM call over filtered rows (not a new LangGraph flow; plain async endpoint).
+
+Architectural invariants (locked): one process, one asyncio loop, `daily_runs.status` + `SELECT FOR UPDATE NOWAIT` mutex, sync `graph.invoke` + `asyncio.to_thread`, 2-5s polling, connection-pooled `psycopg2`, no SSE, no auth, no remote access, no async node rewrite, no second process. See `task_breakdown.md` Wave 10 for full constraints + schema additions + sub-agent breakdown.
 
 ---
 

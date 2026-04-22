@@ -39,7 +39,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜] 9/13 waves done
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
 | 8 | 🟢 Done | Report refactor track: 8A + 8B + 8C + 8E done. 8D skipped. Live-DB migration applied 2026-04-19 (backup: `~/soccersmartbet_backup_before_wave8_20260418_163145.sql`, 360KB, zero row loss). |
 | 9 | 🟢 Done | Robustness carryovers: 9A missing-results alert (#55), 9B no-games-day verification + fetch-failure conflation fix (#62), 9C startup-recovery verified (no code change). Post-review pass added operator Telegram alerts on pre-gambling AND post-games crashes, `TELEGRAM_CHAT_ID` startup check, date-embedded no-games callbacks, and zeroed all remaining timezone-rule violations (two new helpers: `today_isr()`, `isr_datetime()`). Bug #63 filed for the deferred not-finished-games edge case. Branch `wave9`, 13 commits. |
-| 10 | ⬜ Not Started | Offline Analysis Flow — multi-day gambling view. Deferred until enough betting data accumulated. |
+| 10 | ⬜ Not Started | **Operator Dashboard (webapp)** — localhost FastAPI bolted into bot process. Tabs: Today (control panel + bet modification), History (query DSL + on-demand AI insights), P&L, Team/League. Mockup approved at `docs/wave10/mockup_today_v2.html`. Scope replaces earlier "offline analysis flow" idea. 5 parallel sub-agents after platform foundation lands. |
 | 11 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
 | 12 | 🟡 Partial | Competition expansion + polish: Israeli league + CL/EL done. Euro/WC + backup pending. |
 | 13 | ⬜ TBD | Testing scheme — to be planned separately |
@@ -245,17 +245,17 @@ Issues: #55 closed, #62 closed, #63 filed (not-yet-finished edge case, low prior
 
 ---
 
-## Wave 10 — Offline Analysis Flow ⬜ NOT STARTED
+## Wave 10 — Operator Dashboard (Webapp) ⬜ NOT STARTED
 
-Multi-day gambling analytics. Deferred until enough betting data accumulated.
+Localhost-only FastAPI dashboard bolted into the bot process. Replaces the earlier "offline analysis flow" scope. Architectural constraints (single process, `daily_runs.status` mutex with `SELECT FOR UPDATE NOWAIT`, sync `graph.invoke` + `asyncio.to_thread`, 2-5s polling, connection pool required, no async node rewrite, no SSE, no second process, no auth) are LOCKED — see `task_breakdown.md` for full list. Design mockup: `docs/wave10/mockup_today_v2.html`.
 
-### Agent 10A: Offline Analysis
-| # | Task | Status |
-|---|------|--------|
-| 1 | Design analysis queries + multi-day HTML dashboard | ⬜ Pending |
-| 2 | Create query_stats.py | ⬜ Pending |
-| 3 | Create analysis HTML reports | ⬜ Pending |
-| 4 | Create offline graph_manager.py | ⬜ Pending |
+| # | Agent | Type | Status | Notes |
+|---|-------|------|--------|-------|
+| 10A | Platform foundation | python-pro | ⬜ Pending | FastAPI app, connection pool, schema additions, mutex helper, `run_events`/`bet_edits` writers, `GET /api/status/today`. Blocks 10B-10E. |
+| 10B | Query engine (filter DSL) | python-pro | ⬜ Pending | DSL parser + filter-to-SQL compiler. Blocks 10C + 10E. |
+| 10C | Stats / P&L / History tabs | fullstack-developer | ⬜ Pending | History, P&L, Team/League pages. Carnival aesthetic. |
+| 10D | Today tab: control panel + bet modification | fullstack-developer | ⬜ Pending | Flow triggers, override, bet edit with 30-min + gambling-done guards. |
+| 10E | AI insights endpoint | ai-engineer | ⬜ Pending | `POST /api/insights` — single LLM call over filtered rows (not a LangGraph flow). Async job pattern. |
 
 ---
 

@@ -471,20 +471,80 @@ Unrelated to the report refactor. Can run any time — files are disjoint from W
 
 ---
 
-## Wave 10 — Offline Analysis Flow ⬜ NOT STARTED
+## Wave 10 — Operator Dashboard (Webapp) ⬜ NOT STARTED
 
-Multi-day gambling analytics. Deferred until enough betting data accumulated. Omer wants a way to look across multiple days, not a single-day summary.
+Localhost-only FastAPI dashboard bolted into the existing bot process. Replaces the earlier "offline analysis flow" scope — broader and more useful: statistical bet history, query DSL, flow control, bet modification, and on-demand AI insights. Design mockup: `docs/wave10/mockup_today_v2.html` (carnival/Waka-Waka aesthetic, approved).
 
-### Agent 10A: Offline Analysis
-**Type:** `fullstack-developer`
-**Scope:** `src/soccersmartbet/offline_analysis_flow/` (new directory)
+### Architectural constraints (LOCKED — any change requires Omer's explicit OK)
 
-| # | File / Task | Target | Notes |
-|---|-------------|--------|-------|
-| 1 | Design analysis queries + HTML dashboard | Multi-day view, per-user, per-league, per-team, date-range filters | Rich interactive UI, not basic text. Primary use case: look at last N days of gambling together. |
-| 2 | Create `query_stats.py` | SQL aggregations on bets + games | Breakdowns by bettor, league, team, date range. Daily + cumulative P&L. |
-| 3 | Create analysis HTML reports | Detailed visual reports | Similar quality to game report pages. |
-| 4 | Create `graph_manager.py` | On-demand trigger | Telegram command or scheduled weekly. |
+1. **One process, one asyncio loop.** FastAPI + Telegram updater + wall-clock poller + LangGraph flows co-located. `uvicorn.Server(...).serve()` runs as an asyncio task alongside the poller (replaces `application.run_polling()` with the manual lifecycle: `initialize()` → `start_polling()` → `start()` → `gather(uvicorn.serve(), _wall_clock_poller())`).
+2. **Flow mutex = `daily_runs.status` + `SELECT ... FOR UPDATE NOWAIT`.** No `asyncio.Lock`. No in-memory flags. DB is the system of record.
+3. **Keep sync `graph.invoke()` + `asyncio.to_thread` bridge.** Do NOT convert nodes to async. LangGraph's own thread pool handles `Send()` fan-out; we don't resize or touch it.
+4. **Status visibility = 2–5s polling** of `GET /api/status/today` with server-side 1s TTL cache. No SSE, no WebSocket.
+5. **Connection pool required before first HTTP endpoint.** `psycopg2.pool.ThreadedConnectionPool` (size 5). Replace per-call `psycopg2.connect()` in `daily_runs.py` and every new module.
+6. **All LLM calls from HTTP handlers are async jobs.** Handlers return 202 + job_id within 200ms; dashboard polls for completion. Sync LLM-in-handler is forbidden.
+7. **Bet edits**: allowed only when `daily_runs.gambling_completed_at IS NOT NULL` for that bet's date AND `game.kickoff_time - now_isr() > 30min`. Enforce in SQL (CHECK or trigger) AND in API layer. Every edit appends to `bet_edits`.
+8. **Force-rerun path**: transactional cleanup — DELETE `games` + `game_reports` + `expert_game_reports` for that `run_date` BEFORE re-inserting. Bump `attempt_count`.
+9. **No multi-user, no auth, no remote access, no SSE, no async node rewrite, no second process, no queue.** Permanently out of scope.
+10. **Live DDL only after Omer's explicit OK** per CLAUDE.md.
+
+### Schema additions (stage in `deployment/db/init/001_create_schema.sql`, apply to live DB only after Omer's OK)
+
+```sql
+ALTER TABLE daily_runs ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'idle'
+    CHECK (status IN ('idle', 'pre_gambling_running', 'pre_gambling_done',
+                      'gambling_running', 'gambling_done',
+                      'post_games_running', 'post_games_done', 'failed'));
+ALTER TABLE daily_runs ADD COLUMN last_trigger_source VARCHAR(20);
+ALTER TABLE daily_runs ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE daily_runs ADD COLUMN last_error TEXT;
+
+CREATE TABLE run_events (
+    event_id      SERIAL PRIMARY KEY,
+    run_date      DATE NOT NULL,
+    event_type    VARCHAR(40) NOT NULL,  -- pre_gambling_triggered, pre_gambling_completed, etc.
+    triggered_by  VARCHAR(20) NOT NULL CHECK (triggered_by IN ('scheduler', 'manual', 'recovery')),
+    triggered_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    payload       JSONB
+);
+CREATE INDEX ON run_events(run_date, triggered_at);
+
+CREATE TABLE bet_edits (
+    edit_id    SERIAL PRIMARY KEY,
+    bet_id     INTEGER NOT NULL REFERENCES bets(bet_id) ON DELETE CASCADE,
+    field      VARCHAR(30) NOT NULL,
+    old_value  TEXT,
+    new_value  TEXT,
+    edited_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    source     VARCHAR(20) NOT NULL DEFAULT 'dashboard'
+);
+CREATE INDEX ON bet_edits(bet_id);
+
+-- Optional: indexes for bets-browser queries (non-destructive)
+CREATE INDEX IF NOT EXISTS idx_bets_bettor ON bets(bettor);
+CREATE INDEX IF NOT EXISTS idx_games_league ON games(league);
+```
+
+### Sub-agents (can run in parallel after 10A lands)
+
+| # | Agent | Type | Scope |
+|---|-------|------|-------|
+| 10A | **Platform foundation** | `python-pro` | New `src/soccersmartbet/webapp/` package: FastAPI app shell, `uvicorn` launched from `triggers.py`, `psycopg2.pool.ThreadedConnectionPool` wrapping `daily_runs.py` + new modules, schema migration file, `run_events` + `bet_edits` write helpers, `daily_runs.status`-based mutex helper (`SELECT FOR UPDATE NOWAIT` returning 409 on contention), in-process `GET /api/status/today` with 1s TTL cache. Every other agent depends on this. |
+| 10B | **Query engine** | `python-pro` | DSL parser (`league:la-liga team:real-madrid,barcelona month:2026-12 stake:>1.5`), filter-to-SQL compiler, shared query service module. Keys: `league`, `team`, `date`, `month`, `stake`, `odds`, `outcome`, `bettor`, `prediction`. Ranges (`>`, `<`, `X-Y`), lists (comma), negation (`!`). Returns Pydantic models. |
+| 10C | **Stats + P&L + History tabs** | `fullstack-developer` | Pages: History (filtered bet table, generate-insight button), P&L (line charts by date, filter-reactive), Team/League hub pages. Uses 10B's query engine. Charts as inline SVG (no chart lib build step). Carnival aesthetic from mockup v2. |
+| 10D | **Today tab: control panel + bet modification** | `fullstack-developer` | `POST /api/runs {date, flow_type, force}` → takes the `FOR UPDATE NOWAIT` lock → marks `daily_runs.status` → writes `run_events` → spawns `asyncio.create_task(...)` around the existing `run_*_flow()` via `to_thread` → returns 202 + `event_id`. `PATCH /api/bets/{bet_id}` with 30-min + gambling-done guards → writes `bet_edits`. Today tab UI (from mockup v2) with countdown chips, two-phase override button + modal with explicit date. |
+| 10E | **AI insights endpoint** | `ai-engineer` | `POST /api/insights {filter_dsl}` → runs the filter via 10B's engine → caps at N rows (default 500) → single LLM call (not a LangGraph flow) with rows formatted as a structured payload + "expert user, skip obvious stats" system prompt → returns markdown. Async job (not sync) — 202 + `job_id`, polled via `GET /api/insights/{job_id}`. Store jobs in memory per-session; no new table. |
+
+### After Wave 10
+- Operator dashboard served on `http://localhost:8083` from the same bot process.
+- Manual flow triggers + override + bet modification live.
+- Filter DSL browsable history + P&L visualizations.
+- On-demand AI insights per query.
+- All triggers audited in `run_events`; all bet edits audited in `bet_edits`.
+
+### Design mockup
+
+`docs/wave10/mockup_today_v2.html` — approved aesthetic reference (carnival palette, Bebas Neue + Space Grotesk, deep indigo + magenta/yellow/emerald/vermilion/cobalt). All Wave 10 pages follow this language.
 
 ---
 
