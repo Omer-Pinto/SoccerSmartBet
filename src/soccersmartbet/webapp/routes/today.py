@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from soccersmartbet.daily_runs import upsert_daily_run
 from soccersmartbet.db import get_conn, get_cursor
 from soccersmartbet.utils.timezone import format_isr_time, isr_datetime, now_isr, today_isr
 from soccersmartbet.webapp.audit import EventType, write_run_event
@@ -278,6 +279,11 @@ async def _wrap_flow(
         logger.exception("release_flow failed for manual %s — marking failed", flow_type)
         mark_failed(run_date, exc)
         return
+
+    if flow_type in ("pre_gambling", "regenerate_report"):
+        upsert_daily_run(run_date, pre_gambling_completed_at=now_isr(), game_ids=game_ids, games_found=len(game_ids))
+    else:
+        upsert_daily_run(run_date, post_games_completed_at=now_isr())
 
     elapsed = (now_isr() - started).total_seconds()
     write_run_event(
