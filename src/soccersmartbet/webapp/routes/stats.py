@@ -237,8 +237,13 @@ async def get_team_stats(slug: str) -> dict:
             status_code=404,
             detail={"error": "unknown_team", "slug": slug},
         )
-    # ILIKE without wildcards is a case-insensitive exact match
-    team_name = canonical
+    # resolve_team returns a single disambiguated canonical team name (e.g. "Arsenal").
+    # Substring ILIKE on it only widens to DB-storage variants of that same team
+    # (e.g. "Arsenal FC"), never to other teams — cross-team conflation is prevented
+    # because resolve_team never returns ambiguous canonicals like bare "United".
+    # Escape LIKE metacharacters in the canonical so "_" and "%" in names are literals.
+    _safe = canonical.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{_safe}%"
 
     sql = """
         SELECT
@@ -260,14 +265,14 @@ async def get_team_stats(slug: str) -> dict:
             g.away_score
         FROM bets b
         JOIN games g ON g.game_id = b.game_id
-        WHERE g.home_team ILIKE %(name)s
-           OR g.away_team ILIKE %(name)s
+        WHERE g.home_team ILIKE %(name)s ESCAPE '\\'
+           OR g.away_team ILIKE %(name)s ESCAPE '\\'
         ORDER BY g.match_date DESC, g.kickoff_time DESC
         LIMIT 2000
     """
 
     with get_cursor(commit=False) as cur:
-        cur.execute(sql, {"name": canonical})
+        cur.execute(sql, {"name": pattern})
         rows = cur.fetchall()
 
     if not rows:
@@ -355,7 +360,9 @@ async def get_league_stats(slug: str) -> dict:
     # Design decision: prefix match (starts-with) to avoid "pl" matching "Italian Playoff".
     # "Premier" still matches "Premier League". Flagged for Omer: substring was previous
     # behaviour; prefix prevents false positives but may miss mid-word abbreviations.
-    pattern = f"{league_name}%"
+    # Escape LIKE metacharacters so "_" and "%" in URL slugs are treated as literals.
+    _safe_league = league_name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"{_safe_league}%"
 
     sql = """
         SELECT
@@ -377,13 +384,13 @@ async def get_league_stats(slug: str) -> dict:
             g.away_score
         FROM bets b
         JOIN games g ON g.game_id = b.game_id
-        WHERE g.league ILIKE %s
+        WHERE g.league ILIKE %(name)s ESCAPE '\\'
         ORDER BY g.match_date DESC, g.kickoff_time DESC
         LIMIT 2000
     """
 
     with get_cursor(commit=False) as cur:
-        cur.execute(sql, (pattern,))
+        cur.execute(sql, {"name": pattern})
         rows = cur.fetchall()
 
     if not rows:
