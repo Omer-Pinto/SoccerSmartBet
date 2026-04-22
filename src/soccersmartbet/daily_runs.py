@@ -1,16 +1,12 @@
 from __future__ import annotations
 
 import logging
-import os
-from datetime import date, datetime, time, timedelta
+from datetime import date, time
 
-import psycopg2
-
+from soccersmartbet.db import get_conn
 from soccersmartbet.utils.timezone import isr_datetime
 
 logger = logging.getLogger(__name__)
-
-DATABASE_URL: str | None = os.getenv("DATABASE_URL")
 
 
 def get_daily_run(run_date: date) -> dict | None:
@@ -30,18 +26,18 @@ def get_daily_run(run_date: date) -> dict | None:
             games_found,
             user_bet_completed,
             ai_bet_completed,
-            no_games_user_confirmed
+            no_games_user_confirmed,
+            status,
+            last_trigger_source,
+            attempt_count,
+            last_error
         FROM daily_runs
         WHERE run_date = %(run_date)s
     """
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, {"run_date": run_date})
-                row = cur.fetchone()
-    finally:
-        conn.close()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, {"run_date": run_date})
+            row = cur.fetchone()
 
     if row is None:
         return None
@@ -58,6 +54,10 @@ def get_daily_run(run_date: date) -> dict | None:
         "user_bet_completed": row[8],
         "ai_bet_completed": row[9],
         "no_games_user_confirmed": row[10],
+        "status": row[11],
+        "last_trigger_source": row[12],
+        "attempt_count": row[13],
+        "last_error": row[14],
     }
 
 
@@ -67,7 +67,8 @@ def upsert_daily_run(run_date: date, **fields: object) -> None:
     Accepts keyword arguments matching daily_runs columns:
         pre_gambling_started_at, pre_gambling_completed_at,
         gambling_completed_at, post_games_completed_at,
-        game_ids, user_bet_completed, ai_bet_completed.
+        game_ids, user_bet_completed, ai_bet_completed,
+        status, last_trigger_source, attempt_count, last_error.
 
     Unknown keys are silently ignored.
     """
@@ -82,6 +83,10 @@ def upsert_daily_run(run_date: date, **fields: object) -> None:
         "user_bet_completed",
         "ai_bet_completed",
         "no_games_user_confirmed",
+        "status",
+        "last_trigger_source",
+        "attempt_count",
+        "last_error",
     }
     filtered = {k: v for k, v in fields.items() if k in allowed}
     if not filtered:
@@ -98,13 +103,10 @@ def upsert_daily_run(run_date: date, **fields: object) -> None:
     """
     params = {"run_date": run_date, **filtered}
 
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, params)
-    finally:
-        conn.close()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+        conn.commit()
 
     logger.debug("upsert_daily_run: %s → %s", run_date, list(filtered))
 
@@ -125,14 +127,10 @@ def get_pending_post_games() -> dict | None:
         ORDER BY run_date DESC
         LIMIT 1
     """
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(sql)
-                row = cur.fetchone()
-    finally:
-        conn.close()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            row = cur.fetchone()
 
     if row is None:
         return None
@@ -144,13 +142,15 @@ def get_pending_post_games() -> dict | None:
     }
 
 
-def get_max_kickoff_for_games(game_ids: list[int]) -> datetime | None:
+def get_max_kickoff_for_games(game_ids: list[int]) -> "datetime | None":
     """Return the latest kickoff as a timezone-aware ISR datetime, or None.
 
     Combines match_date + kickoff_time from the games table into a
     timezone-aware datetime in ISR_TZ so the caller can compare it
     directly against now_isr().
     """
+    from datetime import datetime  # noqa: PLC0415 — local import to avoid top-level datetime
+
     if not game_ids:
         return None
 
@@ -161,14 +161,10 @@ def get_max_kickoff_for_games(game_ids: list[int]) -> datetime | None:
         ORDER BY match_date DESC, kickoff_time DESC
         LIMIT 1
     """
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, {"game_ids": game_ids})
-                row = cur.fetchone()
-    finally:
-        conn.close()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, {"game_ids": game_ids})
+            row = cur.fetchone()
 
     if row is None:
         return None

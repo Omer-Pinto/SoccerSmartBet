@@ -247,3 +247,41 @@ COMMENT ON COLUMN daily_runs.game_ids IS 'game_ids selected today; empty array m
 COMMENT ON COLUMN daily_runs.post_games_trigger_at IS 'max(kickoff_time) + 3h — calculated once when gambling completes';
 COMMENT ON COLUMN daily_runs.games_found IS 'Number of games the pre-gambling picker found (before LLM selection)';
 COMMENT ON COLUMN daily_runs.no_games_user_confirmed IS 'User response to no-games-day prompt: TRUE = expected, FALSE = suspicious';
+
+-- ============================================================================
+-- Wave 10 — Dashboard Platform Foundation
+-- NOT YET APPLIED TO LIVE DB AS OF 2026-04-22.
+-- Apply only after Omer's explicit OK via: docker exec soccersmartbet-staging psql ...
+-- ============================================================================
+
+ALTER TABLE daily_runs ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'idle'
+    CHECK (status IN ('idle', 'pre_gambling_running', 'pre_gambling_done',
+                      'gambling_running', 'gambling_done',
+                      'post_games_running', 'post_games_done', 'failed'));
+ALTER TABLE daily_runs ADD COLUMN IF NOT EXISTS last_trigger_source VARCHAR(20);
+ALTER TABLE daily_runs ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE daily_runs ADD COLUMN IF NOT EXISTS last_error TEXT;
+
+CREATE TABLE IF NOT EXISTS run_events (
+    event_id      SERIAL PRIMARY KEY,
+    run_date      DATE NOT NULL,
+    event_type    VARCHAR(40) NOT NULL,
+    triggered_by  VARCHAR(20) NOT NULL CHECK (triggered_by IN ('scheduler', 'manual', 'recovery')),
+    triggered_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    payload       JSONB
+);
+CREATE INDEX IF NOT EXISTS idx_run_events_date_time ON run_events(run_date, triggered_at);
+
+CREATE TABLE IF NOT EXISTS bet_edits (
+    edit_id    SERIAL PRIMARY KEY,
+    bet_id     INTEGER NOT NULL REFERENCES bets(bet_id) ON DELETE CASCADE,
+    field      VARCHAR(30) NOT NULL,
+    old_value  TEXT,
+    new_value  TEXT,
+    edited_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    source     VARCHAR(20) NOT NULL DEFAULT 'dashboard'
+);
+CREATE INDEX IF NOT EXISTS idx_bet_edits_bet ON bet_edits(bet_id);
+
+CREATE INDEX IF NOT EXISTS idx_bets_bettor ON bets(bettor);
+CREATE INDEX IF NOT EXISTS idx_games_league ON games(league);

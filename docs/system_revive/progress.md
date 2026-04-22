@@ -1,6 +1,6 @@
 # SoccerSmartBet Revival — Progress Tracker
 
-> **Last updated:** 2026-04-22 (Wave 9 complete) | **Branch:** wave9
+> **Last updated:** 2026-04-22 (Wave 10A code shipped — live DDL gated on Omer's OK) | **Branch:** Dashboard-Platform-Foundation
 
 ## Summary
 
@@ -39,7 +39,7 @@ Progress: [🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜] 9/15 waves do
 | 7 | 🟢 Done | daily_runs table, wall-clock scheduler, full automation |
 | 8 | 🟢 Done | Report refactor track: 8A + 8B + 8C + 8E done. 8D skipped. Live-DB migration applied 2026-04-19 (backup: `~/soccersmartbet_backup_before_wave8_20260418_163145.sql`, 360KB, zero row loss). |
 | 9 | 🟢 Done | Robustness carryovers: 9A missing-results alert (#55), 9B no-games-day verification + fetch-failure conflation fix (#62), 9C startup-recovery verified (no code change). Post-review pass added operator Telegram alerts on pre-gambling AND post-games crashes, `TELEGRAM_CHAT_ID` startup check, date-embedded no-games callbacks, and zeroed all remaining timezone-rule violations (two new helpers: `today_isr()`, `isr_datetime()`). Bug #63 filed for the deferred not-finished-games edge case. Branch `wave9`, 13 commits. |
-| 10 | ⬜ Not Started | Dashboard platform foundation (1 agent: FastAPI, connection pool, schema additions, mutex, status endpoint). Blocks Waves 11 and 12. |
+| 10 | 🟡 Code Ready / DDL Pending | Dashboard platform foundation. 10A code shipped (FastAPI shell, conn pool, audit, mutex, status/health endpoints, async lifecycle). Live DDL is staged in `001_create_schema.sql` but NOT applied — bot will fail to start until Omer OKs `docker exec ... psql ...` for the 4 ALTER + 2 CREATE TABLE + 4 CREATE INDEX statements. Blocks Waves 11/12. |
 | 11 | ⬜ Not Started | Dashboard: Today tab + Query DSL (2 parallel agents, depends on Wave 10). |
 | 12 | ⬜ Not Started | Dashboard: Stats/P&L/History tabs + AI insights (2 parallel agents, depends on Wave 11's Query DSL). |
 | 13 | ⬜ Not Started | Cup-Tie 2-leg Match Support — pick up when an actual 2nd leg appears on schedule. |
@@ -247,13 +247,28 @@ Issues: #55 closed, #62 closed, #63 filed (not-yet-finished edge case, low prior
 
 ---
 
-## Wave 10 — Dashboard Platform Foundation ⬜ NOT STARTED (1 agent)
+## Wave 10 — Dashboard Platform Foundation 🟡 CODE READY / DDL PENDING (1 agent)
 
 Single-agent blocker wave. Everything in Waves 11 and 12 depends on this landing.
 
 | # | Agent | Type | Status |
 |---|-------|------|--------|
-| 10A | Platform foundation (FastAPI shell, `psycopg2.pool.ThreadedConnectionPool`, schema additions, `run_events`/`bet_edits` writers, `daily_runs.status` mutex helper, `GET /api/status/today` + `/api/health`) | python-pro | ⬜ Pending |
+| 10A | Platform foundation (FastAPI shell, `psycopg2.pool.ThreadedConnectionPool`, schema additions, `run_events`/`bet_edits` writers, `daily_runs.status` mutex helper, `GET /api/status/today` + `/api/health`) | python-pro | 🟢 Done (code) — ⏳ live DDL gated on Omer's OK |
+
+**Bottom line (code shipped):**
+- `webapp/` package created: `app.py` (FastAPI on `127.0.0.1:8083`, error middleware that does NOT leak `str(exc)`, 1s TTL status cache), `audit.py` (`EventType` constants + `write_run_event` + `write_bet_edit`), `run_mutex.py` (`acquire_flow` short-tx mutex, `release_flow`, `mark_failed` with `LockNotAvailable` swallow, `*_running` collisions translate to `FlowConflict`), `runtime_state.py` (shared `LAST_POLLER_TICK` — clean dependency direction).
+- `db.py` — `psycopg2.pool.ThreadedConnectionPool(size 5)` with `get_conn()` / `get_cursor()` context managers. All 4 `daily_runs.py` call-sites migrated. **14 OTHER call-sites (gambling/, pre_gambling/, post_games/, team_registry, reports/) still use direct `psycopg2.connect()` — pool is largely unused on the hot paths until those migrate.** Track for follow-up wave.
+- `triggers.py` — `start_scheduler()` is now async; manual PTB lifecycle (`initialize` / `updater.start_polling` / `start`) replaces `application.run_polling()`. uvicorn server task + poller task under `asyncio.gather`. SIGTERM/SIGINT handler + 30s bounded shutdown via `asyncio.wait_for`. Mutex + `run_events` audit integrated into `trigger_pre_gambling_and_notify` and `_fire_post_games`. Both flows now spawned via `asyncio.create_task` so the 60s poller heartbeat (`LAST_POLLER_TICK`) stays fresh during multi-minute runs.
+- `pyproject.toml` — `fastapi` + `uvicorn` moved from `[web]` extras into core dependencies.
+- Schema staged: `001_create_schema.sql` appended with idempotent block (`ADD COLUMN IF NOT EXISTS`, `CREATE TABLE IF NOT EXISTS`, named `IF NOT EXISTS` indexes) — 4 ALTER on `daily_runs` (status / last_trigger_source / attempt_count / last_error), `run_events` table, `bet_edits` table, `idx_run_events_date_time`, `idx_bet_edits_bet`, `idx_bets_bettor`, `idx_games_league`.
+- Verification: all imports clean, `start_scheduler` is a coroutine, zero `datetime.now`/`utcnow` regressions, pool can `SELECT 1` against live DB.
+
+**⏳ Action required from Omer before bot restart:**
+Live-DDL must be applied via `docker exec soccersmartbet-staging psql -U postgres -d soccersmartbet_staging -f /docker-entrypoint-initdb.d/001_create_schema.sql` OR by running the Wave 10 block standalone. Without it: `get_daily_run` SELECTs `status`/`last_trigger_source`/`attempt_count`/`last_error` and the bot crashes at first poller tick. Per CLAUDE.md, this needs Omer's explicit OK for the specific DDL.
+
+**Open follow-up (not blocking commit, tracked):**
+- Migrate 14 remaining `psycopg2.connect()` call-sites to `db.get_conn()` so the pool is meaningful (separate wave).
+- Wave 11 needs a startup-recovery routine that scans for stuck `*_running` rows older than N hours and transitions them to `failed` (otherwise a process crash mid-flow blocks all future fires for that date).
 
 Architectural constraints (single process, `daily_runs.status` mutex with `SELECT FOR UPDATE NOWAIT`, sync `graph.invoke` + `asyncio.to_thread`, 2-5s polling, connection pool required, no async node rewrite, no SSE, no second process, no auth) are LOCKED — see `task_breakdown.md` for full list. Design mockup: `docs/wave10/mockup_today_v2.html`.
 
