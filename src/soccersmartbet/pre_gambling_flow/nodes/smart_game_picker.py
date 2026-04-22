@@ -212,10 +212,20 @@ def smart_game_picker(state: PreGamblingState) -> dict:  # noqa: ARG001
     logger.info("smart_game_picker: starting")
 
     fixtures_result = fetch_daily_fixtures()
+    fixtures_error = fixtures_result.get("error")
+    if fixtures_error:
+        # A fetch failure is NOT a genuine no-games day.  Raise so the flow
+        # fails loudly and daily_runs is left with pre_gambling_started_at set
+        # but no completed_at — the wall-clock poller will log this as a crash
+        # requiring manual intervention (avoids silent data loss).
+        raise RuntimeError(f"smart_game_picker: fixtures fetch failed — {fixtures_error}")
     fixtures: list[dict[str, Any]] = fixtures_result.get("fixtures") or []
     logger.info("smart_game_picker: %d fixtures fetched", len(fixtures))
 
     winner_result = fetch_all_winner_odds()
+    winner_error = winner_result.get("error")
+    if winner_error:
+        raise RuntimeError(f"smart_game_picker: winner odds fetch failed — {winner_error}")
     winner_events: list[dict[str, Any]] = winner_result.get("events") or []
     logger.info("smart_game_picker: %d winner events fetched", len(winner_events))
 
