@@ -10,6 +10,7 @@
 | U_CHROME | Ping banner + footer wave label removed | d9f6e09 | Deleted `masthead-accent` block and footer wave-label string from all 5 static pages (today, history, team, league, pnl). |
 | U_STATS | Top-row stats redesign — USER/AI split tiles, flow timeline pill | d9f6e09 | Today status strip collapsed to single flow-timeline pill (Pre-Gambling → Gambling → Post-Games \| Last error). Attempt tile removed. History/Team show USER and AI aggregate tiles side-by-side. |
 | F5 | Atlético team-stats 404 on accented/prefixed stored names | d5c7488 | Added `get_normalized_variants()` to team registry; replaced ILIKE pattern query with Python-side accent-folded matching. |
+| U8 | Sortable column headers updated icon but did not re-sort rows | 1d086c3 | Added `_groups = sortGroups(_groups)` before `renderPage()` in `history.html` `onSortClick`. |
 
 ## Open
 
