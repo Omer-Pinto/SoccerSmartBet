@@ -644,6 +644,214 @@ body {
 }
 
 /* ─────────────────────────────────────────────
+   MERGED-ROW TABLE (History / Team)
+───────────────────────────────────────────── */
+
+/* Disable nth-child striping — done per group via JS class */
+.merged-row-table tbody tr:nth-child(even) { background: transparent; }
+
+.game-row--even { background: #fff; }
+.game-row--odd  { background: #faf7ff; }
+.game-row.row-hover { background: #eef4ff !important; }
+
+/* Separator between game groups */
+.game-group-separator td {
+  height: 4px;
+  padding: 0;
+  background: var(--cream-dark);
+  border-bottom: none;
+}
+.game-group-separator { border-bottom: none; }
+
+/* Bettor micro-label */
+.bettor-label {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.bettor-label.bet-user { background: var(--emerald); color: #fff; }
+.bettor-label.bet-ai   { background: var(--vermilion); color: #fff; }
+
+/* Prediction + result cells */
+.col-bet    { vertical-align: middle; }
+.col-result { vertical-align: middle; }
+.bet-odds   { color: var(--text-sub); font-size: 11px; font-weight: 500; margin-left: 2px; }
+.bet-amount { color: var(--text-sub); font-weight: 400; font-size: 11px; }
+
+/* ─────────────────────────────────────────────
+   SORTABLE HEADERS
+───────────────────────────────────────────── */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  position: relative;
+}
+th.sortable:hover { color: rgba(255,255,255,0.85); }
+th.sortable .sort-icon {
+  display: inline-block;
+  margin-left: 5px;
+  color: var(--yellow);
+  font-size: 10px;
+}
+
+/* ─────────────────────────────────────────────
+   CALENDAR INPUTS (filter bar)
+───────────────────────────────────────────── */
+.filter-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.filter-dates .filter-label {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+.cal-input {
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  border-radius: var(--r);
+  padding: 10px 10px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  color-scheme: dark;
+  min-width: 130px;
+}
+.cal-input:focus { outline: none; border-color: var(--cobalt); }
+
+/* ─────────────────────────────────────────────
+   PAGING CONTROLS
+───────────────────────────────────────────── */
+.paging-summary {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  margin-bottom: 10px;
+  margin-top: 4px;
+}
+.paging-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.page-btn {
+  font-family: var(--font-display);
+  font-size: 15px;
+  background: var(--indigo);
+  color: rgba(255,255,255,0.7);
+  border: none;
+  border-radius: var(--r);
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.12s;
+  letter-spacing: 1px;
+}
+.page-btn:hover:not(:disabled) { background: var(--indigo-mid); color: #fff; }
+.page-btn:disabled { background: #e8e4f5; color: #b0a8d0; cursor: not-allowed; }
+.page-info {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  padding: 0 6px;
+}
+.page-size-select {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--indigo);
+  color: rgba(255,255,255,0.7);
+  border: none;
+  border-radius: var(--r);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+/* ─────────────────────────────────────────────
+   USER / AI STATS TILES (side-by-side)
+───────────────────────────────────────────── */
+.split-stats-block {
+  background: var(--indigo);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+.split-stats-stripe { height: 6px; display: flex; }
+.split-stats-stripe span { flex: 1; }
+.split-stats-stripe span:nth-child(1) { background: var(--emerald); }
+.split-stats-stripe span:nth-child(2) { background: var(--yellow); }
+.split-stats-stripe span:nth-child(3) { background: var(--vermilion); }
+.split-stats-header {
+  display: flex;
+  padding: 12px 24px 6px;
+  gap: 0;
+}
+.split-stats-col {
+  flex: 1;
+  min-width: 120px;
+}
+.split-stats-col-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 4px;
+}
+.split-stats-col-label.user-col { color: var(--emerald); }
+.split-stats-col-label.ai-col   { color: var(--vermilion); }
+.split-stats-rows {
+  display: flex;
+  flex-direction: column;
+}
+.split-stats-row {
+  display: flex;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.split-stats-row-label {
+  width: 120px;
+  flex-shrink: 0;
+  padding: 12px 24px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  display: flex;
+  align-items: center;
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+.split-stats-cell {
+  flex: 1;
+  padding: 12px 24px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 1px;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+.split-stats-cell:last-child { border-right: none; }
+.split-stats-cell.pos { color: var(--emerald); }
+.split-stats-cell.neg { color: var(--vermilion); }
+
+/* ─────────────────────────────────────────────
    UTILITY
 ───────────────────────────────────────────── */
 .empty-state {

@@ -3,11 +3,15 @@
  *
  * Responsibilities:
  *  - Poll /api/status/today every 2500ms
- *  - Update status strip
+ *  - Update flow-timeline pill in status strip (Pre-Gambling → Gambling → Post-Games | Last error)
  *  - Lock/unlock control buttons based on flow status
  *  - Force Override two-phase UX
- *  - Fetch today's matches from /api/today/data and render them
- *  - Inline bet editing with countdown chips (1s tick)
+ *  - Fetch today's matches from /api/today/data and render merged-row table
+ *  - Inline bet editing (USER sub-row only)
+ *  - Per-day lock: ALL Edit buttons disable when earliest kickoff ≤ 30 min away
+ *  - Countdown chips (1s tick) per game, colour independent of lock state
+ *  - Calendar filter (client-side slice of already-fetched data)
+ *  - Paging: 25/50/100, hide bar when single page
  *  - P&L sparkline from /api/today/pnl
  */
 
@@ -23,22 +27,33 @@ const RUNNING_STATUSES = new Set([
   "gambling_running",
   "post_games_running",
 ]);
-const LOCK_MINUTES = 30; // minutes before kickoff when edits close
+const LOCK_MINUTES = 30;
 
 // ─────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────
 
-let _status = null;        // latest /api/status/today payload
-let _matches = [];         // today's bets + game data
-let _bankroll = null;      // bankroll data
-let _pnlHistory = [];      // 30-day P&L
+let _status = null;
+let _allBets = [];      // all bets from /api/today/data (raw, unfiltered)
+let _groups = [];       // game-groups after grouping + calendar filtering
+let _bankroll = null;
+
 let _overrideArmed = false;
 let _overrideTimer = null;
-let _countdown = 5;        // Force Override arm countdown (s)
+let _countdown = 5;
+
+// Paging
+let _pageSize = 25;
+let _currentPage = 1;
+
+// Calendar
+let _calFrom = "";
+let _calTo   = "";
+
+let _debounceTimer = null;
 
 // ─────────────────────────────────────────────
-// DOM refs (populated on DOMContentLoaded)
+// DOM refs
 // ─────────────────────────────────────────────
 
 let els = {};
@@ -46,12 +61,8 @@ let els = {};
 function initRefs() {
   els = {
     // status strip
-    statusValue:    document.getElementById("status-value"),
-    statusAttempts: document.getElementById("status-attempts"),
+    flowTimeline:   document.getElementById("flow-timeline"),
     statusError:    document.getElementById("status-error"),
-    preGamblingTile:document.getElementById("tile-pre-gambling"),
-    gamblingTile:   document.getElementById("tile-gambling"),
-    postGamesTile:  document.getElementById("tile-post-games"),
 
     // buttons
     btnPreGambling: document.getElementById("btn-pre-gambling"),
@@ -62,6 +73,20 @@ function initRefs() {
     // matches
     tbodyMatches:   document.getElementById("tbody-matches"),
     modRibbon:      document.getElementById("mod-ribbon"),
+
+    // paging
+    pagingToday:    document.getElementById("paging-today"),
+    pageSummary:    document.getElementById("paging-summary-today"),
+    pageInfo:       document.getElementById("today-page-info"),
+    btnFirst:       document.getElementById("today-first"),
+    btnPrev:        document.getElementById("today-prev"),
+    btnNext:        document.getElementById("today-next"),
+    btnLast:        document.getElementById("today-last"),
+    pageSizeSelect: document.getElementById("today-page-size"),
+
+    // calendar
+    calFrom:        document.getElementById("cal-from"),
+    calTo:          document.getElementById("cal-to"),
 
     // bankroll
     userBalance:    document.getElementById("bankroll-user"),
@@ -95,7 +120,7 @@ async function poll() {
     const resp = await fetch("/api/status/today");
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     _status = await resp.json();
-    updateStatusStrip(_status);
+    updateFlowTimeline(_status);
     updateButtons(_status);
   } catch (e) {
     console.warn("poll /api/status/today failed:", e);
@@ -107,9 +132,9 @@ async function fetchMatchData() {
     const resp = await fetch("/api/today/data");
     if (!resp.ok) return;
     const data = await resp.json();
-    _matches = data.bets || [];
+    _allBets = data.bets || [];
     _bankroll = data.bankroll || null;
-    renderMatches();
+    applyFilterAndRender();
     renderBankroll();
     updateModRibbon();
   } catch (e) {
@@ -122,76 +147,59 @@ async function fetchPnlHistory() {
     const resp = await fetch("/api/today/pnl");
     if (!resp.ok) return;
     const data = await resp.json();
-    _pnlHistory = data.history || [];
-    renderSparkline(_pnlHistory);
+    renderSparkline(data.history || []);
   } catch (e) {
     console.warn("fetchPnlHistory failed:", e);
   }
 }
 
 // ─────────────────────────────────────────────
-// Status strip update
+// Flow timeline pill
 // ─────────────────────────────────────────────
 
-function statusLabel(st) {
-  const map = {
-    idle:                "Idle",
-    pre_gambling_running:"Pre-Gambling Running…",
-    pre_gambling_done:   "Pre-Gambling Done",
-    gambling_running:    "Gambling Running…",
-    gambling_done:       "Gambling Done",
-    post_games_running:  "Post-Games Running…",
-    post_games_done:     "Post-Games Done",
-    failed:              "Failed",
-  };
-  return map[st] || st;
+function fmtPhaseTime(isoStr) {
+  if (!isoStr) return "&mdash;";
+  const t = isoStr.slice(11, 16);
+  return t || "&mdash;";
 }
 
-function statusColorClass(st) {
-  if (RUNNING_STATUSES.has(st)) return "clock";
-  if (st === "failed")          return "err";
-  if (st.endsWith("_done"))     return "check";
-  return "";
-}
+function updateFlowTimeline(s) {
+  if (!els.flowTimeline) return;
 
-function updateStatusStrip(s) {
-  if (!els.statusValue) return;
-  const cls = statusColorClass(s.status);
-  els.statusValue.innerHTML = cls
-    ? `<span class="${cls}">${statusLabel(s.status)}</span>`
-    : statusLabel(s.status);
+  const preT  = fmtPhaseTime(s.pre_gambling_completed_at  || s.pre_gambling_started_at);
+  const gamT  = fmtPhaseTime(s.gambling_completed_at);
+  const postT = fmtPhaseTime(s.post_games_completed_at    || s.post_games_trigger_at);
 
-  if (els.statusAttempts) {
-    els.statusAttempts.textContent =
-      s.attempt_count != null ? `Attempt ${s.attempt_count}` : "";
-  }
+  const preHtml  = s.pre_gambling_completed_at
+    ? `<span class="check">Pre-Gambling</span> ${s.pre_gambling_completed_at.slice(11, 16)}`
+    : s.pre_gambling_started_at
+      ? `<span class="clock">Pre-Gambling</span> Running`
+      : `<span class="sub">Pre-Gambling</span> &mdash;`;
 
+  const gamHtml  = s.gambling_completed_at
+    ? `<span class="check">Gambling</span> ${s.gambling_completed_at.slice(11, 16)}`
+    : `<span class="sub">Gambling</span> &mdash;`;
+
+  const postHtml = s.post_games_completed_at
+    ? `<span class="check">Post-Games</span> ${s.post_games_completed_at.slice(11, 16)}`
+    : s.post_games_trigger_at
+      ? `<span class="sub">Post-Games</span> ${s.post_games_trigger_at.slice(11, 16)}`
+      : `<span class="sub">Post-Games</span> &mdash;`;
+
+  els.flowTimeline.innerHTML =
+    `${preHtml} <span class="flow-arrow">&#8594;</span> ${gamHtml} <span class="flow-arrow">&#8594;</span> ${postHtml}`;
+
+  // Last error
   if (els.statusError) {
     if (s.status === "failed" && s.last_error) {
-      els.statusError.innerHTML = `<span class="err">${escHtml(s.last_error.slice(0, 120))}</span>`;
+      const truncated = s.last_error.slice(0, 60) + (s.last_error.length > 60 ? "…" : "");
+      els.statusError.innerHTML = `<span class="err">${escHtml(truncated)}</span>`;
+    } else if (s.last_error) {
+      const truncated = s.last_error.slice(0, 60) + (s.last_error.length > 60 ? "…" : "");
+      els.statusError.innerHTML = `<span class="sub">${escHtml(truncated)}</span>`;
     } else {
-      els.statusError.textContent = "";
+      els.statusError.innerHTML = `<span class="sub">none</span>`;
     }
-  }
-
-  updateTile(els.preGamblingTile, s.pre_gambling_started_at, s.pre_gambling_completed_at, "Pre-Gambling");
-  updateTile(els.gamblingTile,    s.gambling_completed_at,   s.gambling_completed_at,     "Gambling");
-  updateTile(els.postGamesTile,   s.post_games_trigger_at,   s.post_games_completed_at,   "Post-Games");
-}
-
-function updateTile(el, startedAt, completedAt, label) {
-  if (!el) return;
-  const labelEl = el.querySelector(".stat-tile-label");
-  const valueEl = el.querySelector(".stat-tile-value");
-  if (labelEl) labelEl.textContent = label;
-  if (!valueEl) return;
-  if (completedAt) {
-    const t = completedAt.slice(11, 16);
-    valueEl.innerHTML = `<span class="check">&#10003;</span>&nbsp;Done <span class="sub">${t}</span>`;
-  } else if (startedAt) {
-    valueEl.innerHTML = `<span class="clock">&#9200;</span>&nbsp;Running`;
-  } else {
-    valueEl.innerHTML = `<span class="sub">—</span>`;
   }
 }
 
@@ -203,18 +211,12 @@ function updateButtons(s) {
   const anyRunning = RUNNING_STATUSES.has(s.status);
   const st = s.status;
 
-  // Pre-Gambling: available from idle or failed
   setBtnEnabled(
     els.btnPreGambling,
     !anyRunning && (st === "idle" || st === "failed"),
     anyRunning ? "Flow in progress" : null,
   );
 
-  // Post-Games: available when pre_gambling_done or gambling_done or failed
-  // Post-Games enables whenever the scheduler has a pending post_games run queued
-  // (i.e. some daily_runs row has post_games_trigger_at set but not completed).
-  // That pending row may belong to a prior ISR date — the trigger is scoped to
-  // the run, not to today.
   const pendingPostGamesDate = s.pending_post_games_date;
   setBtnEnabled(
     els.btnPostGames,
@@ -224,14 +226,12 @@ function updateButtons(s) {
       : `Will run post-games for ${pendingPostGamesDate}`,
   );
 
-  // Regenerate Report: same as pre_gambling but label says regen
   setBtnEnabled(
     els.btnRegen,
     !anyRunning && (st === "idle" || st === "failed" || st === "pre_gambling_done"),
     anyRunning ? "Flow in progress" : null,
   );
 
-  // Force Override: always interactive unless running
   if (anyRunning) {
     disarmOverride();
     setBtnEnabled(els.btnOverride, false, "Flow in progress");
@@ -255,8 +255,6 @@ function setBtnEnabled(btn, enabled, title) {
 // ─────────────────────────────────────────────
 
 async function triggerRun(flowType, force = false) {
-  // post_games runs against the pending run (which may be a prior ISR day if the
-  // scheduled post_games_trigger_at crosses midnight).  Everything else runs for today.
   const runDate = (flowType === "post_games" && _status?.pending_post_games_date)
     ? _status.pending_post_games_date
     : todayISO();
@@ -291,7 +289,6 @@ async function triggerRun(flowType, force = false) {
     alert("Network error: " + e.message);
   }
 
-  // Immediate status refresh
   await poll();
   await fetchMatchData();
 }
@@ -329,7 +326,6 @@ function onOverrideClick() {
   if (!_overrideArmed) {
     armOverride();
   } else {
-    // Second click — open confirmation modal
     disarmOverride();
     openModal();
   }
@@ -361,92 +357,314 @@ async function onModalConfirm() {
 }
 
 // ─────────────────────────────────────────────
-// Match table rendering
+// Grouping: pair USER + AI bets per game
 // ─────────────────────────────────────────────
 
-function renderMatches() {
+/**
+ * Groups _allBets into game-groups where each group has:
+ *   { game, userBet, aiBet }
+ * USER always top, AI always bottom.
+ * Applies calendar filter after grouping.
+ */
+function buildGroups(bets) {
+  const map = new Map(); // game_id → {game, userBet, aiBet}
+
+  bets.forEach(bet => {
+    const game = bet.game || {};
+    const gameId = game.game_id || `${game.kickoff_iso}_${game.home_team}`;
+    if (!map.has(gameId)) {
+      map.set(gameId, { game, userBet: null, aiBet: null });
+    }
+    const g = map.get(gameId);
+    if (bet.bettor === "user") {
+      g.userBet = bet;
+    } else if (bet.bettor === "ai") {
+      g.aiBet = bet;
+    }
+  });
+
+  let groups = Array.from(map.values());
+
+  // Calendar filter on match_date (game.match_date is YYYY-MM-DD)
+  if (_calFrom || _calTo) {
+    groups = groups.filter(g => {
+      const d = g.game.match_date || "";
+      if (_calFrom && d < _calFrom) return false;
+      if (_calTo   && d > _calTo)   return false;
+      return true;
+    });
+  }
+
+  // Sort by kickoff ascending for Today view
+  groups.sort((a, b) => {
+    const ka = a.game.kickoff_iso || "";
+    const kb = b.game.kickoff_iso || "";
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
+  });
+
+  return groups;
+}
+
+// ─────────────────────────────────────────────
+// Apply filter and render
+// ─────────────────────────────────────────────
+
+function applyFilterAndRender() {
+  _groups = buildGroups(_allBets);
+  _currentPage = 1;
+  renderPage();
+}
+
+function renderPage() {
   if (!els.tbodyMatches) return;
-  if (_matches.length === 0) {
+
+  const total = _groups.length;
+  const totalPages = Math.max(1, Math.ceil(total / _pageSize));
+  _currentPage = Math.max(1, Math.min(_currentPage, totalPages));
+
+  const start = (_currentPage - 1) * _pageSize;
+  const end   = Math.min(start + _pageSize, total);
+  const slice = _groups.slice(start, end);
+
+  // Summary
+  if (els.pageSummary) {
+    if (total === 0) {
+      els.pageSummary.textContent = "No games today";
+    } else {
+      els.pageSummary.textContent = `Showing ${start + 1}–${end} of ${total} games`;
+    }
+  }
+
+  // Paging controls visibility
+  const showPaging = totalPages > 1;
+  if (els.pagingToday) {
+    els.pagingToday.style.display = showPaging ? "flex" : "none";
+  }
+  if (els.pageInfo) {
+    els.pageInfo.textContent = `Page ${_currentPage} of ${totalPages}`;
+  }
+  if (els.btnFirst) els.btnFirst.disabled = _currentPage === 1;
+  if (els.btnPrev)  els.btnPrev.disabled  = _currentPage === 1;
+  if (els.btnNext)  els.btnNext.disabled  = _currentPage === totalPages;
+  if (els.btnLast)  els.btnLast.disabled  = _currentPage === totalPages;
+
+  renderMatches(slice);
+}
+
+// ─────────────────────────────────────────────
+// Match table rendering (merged-row)
+// ─────────────────────────────────────────────
+
+function renderMatches(groups) {
+  if (!els.tbodyMatches) return;
+  if (groups.length === 0) {
     els.tbodyMatches.innerHTML = `
-      <tr><td colspan="9" class="empty-state">No bets for today</td></tr>`;
+      <tr><td colspan="7" class="empty-state">No bets for today</td></tr>`;
     return;
   }
 
-  els.tbodyMatches.innerHTML = "";
-  _matches.forEach((bet, idx) => {
-    const game = bet.game || {};
-    const kickoffMs = kickoffMillis(game.kickoff_iso);
-    const locked = isLocked(kickoffMs);
-
-    // Main bet row
-    const tr = document.createElement("tr");
-    tr.id = `bet-row-${bet.bet_id}`;
-    if (locked) tr.classList.add("row-locked");
-    tr.innerHTML = `
-      <td>
-        <div class="kickoff-time">${game.kickoff_time || "--:--"}</div>
-        <div id="chip-${bet.bet_id}" class="countdown-chip chip-green" style="margin-top:4px;"></div>
-      </td>
-      <td><span class="league-pill ${leagueCssClass(game.league)}">${escHtml(game.league || "")}</span></td>
-      <td>
-        <span class="team-name">${escHtml(game.home_team || "")}</span>
-        <span class="vs-sep">vs</span>
-        <span class="team-name">${escHtml(game.away_team || "")}</span>
-      </td>
-      <td class="odds-cell">
-        <span class="odds-1">${fmt2(game.home_win_odd)}</span>
-        <span class="sep">/</span>${fmt2(game.draw_odd)}<span class="sep">/</span>${fmt2(game.away_win_odd)}
-      </td>
-      <td class="bet-cell bet-user" id="pred-user-${bet.bet_id}">
-        ${bet.bettor === "user" ? escHtml((bet.prediction || "").toUpperCase()) : "—"}
-        ${bet.bettor === "user" ? `<br><span class="bet-amount">@ ${fmt2(bet.stake)} NIS</span>` : ""}
-      </td>
-      <td class="bet-cell bet-ai" id="pred-ai-${bet.bet_id}">
-        ${bet.bettor === "ai" ? escHtml((bet.prediction || "").toUpperCase()) : "—"}
-        ${bet.bettor === "ai" ? `<br><span class="bet-amount">@ ${fmt2(bet.stake)} NIS</span>` : ""}
-      </td>
-      <td><span class="status-pill">${escHtml(game.status || "")}</span></td>
-      <td class="edit-cell">
-        <button
-          class="btn-edit"
-          id="btn-edit-${bet.bet_id}"
-          data-bet-id="${bet.bet_id}"
-          ${locked ? "disabled title=\"Locked — edits close 30 minutes before kickoff\"" : ""}
-          onclick="toggleEditRow(${bet.bet_id})"
-        >${locked ? "Locked" : "Edit"}</button>
-      </td>`;
-    els.tbodyMatches.appendChild(tr);
-
-    // Inline edit row (hidden by default)
-    const editTr = document.createElement("tr");
-    editTr.className = "inline-edit-row";
-    editTr.id = `edit-row-${bet.bet_id}`;
-    editTr.innerHTML = `
-      <td colspan="9" class="inline-edit-cell">
-        <div class="inline-edit-form">
-          <label>Prediction</label>
-          <select id="edit-pred-${bet.bet_id}">
-            <option value="1" ${bet.prediction === "1" ? "selected" : ""}>1 (Home)</option>
-            <option value="x" ${bet.prediction === "x" ? "selected" : ""}>X (Draw)</option>
-            <option value="2" ${bet.prediction === "2" ? "selected" : ""}>2 (Away)</option>
-          </select>
-          <label>Stake (NIS)</label>
-          <input type="number" id="edit-stake-${bet.bet_id}" value="${bet.stake}" min="1" step="50" style="width:100px">
-          <button class="btn-save" onclick="saveEdit(${bet.bet_id})">Save</button>
-          <button class="btn-cancel-edit" onclick="cancelEdit(${bet.bet_id})">Cancel</button>
-          <span class="edit-feedback" id="edit-fb-${bet.bet_id}"></span>
-        </div>
-      </td>`;
-    els.tbodyMatches.appendChild(editTr);
+  // Compute per-day lock: earliest kickoff across ALL today's bets (not just current page)
+  let earliestKickoffMs = Infinity;
+  _allBets.forEach(bet => {
+    const ms = kickoffMillis((bet.game || {}).kickoff_iso);
+    if (ms < earliestKickoffMs) earliestKickoffMs = ms;
   });
+  const dayLocked = (earliestKickoffMs - Date.now()) / 60000 <= LOCK_MINUTES;
+
+  els.tbodyMatches.innerHTML = "";
+
+  groups.forEach((group, groupIdx) => {
+    const { game, userBet, aiBet } = group;
+    const isEven = groupIdx % 2 === 0;
+    const rowClass = isEven ? "game-row game-row--even" : "game-row game-row--odd";
+
+    // Determine colspan for LEFT columns: kickoff, league, match, odds, status = 5
+    // Then right cols: prediction+stake, edit = 2
+
+    const leagueCls = leagueCssClass(game.league || "");
+    const kickoffTime = game.kickoff_time || "--:--";
+    const kickoffMs = kickoffMillis(game.kickoff_iso);
+
+    // Build the top row (USER bet)
+    const topRow = document.createElement("tr");
+    topRow.className = rowClass + " game-row--top";
+    if (userBet) topRow.dataset.groupId = String(groupIdx);
+
+    // LEFT cells (rowspan=2)
+    const tdKickoff = document.createElement("td");
+    tdKickoff.rowSpan = 2;
+    tdKickoff.innerHTML = `
+      <div class="kickoff-time">${escHtml(kickoffTime)}</div>
+      <div id="chip-game-${groupIdx}" class="countdown-chip chip-green" style="margin-top:4px;"></div>`;
+
+    const tdLeague = document.createElement("td");
+    tdLeague.rowSpan = 2;
+    tdLeague.innerHTML = `<span class="league-pill ${leagueCls}">${escHtml(game.league || "")}</span>`;
+
+    const tdMatch = document.createElement("td");
+    tdMatch.rowSpan = 2;
+    tdMatch.innerHTML = `
+      <span class="team-name">${escHtml(game.home_team || "")}</span>
+      <span class="vs-sep">vs</span>
+      <span class="team-name">${escHtml(game.away_team || "")}</span>`;
+
+    const tdOdds = document.createElement("td");
+    tdOdds.rowSpan = 2;
+    tdOdds.className = "odds-cell center";
+    tdOdds.innerHTML = `
+      <span class="odds-1">${fmt2(game.home_win_odd)}</span>
+      <span class="sep">/</span>${fmt2(game.draw_odd)}<span class="sep">/</span>${fmt2(game.away_win_odd)}`;
+
+    const tdStatus = document.createElement("td");
+    tdStatus.rowSpan = 2;
+    tdStatus.className = "center";
+    tdStatus.innerHTML = `<span class="status-pill">${escHtml(game.status || "")}</span>`;
+
+    // RIGHT cells — USER sub-row
+    const tdUserBet = document.createElement("td");
+    tdUserBet.className = "col-bet";
+    if (userBet) {
+      tdUserBet.innerHTML = `
+        <span class="bettor-label bet-user">USER</span>
+        ${escHtml((userBet.prediction || "").toUpperCase())}
+        <br><span class="bet-amount">NIS ${fmt2(userBet.stake)}</span>`;
+    } else {
+      tdUserBet.innerHTML = `<span class="sub">—</span>`;
+    }
+
+    const tdUserEdit = document.createElement("td");
+    tdUserEdit.className = "col-edit center";
+    if (userBet) {
+      const locked = dayLocked;
+      tdUserEdit.innerHTML = `<button
+        class="btn-edit"
+        id="btn-edit-${userBet.bet_id}"
+        data-bet-id="${userBet.bet_id}"
+        ${locked ? `disabled title="Edits close 30 min before the first kickoff today"` : ""}
+        onclick="toggleEditRow(${userBet.bet_id})"
+      >${locked ? "Locked" : "Edit"}</button>`;
+    } else {
+      tdUserEdit.className = "col-edit col-edit--empty";
+    }
+
+    topRow.appendChild(tdKickoff);
+    topRow.appendChild(tdLeague);
+    topRow.appendChild(tdMatch);
+    topRow.appendChild(tdOdds);
+    topRow.appendChild(tdStatus);
+    topRow.appendChild(tdUserBet);
+    topRow.appendChild(tdUserEdit);
+    els.tbodyMatches.appendChild(topRow);
+
+    // Inline edit row for USER bet (hidden by default)
+    if (userBet) {
+      const editTr = document.createElement("tr");
+      editTr.className = "inline-edit-row";
+      editTr.id = `edit-row-${userBet.bet_id}`;
+      editTr.innerHTML = `
+        <td colspan="7" class="inline-edit-cell">
+          <div class="inline-edit-form">
+            <label>Prediction</label>
+            <select id="edit-pred-${userBet.bet_id}">
+              <option value="1" ${userBet.prediction === "1" ? "selected" : ""}>1 (Home)</option>
+              <option value="x" ${userBet.prediction === "x" ? "selected" : ""}>X (Draw)</option>
+              <option value="2" ${userBet.prediction === "2" ? "selected" : ""}>2 (Away)</option>
+            </select>
+            <label>Stake (NIS)</label>
+            <input type="number" id="edit-stake-${userBet.bet_id}" value="${userBet.stake}" min="1" step="50" style="width:100px">
+            <button class="btn-save" onclick="saveEdit(${userBet.bet_id})">Save</button>
+            <button class="btn-cancel-edit" onclick="cancelEdit(${userBet.bet_id})">Cancel</button>
+            <span class="edit-feedback" id="edit-fb-${userBet.bet_id}"></span>
+          </div>
+        </td>`;
+      els.tbodyMatches.appendChild(editTr);
+    }
+
+    // Bottom row (AI bet) — no LEFT cells (spanned above)
+    const botRow = document.createElement("tr");
+    botRow.className = rowClass + " game-row--bottom";
+
+    const tdAiBet = document.createElement("td");
+    tdAiBet.className = "col-bet";
+    if (aiBet) {
+      tdAiBet.innerHTML = `
+        <span class="bettor-label bet-ai">AI</span>
+        ${escHtml((aiBet.prediction || "").toUpperCase())}
+        <br><span class="bet-amount">NIS ${fmt2(aiBet.stake)}</span>`;
+    } else {
+      tdAiBet.innerHTML = `<span class="sub">—</span>`;
+    }
+
+    const tdAiEdit = document.createElement("td");
+    tdAiEdit.className = "col-edit col-edit--empty";
+
+    botRow.appendChild(tdAiBet);
+    botRow.appendChild(tdAiEdit);
+    els.tbodyMatches.appendChild(botRow);
+
+    // Separator row
+    const sepRow = document.createElement("tr");
+    sepRow.className = "game-group-separator";
+    sepRow.setAttribute("aria-hidden", "true");
+    sepRow.innerHTML = `<td colspan="7"></td>`;
+    els.tbodyMatches.appendChild(sepRow);
+  });
+
+  // Wire hover delegation on tbody
+  wireHoverDelegation(els.tbodyMatches);
+
+  // Tick chips immediately
+  tickChips();
 }
 
+// ─────────────────────────────────────────────
+// Row hover delegation
+// ─────────────────────────────────────────────
+
+function wireHoverDelegation(tbody) {
+  if (!tbody) return;
+  // Remove any old listeners by replacing the node (simplest approach for re-renders)
+  const clone = tbody.cloneNode(true);
+  tbody.parentNode.replaceChild(clone, tbody);
+  els.tbodyMatches = clone;
+
+  // Re-wire onclick for edit buttons (since cloneNode doesn't copy event listeners,
+  // but inline onclick attributes ARE copied as HTML attributes — they'll still work
+  // because they reference window.toggleEditRow etc.)
+
+  clone.addEventListener("mouseenter", e => {
+    const row = e.target.closest("tr.game-row");
+    if (!row) return;
+    // Find sibling top/bottom rows
+    const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
+    const bot = top ? top.nextElementSibling : null;
+    if (top && top.classList.contains("game-row")) top.classList.add("row-hover");
+    if (bot && bot.classList.contains("game-row")) bot.classList.add("row-hover");
+  }, true);
+
+  clone.addEventListener("mouseleave", e => {
+    const row = e.target.closest("tr.game-row");
+    if (!row) return;
+    const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
+    const bot = top ? top.nextElementSibling : null;
+    if (top) top.classList.remove("row-hover");
+    if (bot) bot.classList.remove("row-hover");
+  }, true);
+}
+
+// ─────────────────────────────────────────────
+// Edit row toggle
+// ─────────────────────────────────────────────
+
 function toggleEditRow(betId) {
+  const tbody = document.getElementById("tbody-matches");
   const row = document.getElementById(`edit-row-${betId}`);
   if (!row) return;
   const open = row.classList.contains("open");
-  // close all edit rows first
-  document.querySelectorAll(".inline-edit-row.open").forEach(r => r.classList.remove("open"));
+  // Close all open edit rows
+  if (tbody) {
+    tbody.querySelectorAll(".inline-edit-row.open").forEach(r => r.classList.remove("open"));
+  }
   if (!open) row.classList.add("open");
 }
 
@@ -474,15 +692,8 @@ async function saveEdit(betId) {
       body: JSON.stringify(body),
     });
     if (resp.ok) {
-      const updated = await resp.json();
       if (fb) fb.textContent = "";
       cancelEdit(betId);
-      // patch in-memory so chip logic stays correct
-      const match = _matches.find(b => b.bet_id === betId);
-      if (match) {
-        match.prediction = updated.prediction;
-        match.stake = updated.stake;
-      }
       await fetchMatchData(); // full re-render
     } else {
       const err = await resp.json().catch(() => ({}));
@@ -494,41 +705,52 @@ async function saveEdit(betId) {
 }
 
 // ─────────────────────────────────────────────
-// Countdown chips (1s tick)
+// Countdown chips (1s tick) — per-game colour,
+// per-day lock for all Edit buttons
 // ─────────────────────────────────────────────
 
 function tickChips() {
-  _matches.forEach(bet => {
-    const game = bet.game || {};
-    const chip = document.getElementById(`chip-${bet.bet_id}`);
-    const editBtn = document.getElementById(`btn-edit-${bet.bet_id}`);
-    const betRow = document.getElementById(`bet-row-${bet.bet_id}`);
+  // Compute day-lock from earliest kickoff across ALL bets
+  let earliestKickoffMs = Infinity;
+  _allBets.forEach(bet => {
+    const ms = kickoffMillis((bet.game || {}).kickoff_iso);
+    if (ms < earliestKickoffMs) earliestKickoffMs = ms;
+  });
+  const dayLocked = (earliestKickoffMs - Date.now()) / 60000 <= LOCK_MINUTES;
+
+  _groups.forEach((group, groupIdx) => {
+    const { game, userBet } = group;
+    const chip = document.getElementById(`chip-game-${groupIdx}`);
     if (!chip) return;
 
     const kickoffMs = kickoffMillis(game.kickoff_iso);
     const msLeft = kickoffMs - Date.now();
-    const minLeft = msLeft / 60000;
 
     chip.textContent = formatCountdown(msLeft);
 
+    const minLeft = msLeft / 60000;
     if (minLeft > 30) {
       chip.className = "countdown-chip chip-green";
-      if (editBtn) { editBtn.disabled = false; editBtn.textContent = "Edit"; editBtn.title = ""; }
-      if (betRow) betRow.classList.remove("row-locked");
     } else if (minLeft > 5) {
       chip.className = "countdown-chip chip-amber";
-      if (editBtn) { editBtn.disabled = false; editBtn.textContent = "Edit"; editBtn.title = ""; }
     } else {
       chip.className = "countdown-chip chip-red";
-      const kickoffStr = game.kickoff_time || "--:--";
+    }
+
+    // Update USER Edit button per-day lock
+    if (userBet) {
+      const editBtn = document.getElementById(`btn-edit-${userBet.bet_id}`);
       if (editBtn) {
-        editBtn.disabled = true;
-        editBtn.textContent = "Locked";
-        editBtn.title = `Locked — edits close 30 minutes before kickoff at ${kickoffStr} ISR`;
+        editBtn.disabled = dayLocked;
+        editBtn.textContent = dayLocked ? "Locked" : "Edit";
+        if (dayLocked) {
+          editBtn.title = "Edits close 30 min before the first kickoff today";
+          // Close open edit form if day just locked
+          cancelEdit(userBet.bet_id);
+        } else {
+          editBtn.removeAttribute("title");
+        }
       }
-      if (betRow) betRow.classList.add("row-locked");
-      // Close any open edit row
-      cancelEdit(bet.bet_id);
     }
   });
 }
@@ -545,16 +767,38 @@ function formatCountdown(msLeft) {
 }
 
 function kickoffMillis(kickoffIso) {
-  // kickoffIso is an ISO-8601 string with explicit ISR offset supplied by the
-  // server, e.g. "2026-04-22T20:00:00+03:00".  The Date constructor respects
-  // the offset, so this is TZ-correct regardless of the browser's local TZ.
   if (!kickoffIso) return Infinity;
   const ms = new Date(kickoffIso).getTime();
   return isNaN(ms) ? Infinity : ms;
 }
 
-function isLocked(kickoffMs) {
-  return (kickoffMs - Date.now()) / 60000 <= LOCK_MINUTES;
+// ─────────────────────────────────────────────
+// Mod ribbon
+// ─────────────────────────────────────────────
+
+function updateModRibbon() {
+  if (!els.modRibbon) return;
+  let earliest = Infinity;
+  _allBets.forEach(bet => {
+    const ms = kickoffMillis((bet.game || {}).kickoff_iso);
+    if (ms < earliest) earliest = ms;
+  });
+
+  if (earliest === Infinity) {
+    els.modRibbon.innerHTML = "No bets today";
+    return;
+  }
+
+  const lockTime = new Date(earliest - LOCK_MINUTES * 60000);
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jerusalem",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const hhmm = fmt.format(lockTime);
+  els.modRibbon.innerHTML =
+    `Bets modifiable until&nbsp;<strong>${hhmm} ISR</strong>&nbsp;&mdash;&nbsp;Click Edit on a USER row to modify`;
 }
 
 // ─────────────────────────────────────────────
@@ -612,38 +856,7 @@ function renderBankrollRow(balEl, deltaEl, todayEl, balance, todayPnl) {
 }
 
 // ─────────────────────────────────────────────
-// Mod ribbon
-// ─────────────────────────────────────────────
-
-function updateModRibbon() {
-  if (!els.modRibbon) return;
-  // Find earliest kickoff
-  let earliest = Infinity;
-  _matches.forEach(bet => {
-    const game = bet.game || {};
-    const ms = kickoffMillis(game.kickoff_iso);
-    if (ms < earliest) earliest = ms;
-  });
-
-  if (earliest === Infinity) {
-    els.modRibbon.innerHTML = "No bets today";
-    return;
-  }
-
-  const lockTime = new Date(earliest - LOCK_MINUTES * 60000);
-  const fmt = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Jerusalem",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  const hhmm = fmt.format(lockTime);
-  els.modRibbon.innerHTML =
-    `Bets modifiable until&nbsp;<strong>${hhmm} ISR</strong>&nbsp;&mdash;&nbsp;Click Edit on a row to modify`;
-}
-
-// ─────────────────────────────────────────────
-// 30-day P&L sparkline (inline SVG, no library)
+// 30-day P&L sparkline
 // ─────────────────────────────────────────────
 
 function renderSparkline(history) {
@@ -651,7 +864,6 @@ function renderSparkline(history) {
   const xLabelsEl = els.xLabels;
   if (!svgEl) return;
 
-  // history: [{date, user_cumulative, ai_cumulative}, ...] sorted oldest first
   if (history.length < 2) {
     svgEl.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="12">Not enough data</text>`;
     return;
@@ -670,12 +882,8 @@ function renderSparkline(history) {
   const xw = W - PADDING.l - PADDING.r;
   const xh = H - PADDING.t - PADDING.b;
 
-  function toX(i) {
-    return PADDING.l + (i / (history.length - 1)) * xw;
-  }
-  function toY(v) {
-    return PADDING.t + (1 - (v - minV) / range) * xh;
-  }
+  function toX(i) { return PADDING.l + (i / (history.length - 1)) * xw; }
+  function toY(v) { return PADDING.t + (1 - (v - minV) / range) * xh; }
 
   const userPoints = history.map((_, i) => `${toX(i)},${toY(userVals[i])}`).join(" ");
   const aiPoints   = history.map((_, i) => `${toX(i)},${toY(aiVals[i])}`).join(" ");
@@ -684,10 +892,12 @@ function renderSparkline(history) {
   const userFill = `${userPoints} ${toX(history.length - 1)},${zeroY} ${toX(0)},${zeroY}`;
   const aiFill   = `${aiPoints}   ${toX(history.length - 1)},${zeroY} ${toX(0)},${zeroY}`;
 
-  // Y-axis tick at 0 (dashed), midpoints
-  const midPos = Math.round((maxV + minV) / 2);
-  const yTick500 = maxV > 50 ? `<text x="6" y="${toY(maxV) + 3}" font-size="9" fill="rgba(255,255,255,0.3)" font-family="Space Grotesk, sans-serif">+${Math.round(maxV)}</text>` : "";
-  const yTickNeg = minV < -50 ? `<text x="6" y="${toY(minV) + 3}" font-size="9" fill="rgba(255,255,255,0.3)" font-family="Space Grotesk, sans-serif">${Math.round(minV)}</text>` : "";
+  const yTick500 = maxV > 50
+    ? `<text x="6" y="${toY(maxV) + 3}" font-size="9" fill="rgba(255,255,255,0.3)" font-family="Space Grotesk, sans-serif">+${Math.round(maxV)}</text>`
+    : "";
+  const yTickNeg = minV < -50
+    ? `<text x="6" y="${toY(minV) + 3}" font-size="9" fill="rgba(255,255,255,0.3)" font-family="Space Grotesk, sans-serif">${Math.round(minV)}</text>`
+    : "";
 
   svgEl.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -701,7 +911,6 @@ function renderSparkline(history) {
       <polyline points="${aiPoints}" fill="none" stroke="#f26130" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
     </svg>`;
 
-  // X-axis labels: first, middle, last
   if (xLabelsEl) {
     const idxs = [0, Math.floor(history.length / 2), history.length - 1];
     xLabelsEl.innerHTML = "";
@@ -732,8 +941,7 @@ function fmt2(v) {
 }
 
 function leagueCssClass(league) {
-  if (!league) return "";
-  const l = league.toLowerCase();
+  const l = (league || "").toLowerCase();
   if (l.includes("la liga") || l.includes("laliga")) return "laliga";
   if (l.includes("premier")) return "premier";
   if (l.includes("bundesliga")) return "bundesliga";
@@ -742,16 +950,25 @@ function leagueCssClass(league) {
 }
 
 function todayISO() {
-  // Prefer the server-supplied ISR date from the polled status payload so we
-  // never roll to the next UTC date at 22:00–23:59 ISR in summer.
   if (_status && _status.today_date) return _status.today_date;
-  // Fallback: hidden input set by server at page render (pre-poll).
   const el = document.getElementById("today-date-iso");
   if (el && el.value) return el.value;
-  // Last resort: if the status payload hasn't arrived yet, use run_date.
   if (_status && _status.run_date) return _status.run_date;
-  // Should never reach here after first poll — but avoids a blank date.
   return new Date().toISOString().slice(0, 10);
+}
+
+// ─────────────────────────────────────────────
+// Calendar filter
+// ─────────────────────────────────────────────
+
+function onCalendarChange() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(() => {
+    _calFrom = els.calFrom ? els.calFrom.value : "";
+    _calTo   = els.calTo   ? els.calTo.value   : "";
+    _currentPage = 1;
+    applyFilterAndRender();
+  }, 350);
 }
 
 // ─────────────────────────────────────────────
@@ -761,19 +978,38 @@ function todayISO() {
 document.addEventListener("DOMContentLoaded", async () => {
   initRefs();
 
+  // Set calendar defaults to today
+  const todayStr = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
+  if (els.calFrom) els.calFrom.value = todayStr;
+  if (els.calTo)   els.calTo.value   = todayStr;
+  _calFrom = todayStr;
+  _calTo   = todayStr;
+
+  // Wire calendar inputs
+  if (els.calFrom) els.calFrom.addEventListener("change", onCalendarChange);
+  if (els.calTo)   els.calTo.addEventListener("change", onCalendarChange);
+
+  // Wire paging
+  if (els.btnFirst) els.btnFirst.addEventListener("click", () => { _currentPage = 1; renderPage(); });
+  if (els.btnPrev)  els.btnPrev.addEventListener("click",  () => { _currentPage--; renderPage(); });
+  if (els.btnNext)  els.btnNext.addEventListener("click",  () => { _currentPage++; renderPage(); });
+  if (els.btnLast)  els.btnLast.addEventListener("click",  () => {
+    _currentPage = Math.ceil(_groups.length / _pageSize);
+    renderPage();
+  });
+  if (els.pageSizeSelect) {
+    els.pageSizeSelect.addEventListener("change", () => {
+      _pageSize = parseInt(els.pageSizeSelect.value, 10);
+      _currentPage = 1;
+      renderPage();
+    });
+  }
+
   // Wire control buttons
-  if (els.btnPreGambling) {
-    els.btnPreGambling.addEventListener("click", () => triggerRun("pre_gambling"));
-  }
-  if (els.btnPostGames) {
-    els.btnPostGames.addEventListener("click", () => triggerRun("post_games"));
-  }
-  if (els.btnRegen) {
-    els.btnRegen.addEventListener("click", () => triggerRun("regenerate_report"));
-  }
-  if (els.btnOverride) {
-    els.btnOverride.addEventListener("click", onOverrideClick);
-  }
+  if (els.btnPreGambling) els.btnPreGambling.addEventListener("click", () => triggerRun("pre_gambling"));
+  if (els.btnPostGames)   els.btnPostGames.addEventListener("click",   () => triggerRun("post_games"));
+  if (els.btnRegen)       els.btnRegen.addEventListener("click",       () => triggerRun("regenerate_report"));
+  if (els.btnOverride)    els.btnOverride.addEventListener("click", onOverrideClick);
 
   // Wire modal
   if (els.modalConfirmBtn) els.modalConfirmBtn.addEventListener("click", onModalConfirm);
@@ -797,13 +1033,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Polling & chip tick
   setInterval(poll, POLL_MS);
-  setInterval(fetchMatchData, 10000);   // refresh match data every 10s
-  setInterval(fetchPnlHistory, 60000);  // refresh P&L every 60s
+  setInterval(fetchMatchData, 10000);
+  setInterval(fetchPnlHistory, 60000);
   setInterval(tickChips, 1000);
-  tickChips(); // immediate first tick
+  tickChips();
 });
 
-// Expose for inline onclick
+// Expose for inline onclick attributes
 window.toggleEditRow = toggleEditRow;
 window.cancelEdit    = cancelEdit;
 window.saveEdit      = saveEdit;

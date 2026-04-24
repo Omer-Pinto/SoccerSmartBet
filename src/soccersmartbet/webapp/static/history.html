@@ -26,11 +26,6 @@
       </div>
       <div class="masthead-date" id="masthead-date"></div>
     </div>
-    <div class="masthead-accent">
-      <div class="masthead-accent-text">
-        WAVE 12<br>STATS<br>HISTORY
-      </div>
-    </div>
   </div>
 </header>
 
@@ -46,30 +41,11 @@
 </nav>
 
 <!-- ═══════════════════════════════════════════
-     AGGREGATE STRIP
+     USER / AI AGGREGATION TILES
 ═══════════════════════════════════════════ -->
-<div class="status-strip">
+<div class="status-strip" id="agg-strip" style="display:none;">
   <div class="status-strip-inner">
-    <div class="stat-tile">
-      <div class="stat-tile-label">Bets</div>
-      <div class="stat-tile-value" id="agg-count"><span class="sub">&mdash;</span></div>
-    </div>
-    <div class="stat-tile">
-      <div class="stat-tile-label">Win Rate</div>
-      <div class="stat-tile-value" id="agg-win-rate"><span class="sub">&mdash;</span></div>
-    </div>
-    <div class="stat-tile">
-      <div class="stat-tile-label">Total Stake</div>
-      <div class="stat-tile-value" id="agg-stake"><span class="sub">&mdash;</span></div>
-    </div>
-    <div class="stat-tile">
-      <div class="stat-tile-label">Total P&amp;L</div>
-      <div class="stat-tile-value" id="agg-pnl"><span class="sub">&mdash;</span></div>
-    </div>
-    <div class="stat-tile">
-      <div class="stat-tile-label">Row Cap</div>
-      <div class="stat-tile-value" id="agg-cap"><span class="sub">&mdash;</span></div>
-    </div>
+    <!-- filled by JS -->
   </div>
 </div>
 
@@ -77,6 +53,38 @@
      PAGE BODY
 ═══════════════════════════════════════════ -->
 <main class="page-body">
+
+  <!-- USER / AI SIDE-BY-SIDE STATS BLOCK -->
+  <div class="split-stats-block" id="split-stats" style="display:none;">
+    <div class="split-stats-stripe"><span></span><span></span><span></span></div>
+    <div class="split-stats-header">
+      <div class="split-stats-row-label"></div>
+      <div class="split-stats-cell split-stats-col-label user-col">USER</div>
+      <div class="split-stats-cell split-stats-col-label ai-col">AI</div>
+    </div>
+    <div class="split-stats-rows">
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Total Bets</div>
+        <div class="split-stats-cell" id="h-user-bets">&mdash;</div>
+        <div class="split-stats-cell" id="h-ai-bets">&mdash;</div>
+      </div>
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Win Rate</div>
+        <div class="split-stats-cell" id="h-user-wr">&mdash;</div>
+        <div class="split-stats-cell" id="h-ai-wr">&mdash;</div>
+      </div>
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Total Stake</div>
+        <div class="split-stats-cell" id="h-user-stake">&mdash;</div>
+        <div class="split-stats-cell" id="h-ai-stake">&mdash;</div>
+      </div>
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Total P&amp;L</div>
+        <div class="split-stats-cell" id="h-user-pnl">&mdash;</div>
+        <div class="split-stats-cell" id="h-ai-pnl">&mdash;</div>
+      </div>
+    </div>
+  </div>
 
   <!-- FILTER BAR -->
   <div class="filter-bar">
@@ -91,6 +99,12 @@
         &nbsp;&middot;&nbsp; Negation: !draw
       </div>
     </div>
+    <div class="filter-dates">
+      <div class="filter-label">From</div>
+      <input type="date" id="cal-from" class="cal-input">
+      <div class="filter-label">To</div>
+      <input type="date" id="cal-to" class="cal-input">
+    </div>
     <button class="btn btn-insight" id="btn-insight" disabled>
       Generate Insight
     </button>
@@ -102,26 +116,52 @@
     <h2>Filtered Results</h2>
   </div>
 
-  <!-- BET TABLE -->
-  <table class="matches-table">
+  <!-- Row cap warning (injected by JS if needed) -->
+  <div id="row-cap-banner" style="display:none;
+    background:#f26130;color:#fdf6e3;padding:10px 18px;border-radius:6px;
+    font-family:var(--font-body,Space Grotesk,sans-serif);font-size:13px;
+    font-weight:600;margin-bottom:16px;letter-spacing:0.2px;">
+    Showing partial results — filter matched &gt;2000 bets. Tighten your filter.
+  </div>
+
+  <!-- Paging summary -->
+  <div class="paging-summary" id="paging-summary"></div>
+
+  <!-- BET TABLE — 5-column merged-row -->
+  <table class="matches-table merged-row-table" id="history-table">
     <thead>
       <tr>
-        <th>Date</th>
-        <th>Kickoff</th>
-        <th>League</th>
-        <th>Match</th>
-        <th class="center">Bettor</th>
-        <th class="center">Pick</th>
-        <th class="center">Odds</th>
-        <th class="center">Stake</th>
-        <th class="center">Result</th>
-        <th class="center">P&amp;L</th>
+        <th class="sortable" data-col="date" aria-sort="descending">
+          Date <span class="sort-icon" id="sort-icon-date">&#9660;</span>
+        </th>
+        <th class="sortable" data-col="league" aria-sort="none">
+          League <span class="sort-icon" id="sort-icon-league" style="display:none;">&#9650;</span>
+        </th>
+        <th class="sortable" data-col="match" aria-sort="none">
+          Match + Score <span class="sort-icon" id="sort-icon-match" style="display:none;">&#9650;</span>
+        </th>
+        <th>Prediction / Odds / Stake</th>
+        <th>Result / P&amp;L</th>
       </tr>
     </thead>
     <tbody id="tbody-history">
-      <tr><td colspan="10" class="empty-state">Loading&hellip;</td></tr>
+      <tr><td colspan="5" class="empty-state">Loading&hellip;</td></tr>
     </tbody>
   </table>
+
+  <!-- Paging controls -->
+  <div class="paging-controls" id="paging-controls" style="display:none;">
+    <button class="page-btn" id="h-first">&laquo;</button>
+    <button class="page-btn" id="h-prev">&lsaquo;</button>
+    <span class="page-info" id="h-page-info"></span>
+    <button class="page-btn" id="h-next">&rsaquo;</button>
+    <button class="page-btn" id="h-last">&raquo;</button>
+    <select class="page-size-select" id="h-page-size">
+      <option value="25" selected>25 / page</option>
+      <option value="50">50 / page</option>
+      <option value="100">100 / page</option>
+    </select>
+  </div>
 
   <!-- INSIGHT PANEL (hidden until triggered) -->
   <div class="insight-panel" id="insight-panel" style="display:none;">
@@ -139,7 +179,7 @@
 ═══════════════════════════════════════════ -->
 <footer class="page-footer">
   <div class="footer-brand">SoccerSmartBet</div>
-  <div class="footer-info">History &nbsp;&middot;&nbsp; Wave 12 &nbsp;&middot;&nbsp; ISR Timezone</div>
+  <div class="footer-info">History &nbsp;&middot;&nbsp; ISR Timezone</div>
 </footer>
 
 <script>
@@ -162,51 +202,18 @@
 function getFilterFromUrl() {
   return new URLSearchParams(window.location.search).get("filter") || "";
 }
-
 function pushFilterToUrl(dsl) {
   const params = new URLSearchParams(window.location.search);
-  if (dsl) {
-    params.set("filter", dsl);
-  } else {
-    params.delete("filter");
-  }
+  if (dsl) { params.set("filter", dsl); } else { params.delete("filter"); }
   const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
   history.replaceState(null, "", newUrl);
 }
 
-// ─── DOM refs ────────────────────────────────────────────────────────────────
-const filterInput  = document.getElementById("filter-input");
-const tbody        = document.getElementById("tbody-history");
-const btnInsight   = document.getElementById("btn-insight");
-const insightPanel = document.getElementById("insight-panel");
-const insightBody  = document.getElementById("insight-body");
-const insightStat  = document.getElementById("insight-status");
-
-let _lastDsl = "";
-let _insightPollTimer = null;
-
-// ─── Aggregates display ──────────────────────────────────────────────────────
-function setAgg(agg) {
-  document.getElementById("agg-count").textContent = agg.count.toLocaleString();
-
-  const wr = agg.win_rate;
-  const wrEl = document.getElementById("agg-win-rate");
-  wrEl.innerHTML = wr !== null && wr !== undefined
-    ? `<span class="${wr >= 0.5 ? 'pos' : 'neg'}">${(wr * 100).toFixed(1)}%</span>`
-    : `<span class="sub">&mdash;</span>`;
-
-  document.getElementById("agg-stake").textContent =
-    "NIS " + agg.total_stake.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
-  const pnlEl = document.getElementById("agg-pnl");
-  const pnlSign = agg.total_pnl >= 0 ? "+" : "";
-  pnlEl.innerHTML = `<span class="${agg.total_pnl >= 0 ? 'pos' : 'neg'}">${pnlSign}${agg.total_pnl.toFixed(2)}</span>`;
-
-  const capEl = document.getElementById("agg-cap");
-  // row_cap_hit shown later after fetch
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
-
-// ─── Table rendering ─────────────────────────────────────────────────────────
 function resultClass(pnl) {
   if (pnl === null || pnl === undefined) return "result-open";
   return pnl > 0 ? "result-win" : "result-loss";
@@ -223,8 +230,7 @@ function pnlClass(pnl) {
 }
 function pnlLabel(pnl) {
   if (pnl === null || pnl === undefined) return "&mdash;";
-  const sign = pnl >= 0 ? "+" : "";
-  return sign + pnl.toFixed(2);
+  return (pnl >= 0 ? "+" : "") + pnl.toFixed(2);
 }
 function leagueClass(league) {
   const l = (league || "").toLowerCase().replace(/\s/g, "");
@@ -234,43 +240,421 @@ function leagueClass(league) {
   if (l.includes("seriea") || l.includes("serie")) return "seriea";
   return "";
 }
+function todayISR() {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
+}
 
-function renderRows(rows) {
-  if (!rows || rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No bets found for this filter.</td></tr>`;
+// ─── State ───────────────────────────────────────────────────────────────────
+let _allRows    = [];     // raw flat bets from API
+let _groups     = [];     // game-groups after filtering+sorting
+let _pageSize   = 25;
+let _currentPage= 1;
+let _sortCol    = "date"; // "date" | "league" | "match"
+let _sortDir    = "desc"; // "asc" | "desc" | null (null = default: date desc)
+let _calFrom    = "";
+let _calTo      = "";
+
+// ─── Grouping ─────────────────────────────────────────────────────────────────
+/**
+ * Build game-groups from flat bet rows.
+ * A game = pair of bets sharing (match_date, home_team, away_team).
+ * Each group: { match_date, league, home_team, away_team, home_score, away_score, userBet, aiBet }
+ * Evaluated-only filter: hide entire group if either bet has null result or null pnl.
+ * Anomaly: one resolved / one not → console.warn + hide.
+ */
+function buildGroups(rows) {
+  const todayStr = todayISR();
+  const map = new Map();
+
+  rows.forEach(bet => {
+    const key = `${bet.match_date}|${bet.home_team}|${bet.away_team}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        match_date: bet.match_date,
+        league: bet.league,
+        home_team: bet.home_team,
+        away_team: bet.away_team,
+        home_score: bet.home_score,
+        away_score: bet.away_score,
+        userBet: null,
+        aiBet: null,
+      });
+    }
+    const g = map.get(key);
+    if (bet.bettor === "user") g.userBet = bet;
+    else if (bet.bettor === "ai") g.aiBet = bet;
+    // Carry through score from whichever bet has it
+    if (bet.home_score !== null && bet.home_score !== undefined) {
+      g.home_score = bet.home_score;
+      g.away_score = bet.away_score;
+    }
+  });
+
+  const today = todayStr;
+  let groups = Array.from(map.values()).filter(g => {
+    const u = g.userBet;
+    const a = g.aiBet;
+
+    // History rule: evaluated-only. Evaluated = result non-null AND pnl non-null for both.
+    // If it's today's game and either is unevaluated, exclude.
+    if (g.match_date === today) {
+      // Today's game — show only if fully evaluated
+      if (!u || !a) return false;
+      if (u.result === null || u.pnl === null || a.result === null || a.pnl === null) return false;
+      return true;
+    }
+
+    // Past games — show only evaluated
+    if (!u && !a) return false;
+    const uOk = u ? (u.result !== null && u.result !== undefined && u.pnl !== null && u.pnl !== undefined) : true;
+    const aOk = a ? (a.result !== null && a.result !== undefined && a.pnl !== null && a.pnl !== undefined) : true;
+
+    if ((u && !uOk) !== (a && !aOk)) {
+      // Anomaly: one evaluated, one not
+      console.warn("Partially-evaluated game hidden:", g.match_date, g.home_team, "vs", g.away_team);
+      return false;
+    }
+    if (!uOk || !aOk) return false;
+    return true;
+  });
+
+  // Calendar filter
+  if (_calFrom || _calTo) {
+    groups = groups.filter(g => {
+      if (_calFrom && g.match_date < _calFrom) return false;
+      if (_calTo   && g.match_date > _calTo)   return false;
+      return true;
+    });
+  }
+
+  return groups;
+}
+
+// ─── Sort ────────────────────────────────────────────────────────────────────
+function sortGroups(groups) {
+  const sorted = [...groups];
+
+  function dateCmp(a, b) {
+    // Default: date desc, then home_team asc
+    if (a.match_date < b.match_date) return 1;
+    if (a.match_date > b.match_date) return -1;
+    return a.home_team.localeCompare(b.home_team);
+  }
+
+  if (_sortCol === "date") {
+    if (_sortDir === "asc") {
+      sorted.sort((a, b) => {
+        if (a.match_date < b.match_date) return -1;
+        if (a.match_date > b.match_date) return 1;
+        return a.home_team.localeCompare(b.home_team);
+      });
+    } else {
+      sorted.sort(dateCmp);
+    }
+  } else if (_sortCol === "league") {
+    sorted.sort((a, b) => {
+      const c = a.league.localeCompare(b.league);
+      return _sortDir === "asc" ? c : -c;
+    });
+  } else if (_sortCol === "match") {
+    sorted.sort((a, b) => {
+      const c = a.home_team.localeCompare(b.home_team);
+      return _sortDir === "asc" ? c : -c;
+    });
+  }
+
+  return sorted;
+}
+
+// ─── Sort header click ────────────────────────────────────────────────────────
+const SORT_COLS = ["date", "league", "match"];
+
+function onSortClick(col) {
+  if (_sortCol === col) {
+    // Cycle: asc → desc → reset (default date desc)
+    if (_sortDir === "asc") {
+      _sortDir = "desc";
+    } else if (_sortDir === "desc") {
+      // Reset to default
+      _sortCol = "date";
+      _sortDir = "desc";
+    }
+  } else {
+    _sortCol = col;
+    _sortDir = "asc";
+  }
+  _currentPage = 1;
+  updateSortHeaders();
+  renderPage();
+}
+
+function updateSortHeaders() {
+  SORT_COLS.forEach(col => {
+    const th = document.querySelector(`th[data-col="${col}"]`);
+    const icon = document.getElementById(`sort-icon-${col}`);
+    if (!th || !icon) return;
+    if (_sortCol === col) {
+      th.setAttribute("aria-sort", _sortDir === "asc" ? "ascending" : "descending");
+      icon.style.display = "inline";
+      icon.innerHTML = _sortDir === "asc" ? "&#9650;" : "&#9660;";
+    } else {
+      th.setAttribute("aria-sort", "none");
+      icon.style.display = "none";
+    }
+  });
+}
+
+// ─── USER/AI split stats ──────────────────────────────────────────────────────
+function computeSplitStats(groups) {
+  const stats = {
+    user: { bets: 0, wins: 0, stake: 0, pnl: 0 },
+    ai:   { bets: 0, wins: 0, stake: 0, pnl: 0 },
+  };
+
+  groups.forEach(g => {
+    ["userBet", "aiBet"].forEach(field => {
+      const bet = g[field];
+      if (!bet) return;
+      const who = bet.bettor;
+      if (!stats[who]) return;
+      stats[who].bets++;
+      stats[who].stake += parseFloat(bet.stake) || 0;
+      if (bet.pnl !== null && bet.pnl !== undefined) {
+        stats[who].pnl += parseFloat(bet.pnl);
+        if (parseFloat(bet.pnl) > 0) stats[who].wins++;
+      }
+    });
+  });
+
+  return stats;
+}
+
+function renderSplitStats(groups, rowCapHit) {
+  const stats = computeSplitStats(groups);
+  const block = document.getElementById("split-stats");
+  if (!block) return;
+  block.style.display = "block";
+
+  function wrPct(s) {
+    if (s.bets === 0) return "&mdash;";
+    return (s.wins / s.bets * 100).toFixed(1) + "%";
+  }
+  function wrClass(s) {
+    if (s.bets === 0) return "";
+    return (s.wins / s.bets) >= 0.5 ? "pos" : "neg";
+  }
+
+  const setCell = (id, html, cls) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = html;
+    el.className = "split-stats-cell" + (cls ? " " + cls : "");
+  };
+
+  setCell("h-user-bets",  stats.user.bets.toLocaleString(), "");
+  setCell("h-ai-bets",    stats.ai.bets.toLocaleString(),   "");
+  setCell("h-user-wr",    wrPct(stats.user), wrClass(stats.user));
+  setCell("h-ai-wr",      wrPct(stats.ai),   wrClass(stats.ai));
+  setCell("h-user-stake", "NIS " + Math.round(stats.user.stake).toLocaleString(), "");
+  setCell("h-ai-stake",   "NIS " + Math.round(stats.ai.stake).toLocaleString(),   "");
+
+  const uPnl = stats.user.pnl;
+  const aPnl = stats.ai.pnl;
+  setCell("h-user-pnl",
+    (uPnl >= 0 ? "+" : "") + uPnl.toFixed(2),
+    uPnl >= 0 ? "pos" : "neg");
+  setCell("h-ai-pnl",
+    (aPnl >= 0 ? "+" : "") + aPnl.toFixed(2),
+    aPnl >= 0 ? "pos" : "neg");
+}
+
+// ─── Table rendering (merged-row) ─────────────────────────────────────────────
+function renderRows(groups) {
+  const tbody = document.getElementById("tbody-history");
+  if (!tbody) return;
+
+  if (groups.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No evaluated bets found for this filter.</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map(bet => {
-    const slug = encodeURIComponent(bet.home_team);
-    const awaySlug = encodeURIComponent(bet.away_team);
-    const leagueSlug = encodeURIComponent(bet.league);
-    const lClass = leagueClass(bet.league);
-    return `<tr>
-      <td class="match-date-cell">${bet.match_date}</td>
-      <td class="kickoff-time">${bet.kickoff_time}</td>
-      <td><a class="league-pill ${lClass}" href="/league/${leagueSlug}" title="${bet.league}">${bet.league}</a></td>
-      <td class="team-name">
-        <a href="/team/${slug}">${bet.home_team}</a>
-        <span class="vs-sep">vs</span>
-        <a href="/team/${awaySlug}">${bet.away_team}</a>
-        ${bet.home_score !== null ? `<span style="font-size:11px;color:var(--text-sub);margin-left:6px;">(${bet.home_score}–${bet.away_score})</span>` : ""}
-      </td>
-      <td class="bet-cell ${bet.bettor === 'user' ? 'bet-user' : 'bet-ai'}">${bet.bettor.toUpperCase()}</td>
-      <td class="bet-cell">${bet.prediction.toUpperCase()}</td>
-      <td class="odds-cell">${parseFloat(bet.odds).toFixed(2)}</td>
-      <td class="bet-cell">${parseFloat(bet.stake).toFixed(0)}</td>
-      <td class="bet-cell"><span class="result-badge ${resultClass(bet.pnl)}">${resultLabel(bet)}</span></td>
-      <td class="bet-cell"><span class="${pnlClass(bet.pnl)}">${pnlLabel(bet.pnl)}</span></td>
-    </tr>`;
-  }).join("");
+
+  tbody.innerHTML = "";
+
+  groups.forEach((group, groupIdx) => {
+    const {
+      match_date, league, home_team, away_team, home_score, away_score,
+      userBet, aiBet,
+    } = group;
+
+    const isEven = groupIdx % 2 === 0;
+    const rowCls = "game-row " + (isEven ? "game-row--even" : "game-row--odd");
+    const leagueCls = leagueClass(league);
+    const leagueSlug = encodeURIComponent(league);
+    const homeSlug  = encodeURIComponent(home_team);
+    const awaySlug  = encodeURIComponent(away_team);
+
+    const scoreHtml = (home_score !== null && home_score !== undefined)
+      ? `<span style="font-size:11px;color:var(--text-sub);margin-left:6px;">(${home_score}&ndash;${away_score})</span>`
+      : "";
+
+    // Determine single-bettor anomaly
+    const bets = [];
+    if (userBet) bets.push({ bet: userBet, label: "USER", labelCls: "bet-user" });
+    if (aiBet)   bets.push({ bet: aiBet,   label: "AI",   labelCls: "bet-ai" });
+
+    if (bets.length === 0) return; // safety
+
+    if (bets.length === 1) {
+      // Single-bettor: plain row, no rowspan
+      const { bet, label, labelCls } = bets[0];
+      const tr = document.createElement("tr");
+      tr.className = rowCls + " game-row--top";
+      tr.innerHTML = `
+        <td class="match-date-cell">${escHtml(match_date)}</td>
+        <td><a class="league-pill ${leagueCls}" href="/league/${leagueSlug}">${escHtml(league)}</a></td>
+        <td class="team-name">
+          <a href="/team/${homeSlug}">${escHtml(home_team)}</a>
+          <span class="vs-sep">vs</span>
+          <a href="/team/${awaySlug}">${escHtml(away_team)}</a>
+          ${scoreHtml}
+        </td>
+        <td class="col-bet">
+          <span class="bettor-label ${labelCls}">${label}</span>
+          ${escHtml((bet.prediction || "").toUpperCase())}
+          <span class="sep">/</span>
+          <span class="odds-val">${parseFloat(bet.odds || 0).toFixed(2)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(bet.stake || 0).toFixed(0)}</span>
+        </td>
+        <td class="col-result">
+          <span class="result-badge ${resultClass(bet.pnl)}">${resultLabel(bet)}</span>
+          <br><span class="${pnlClass(bet.pnl)}">${pnlLabel(bet.pnl)}</span>
+        </td>`;
+      tbody.appendChild(tr);
+    } else {
+      // Two-bettor: merged-row with rowspan=2 on left cells
+      const [topEntry, botEntry] = bets; // USER first (already sorted above)
+
+      // Ensure USER is always top
+      const topBet = userBet || bets[0].bet;
+      const topLabel = userBet ? "USER" : bets[0].label;
+      const topLabelCls = userBet ? "bet-user" : bets[0].labelCls;
+      const botBet = aiBet || bets[1].bet;
+      const botLabel = aiBet ? "AI" : bets[1].label;
+      const botLabelCls = aiBet ? "bet-ai" : bets[1].labelCls;
+
+      // Top row
+      const trTop = document.createElement("tr");
+      trTop.className = rowCls + " game-row--top";
+      trTop.innerHTML = `
+        <td rowspan="2" class="match-date-cell">${escHtml(match_date)}</td>
+        <td rowspan="2"><a class="league-pill ${leagueCls}" href="/league/${leagueSlug}">${escHtml(league)}</a></td>
+        <td rowspan="2" class="team-name">
+          <a href="/team/${homeSlug}">${escHtml(home_team)}</a>
+          <span class="vs-sep">vs</span>
+          <a href="/team/${awaySlug}">${escHtml(away_team)}</a>
+          ${scoreHtml}
+        </td>
+        <td class="col-bet">
+          <span class="bettor-label ${topLabelCls}">${topLabel}</span>
+          ${escHtml((topBet.prediction || "").toUpperCase())}
+          <span class="bet-odds"> @ ${parseFloat(topBet.odds || 0).toFixed(2)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(topBet.stake || 0).toFixed(0)}</span>
+        </td>
+        <td class="col-result">
+          <span class="result-badge ${resultClass(topBet.pnl)}">${resultLabel(topBet)}</span>
+          <br><span class="${pnlClass(topBet.pnl)}">${pnlLabel(topBet.pnl)}</span>
+        </td>`;
+      tbody.appendChild(trTop);
+
+      // Bottom row
+      const trBot = document.createElement("tr");
+      trBot.className = rowCls + " game-row--bottom";
+      trBot.innerHTML = `
+        <td class="col-bet">
+          <span class="bettor-label ${botLabelCls}">${botLabel}</span>
+          ${escHtml((botBet.prediction || "").toUpperCase())}
+          <span class="bet-odds"> @ ${parseFloat(botBet.odds || 0).toFixed(2)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(botBet.stake || 0).toFixed(0)}</span>
+        </td>
+        <td class="col-result">
+          <span class="result-badge ${resultClass(botBet.pnl)}">${resultLabel(botBet)}</span>
+          <br><span class="${pnlClass(botBet.pnl)}">${pnlLabel(botBet.pnl)}</span>
+        </td>`;
+      tbody.appendChild(trBot);
+    }
+
+    // Separator
+    const sep = document.createElement("tr");
+    sep.className = "game-group-separator";
+    sep.setAttribute("aria-hidden", "true");
+    sep.innerHTML = `<td colspan="5"></td>`;
+    tbody.appendChild(sep);
+  });
+
+  // Hover delegation
+  wireHoverDelegation(tbody);
+}
+
+function wireHoverDelegation(tbody) {
+  tbody.addEventListener("mouseenter", e => {
+    const row = e.target.closest("tr.game-row");
+    if (!row) return;
+    const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
+    const bot = top ? top.nextElementSibling : null;
+    if (top && top.classList.contains("game-row")) top.classList.add("row-hover");
+    if (bot && bot.classList.contains("game-row")) bot.classList.add("row-hover");
+  }, true);
+  tbody.addEventListener("mouseleave", e => {
+    const row = e.target.closest("tr.game-row");
+    if (!row) return;
+    const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
+    const bot = top ? top.nextElementSibling : null;
+    if (top) top.classList.remove("row-hover");
+    if (bot) bot.classList.remove("row-hover");
+  }, true);
+}
+
+// ─── Paging ───────────────────────────────────────────────────────────────────
+function renderPage() {
+  const total = _groups.length;
+  const totalPages = Math.max(1, Math.ceil(total / _pageSize));
+  _currentPage = Math.max(1, Math.min(_currentPage, totalPages));
+
+  const start = (_currentPage - 1) * _pageSize;
+  const end   = Math.min(start + _pageSize, total);
+  const slice = _groups.slice(start, end);
+
+  const sumEl = document.getElementById("paging-summary");
+  if (sumEl) {
+    sumEl.textContent = total === 0
+      ? "No evaluated games found"
+      : `Showing ${start + 1}–${end} of ${total} games`;
+  }
+
+  const pagingEl = document.getElementById("paging-controls");
+  if (pagingEl) pagingEl.style.display = totalPages > 1 ? "flex" : "none";
+
+  const infoEl = document.getElementById("h-page-info");
+  if (infoEl) infoEl.textContent = `Page ${_currentPage} of ${totalPages}`;
+
+  const updBtn = (id, disabled) => { const el = document.getElementById(id); if (el) el.disabled = disabled; };
+  updBtn("h-first", _currentPage === 1);
+  updBtn("h-prev",  _currentPage === 1);
+  updBtn("h-next",  _currentPage === totalPages);
+  updBtn("h-last",  _currentPage === totalPages);
+
+  renderRows(slice);
 }
 
 // ─── Fetch & render ──────────────────────────────────────────────────────────
 let _debounceTimer = null;
+let _lastDsl = "";
+let _insightPollTimer = null;
 
 async function fetchAndRender(dsl) {
   _lastDsl = dsl;
-  tbody.innerHTML = `<tr><td colspan="10" class="empty-state">Loading&hellip;</td></tr>`;
+  const tbody = document.getElementById("tbody-history");
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Loading&hellip;</td></tr>`;
 
   let url = "/api/bets";
   if (dsl) url += "?filter=" + encodeURIComponent(dsl);
@@ -280,64 +664,71 @@ async function fetchAndRender(dsl) {
     const resp = await fetch(url);
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      tbody.innerHTML = `<tr><td colspan="10" class="error-state">${err.detail?.detail || err.detail || "Request failed"}</td></tr>`;
-      btnInsight.disabled = true;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="error-state">${err.detail?.detail || err.detail || "Request failed"}</td></tr>`;
+      document.getElementById("btn-insight").disabled = true;
       return;
     }
     data = await resp.json();
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="10" class="error-state">Network error: ${e.message}</td></tr>`;
-    btnInsight.disabled = true;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="error-state">Network error: ${e.message}</td></tr>`;
+    document.getElementById("btn-insight").disabled = true;
     return;
   }
 
-  setAgg(data.aggregates);
+  _allRows = data.rows || [];
 
-  const capEl = document.getElementById("agg-cap");
-  capEl.innerHTML = data.row_cap_hit
-    ? `<span class="neg">2000 (cap hit)</span>`
-    : `<span class="sub">No cap</span>`;
-
-  // Row cap warning banner above the table
-  const existingBanner = document.getElementById("row-cap-banner");
-  if (existingBanner) existingBanner.remove();
-  if (data.row_cap_hit) {
-    const banner = document.createElement("div");
-    banner.id = "row-cap-banner";
-    banner.style.cssText =
-      "background:#f26130;color:#fdf6e3;padding:10px 18px;border-radius:6px;" +
-      "font-family:var(--font-body,Space Grotesk,sans-serif);font-size:13px;" +
-      "font-weight:600;margin-bottom:16px;letter-spacing:0.2px;";
-    banner.textContent =
-      "Showing partial results — filter matched >2000 bets. Tighten your filter to see the full series.";
-    const table = document.querySelector(".matches-table");
-    table.parentNode.insertBefore(banner, table);
+  // Row cap banner
+  const capBanner = document.getElementById("row-cap-banner");
+  if (capBanner) {
+    capBanner.style.display = data.row_cap_hit ? "block" : "none";
   }
 
-  renderRows(data.rows);
+  // Build groups (evaluated-only + calendar filter + sort)
+  const rawGroups = buildGroups(_allRows);
+  _groups = sortGroups(rawGroups);
 
-  // Disable insight button when result set is empty (422 would happen)
-  btnInsight.disabled = (data.aggregates.count === 0);
+  // Render split stats based on ALL filtered groups (not just current page)
+  renderSplitStats(_groups, data.row_cap_hit);
+
+  _currentPage = 1;
+  renderPage();
+
+  document.getElementById("btn-insight").disabled = (_allRows.length === 0);
 }
 
 function onFilterChange() {
   clearTimeout(_debounceTimer);
-  const dsl = filterInput.value.trim();
+  const dsl = document.getElementById("filter-input").value.trim();
   pushFilterToUrl(dsl);
+  _currentPage = 1;
+  _sortCol = "date";
+  _sortDir = "desc";
+  updateSortHeaders();
   _debounceTimer = setTimeout(() => fetchAndRender(dsl), 350);
 }
 
-filterInput.addEventListener("input", onFilterChange);
+function onCalendarChange() {
+  clearTimeout(_debounceTimer);
+  _calFrom = (document.getElementById("cal-from") || {}).value || "";
+  _calTo   = (document.getElementById("cal-to")   || {}).value || "";
+  _currentPage = 1;
+  _sortCol = "date";
+  _sortDir = "desc";
+  updateSortHeaders();
+  // Re-build groups from already-fetched rows
+  _debounceTimer = setTimeout(() => {
+    const rawGroups = buildGroups(_allRows);
+    _groups = sortGroups(rawGroups);
+    renderSplitStats(_groups, false);
+    renderPage();
+  }, 350);
+}
 
 // ─── Insight polling ─────────────────────────────────────────────────────────
 function stopInsightPoll() {
-  if (_insightPollTimer) {
-    clearInterval(_insightPollTimer);
-    _insightPollTimer = null;
-  }
+  if (_insightPollTimer) { clearInterval(_insightPollTimer); _insightPollTimer = null; }
 }
 
-// Very basic markdown→HTML converter (bold, headers, bullet lists only)
 function simpleMarkdown(md) {
   if (!md) return "";
   return md
@@ -352,56 +743,51 @@ function simpleMarkdown(md) {
 }
 
 async function pollInsightJob(jobId) {
+  const insightBody = document.getElementById("insight-body");
+  const insightStat = document.getElementById("insight-status");
   stopInsightPoll();
-  insightStat.textContent = "Queued";
-  insightBody.className = "insight-panel-body loading";
-  insightBody.textContent = "Waiting for AI analysis...";
+  if (insightStat) insightStat.textContent = "Queued";
+  if (insightBody) { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Waiting for AI analysis..."; }
 
   _insightPollTimer = setInterval(async () => {
     let resp;
-    try {
-      resp = await fetch(`/api/insights/${jobId}`);
-    } catch (e) {
+    try { resp = await fetch(`/api/insights/${jobId}`); }
+    catch (e) {
       stopInsightPoll();
-      insightStat.textContent = "Error";
-      insightBody.className = "insight-panel-body error";
-      insightBody.textContent = "Network error polling insight.";
+      if (insightStat) insightStat.textContent = "Error";
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = "Network error polling insight."; }
       return;
     }
     if (!resp.ok) {
       stopInsightPoll();
-      insightStat.textContent = "Error";
-      insightBody.className = "insight-panel-body error";
-      insightBody.textContent = `Error ${resp.status} polling insight job.`;
+      if (insightStat) insightStat.textContent = "Error";
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = `Error ${resp.status} polling insight job.`; }
       return;
     }
     const job = await resp.json();
-    insightStat.textContent = job.state.toUpperCase();
-
+    if (insightStat) insightStat.textContent = job.state.toUpperCase();
     if (job.state === "done") {
       stopInsightPoll();
-      insightBody.className = "insight-panel-body";
-      insightBody.innerHTML = simpleMarkdown(job.markdown || "");
-      btnInsight.disabled = false;
+      if (insightBody) { insightBody.className = "insight-panel-body"; insightBody.innerHTML = simpleMarkdown(job.markdown || ""); }
+      document.getElementById("btn-insight").disabled = false;
     } else if (job.state === "failed") {
       stopInsightPoll();
-      insightBody.className = "insight-panel-body error";
-      insightBody.textContent = job.error || "Insight generation failed.";
-      btnInsight.disabled = false;
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = job.error || "Insight generation failed."; }
+      document.getElementById("btn-insight").disabled = false;
     }
-    // queued/running: keep polling
   }, 2500);
 }
 
-btnInsight.addEventListener("click", async () => {
-  const dsl = filterInput.value.trim();
-
+document.getElementById("btn-insight").addEventListener("click", async () => {
+  const dsl = document.getElementById("filter-input").value.trim();
+  const insightPanel = document.getElementById("insight-panel");
+  const insightBody  = document.getElementById("insight-body");
+  const insightStat  = document.getElementById("insight-status");
   stopInsightPoll();
-  insightPanel.style.display = "block";
-  insightStat.textContent = "Starting";
-  insightBody.className = "insight-panel-body loading";
-  insightBody.textContent = "Submitting insight request...";
-  btnInsight.disabled = true;
+  if (insightPanel) insightPanel.style.display = "block";
+  if (insightStat)  insightStat.textContent = "Starting";
+  if (insightBody)  { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Submitting insight request..."; }
+  document.getElementById("btn-insight").disabled = true;
 
   let resp;
   try {
@@ -411,23 +797,20 @@ btnInsight.addEventListener("click", async () => {
       body: JSON.stringify({ filter_dsl: dsl }),
     });
   } catch (e) {
-    insightBody.className = "insight-panel-body error";
-    insightBody.textContent = "Network error submitting insight request.";
-    btnInsight.disabled = false;
+    if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = "Network error submitting insight request."; }
+    document.getElementById("btn-insight").disabled = false;
     return;
   }
 
   if (resp.status === 422) {
-    // Empty result set
-    insightPanel.style.display = "none";
-    btnInsight.disabled = true;
+    if (insightPanel) insightPanel.style.display = "none";
+    document.getElementById("btn-insight").disabled = true;
     return;
   }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    insightBody.className = "insight-panel-body error";
-    insightBody.textContent = err.detail || `Error ${resp.status}`;
-    btnInsight.disabled = false;
+    if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = err.detail || `Error ${resp.status}`; }
+    document.getElementById("btn-insight").disabled = false;
     return;
   }
 
@@ -435,10 +818,32 @@ btnInsight.addEventListener("click", async () => {
   pollInsightJob(job_id);
 });
 
+// ─── Wire sort headers ───────────────────────────────────────────────────────
+document.querySelectorAll("th.sortable").forEach(th => {
+  th.addEventListener("click", () => onSortClick(th.dataset.col));
+});
+
+// ─── Wire paging ─────────────────────────────────────────────────────────────
+document.getElementById("h-first").addEventListener("click", () => { _currentPage = 1; renderPage(); });
+document.getElementById("h-prev" ).addEventListener("click", () => { _currentPage--; renderPage(); });
+document.getElementById("h-next" ).addEventListener("click", () => { _currentPage++; renderPage(); });
+document.getElementById("h-last" ).addEventListener("click", () => {
+  _currentPage = Math.ceil(_groups.length / _pageSize) || 1; renderPage();
+});
+document.getElementById("h-page-size").addEventListener("change", function () {
+  _pageSize = parseInt(this.value, 10); _currentPage = 1; renderPage();
+});
+
+// ─── Wire filter + calendar ──────────────────────────────────────────────────
+document.getElementById("filter-input").addEventListener("input", onFilterChange);
+document.getElementById("cal-from").addEventListener("change", onCalendarChange);
+document.getElementById("cal-to"  ).addEventListener("change", onCalendarChange);
+
 // ─── Init ────────────────────────────────────────────────────────────────────
 (function init() {
   const initialDsl = getFilterFromUrl();
-  filterInput.value = initialDsl;
+  document.getElementById("filter-input").value = initialDsl;
+  updateSortHeaders();
   fetchAndRender(initialDsl);
 })();
 </script>

@@ -701,6 +701,169 @@ body {
 }
 
 /* ─────────────────────────────────────────────
+   FLOW TIMELINE ARROW
+───────────────────────────────────────────── */
+.flow-arrow {
+  color: rgba(255,255,255,0.3);
+  margin: 0 6px;
+  font-size: 14px;
+}
+.stat-tile-value .err { color: var(--vermilion); font-size: 13px; }
+.stat-tile-value .clock { color: var(--yellow); }
+
+/* ─────────────────────────────────────────────
+   TODAY FILTER BAR (calendar inputs)
+───────────────────────────────────────────── */
+.today-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.today-filter-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--indigo);
+  border-radius: var(--r);
+  padding: 8px 14px;
+}
+.today-filter-dates .filter-label {
+  color: rgba(255,255,255,0.45);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.cal-input {
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  border-radius: var(--r);
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  color-scheme: dark;
+}
+.cal-input:focus { outline: none; border-color: var(--cobalt); }
+
+/* ─────────────────────────────────────────────
+   PAGING CONTROLS
+───────────────────────────────────────────── */
+.paging-summary {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  margin-bottom: 8px;
+}
+.paging-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.page-btn {
+  font-family: var(--font-display);
+  font-size: 15px;
+  background: var(--indigo);
+  color: rgba(255,255,255,0.7);
+  border: none;
+  border-radius: var(--r);
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.12s;
+  letter-spacing: 1px;
+}
+.page-btn:hover:not(:disabled) { background: var(--indigo-mid); color: #fff; }
+.page-btn:disabled { background: #e8e4f5; color: #b0a8d0; cursor: not-allowed; }
+.page-info {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  padding: 0 6px;
+}
+.page-size-select {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--indigo);
+  color: rgba(255,255,255,0.7);
+  border: none;
+  border-radius: var(--r);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+/* ─────────────────────────────────────────────
+   MERGED-ROW TABLE (Today)
+───────────────────────────────────────────── */
+
+/* Disable nth-child striping — we do it per group via JS class */
+.merged-row-table tbody tr:nth-child(even) { background: transparent; }
+
+.game-row--even { background: #fff; }
+.game-row--odd  { background: #faf7ff; }
+.game-row.row-hover { background: #eef4ff !important; }
+
+/* Separator between game groups */
+.game-group-separator td {
+  height: 4px;
+  padding: 0;
+  background: var(--cream-dark);
+  border-bottom: none;
+}
+.game-group-separator { border-bottom: none; }
+
+/* Bettor micro-label */
+.bettor-label {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.bettor-label.bet-user { background: var(--emerald); color: #fff; }
+.bettor-label.bet-ai   { background: var(--vermilion); color: #fff; }
+
+/* Prediction + stake cell */
+.col-bet {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--indigo);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* Edit cell */
+.col-edit { text-align: center; vertical-align: middle; }
+.col-edit--empty { background: transparent; cursor: default; }
+
+/* Status pill */
+.status-pill {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: rgba(20,18,93,0.1);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────────
    FOOTER
 ───────────────────────────────────────────── */
 .page-footer {
