@@ -385,6 +385,7 @@ function onSortClick(col) {
   }
   _currentPage = 1;
   updateSortHeaders();
+  _groups = sortGroups(_groups);
   renderPage();
 }
 
