@@ -41,7 +41,11 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from soccersmartbet.db import get_cursor
-from soccersmartbet.team_registry import resolve_team
+from soccersmartbet.team_registry import (
+    get_normalized_variants,
+    normalize_team_name,
+    resolve_team,
+)
 from soccersmartbet.webapp.query.parser import ParseError
 from soccersmartbet.webapp.query.service import run_filter
 
@@ -215,12 +219,26 @@ async def get_pnl(
 async def get_team_stats(slug: str) -> dict:
     """Return rollup stats for a team identified by URL-encoded name slug.
 
-    The slug is decoded and matched against both ``home_team`` and
-    ``away_team`` using ILIKE.  Partial matches resolve (e.g. ``arsenal``
-    matches ``Arsenal FC``).
+    The slug is decoded, resolved to a canonical team name via
+    ``team_registry.resolve_team``, then matched against games using a
+    Python-side filter rather than SQL ILIKE.
+
+    Design decision — Python-side filtering instead of SQL ILIKE:
+      The canonical name (e.g. ``"Atletico Madrid"``) is not guaranteed to be
+      a contiguous substring of the raw string stored in ``games.home_team``
+      (e.g. ``"Club Atlético de Madrid"``).  Diacritics (``"é"`` vs ``"e"``)
+      and inserted words (``"de"``) both break naive ILIKE substring matching,
+      and PostgreSQL's ``unaccent`` extension is not installed.  The fix
+      instead: (1) collects every normalized alias variant via
+      ``get_normalized_variants``, (2) fetches all joined rows without a team
+      filter (LIMIT 2000 still caps the scan), and (3) keeps only rows where
+      ``normalize_team_name(home_team)`` or ``normalize_team_name(away_team)``
+      is in the variant set.  At the current data scale (tens of games) the
+      extra Python loop is negligible.
 
     Args:
-        slug: URL-encoded team name (e.g. ``Arsenal%20FC`` or ``arsenal``).
+        slug: URL-encoded team name (e.g. ``Arsenal%20FC`` or
+            ``Club+Atl%C3%A9tico+de+Madrid``).
 
     Returns:
         ``{team_name, total_bets, win_rate, total_pnl, total_stake,
@@ -228,7 +246,8 @@ async def get_team_stats(slug: str) -> dict:
         ``|pnl|``.
 
     Raises:
-        HTTP 404 when no bets match the slug.
+        HTTP 404 with ``unknown_team`` when slug cannot be resolved.
+        HTTP 404 with ``not_found`` when resolved but no bets exist.
     """
     raw_name = urllib.parse.unquote(slug)
     canonical = resolve_team(raw_name)
@@ -237,11 +256,10 @@ async def get_team_stats(slug: str) -> dict:
             status_code=404,
             detail={"error": "unknown_team", "slug": slug},
         )
-    # resolve_team returns a disambiguated canonical (e.g. "Arsenal") — substring
-    # ILIKE only widens to storage variants ("Arsenal FC"), not to other teams.
-    # Escape LIKE metacharacters so "_" / "%" in names are treated as literals.
-    _safe = canonical.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    pattern = f"%{_safe}%"
+
+    # All normalized alias strings for this canonical (accent-folded, prefix-stripped).
+    # E.g. for "Atletico Madrid": {"atletico madrid", "atletico", "atletico de madrid", "atm", ...}
+    variants = get_normalized_variants(canonical)
 
     sql = """
         SELECT
@@ -263,15 +281,23 @@ async def get_team_stats(slug: str) -> dict:
             g.away_score
         FROM bets b
         JOIN games g ON g.game_id = b.game_id
-        WHERE g.home_team ILIKE %(name)s ESCAPE '\\'
-           OR g.away_team ILIKE %(name)s ESCAPE '\\'
         ORDER BY g.match_date DESC, g.kickoff_time DESC
         LIMIT 2000
     """
 
     with get_cursor(commit=False) as cur:
-        cur.execute(sql, {"name": pattern})
-        rows = cur.fetchall()
+        cur.execute(sql)
+        all_rows = cur.fetchall()
+
+    # Python-side filter: keep rows where the normalized stored team name
+    # matches any known variant of the canonical.  This handles accent
+    # divergence ("Atlético" → "atletico") and prefix divergence
+    # ("Club Atletico de Madrid" → "atletico de madrid") in one step.
+    rows = [
+        r
+        for r in all_rows
+        if normalize_team_name(r[8]) in variants or normalize_team_name(r[9]) in variants
+    ]
 
     if not rows:
         raise HTTPException(
