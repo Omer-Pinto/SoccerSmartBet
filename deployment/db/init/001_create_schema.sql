@@ -39,7 +39,10 @@ CREATE TABLE games (
     home_score INTEGER CHECK (home_score >= 0),
     away_score INTEGER CHECK (away_score >= 0),
     outcome VARCHAR(5) CHECK (outcome IN ('1', 'x', '2')),
-    
+
+    -- Live-score enrichment (populated by persist_games FotMob enrichment)
+    fotmob_match_id BIGINT NULL,
+
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

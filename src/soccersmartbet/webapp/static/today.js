@@ -13,6 +13,7 @@
  *  - Calendar filter (client-side slice of already-fetched data)
  *  - Paging: 25/50/100, hide bar when single page
  *  - P&L sparkline from /api/today/pnl
+ *  - Live polling: /api/today/live every 60s while any game is live/starting soon
  */
 
 "use strict";
@@ -28,6 +29,10 @@ const RUNNING_STATUSES = new Set([
   "post_games_running",
 ]);
 const LOCK_MINUTES = 30;
+
+// Live polling: start when a game is within 5 min of kickoff, poll every 60s
+const LIVE_POLL_MS      = 60000;
+const LIVE_START_MIN    = 5;    // minutes before kickoff to start live polling
 
 // ─────────────────────────────────────────────
 // State
@@ -58,6 +63,14 @@ let _staleNoticeShown = false;
 // Idle-cancel timer (Fix A) — tracks the 5-minute auto-cancel per open edit row
 let _idleTimer = null;
 const IDLE_CANCEL_MS = 5 * 60 * 1000;
+
+// Chip ticker pause flag — true while any EDIT row is open
+let _chipTickerPaused = false;
+
+// Live data state — keyed by game_id
+let _lastLiveData = null;   // full response from /api/today/live
+let _liveInterval = null;   // handle for live polling interval
+let _livePollingActive = false;
 
 // ─────────────────────────────────────────────
 // DOM refs
@@ -168,6 +181,8 @@ async function fetchMatchData() {
     renderBankroll();
     renderScoreboard();
     updateModRibbon();
+    // After fresh match data, re-evaluate whether live polling should start/stop
+    manageLivePolling();
   } catch (e) {
     console.warn("fetchMatchData failed:", e);
     // MEDIUM-5: surface error inline instead of silent placeholder
@@ -196,7 +211,302 @@ async function fetchPnlHistory() {
 }
 
 // ─────────────────────────────────────────────
-// Today's Scoreboard
+// Live polling — /api/today/live
+// ─────────────────────────────────────────────
+
+/**
+ * Determines whether any game warrants live polling.
+ * Start conditions:
+ *   - period is 1H, HT, 2H (in-play)
+ *   - period is "pre" AND kickoff is within LIVE_START_MIN minutes
+ * Stop condition: all games are FT or unknown (no more live/starting-soon).
+ */
+function _shouldPollLive() {
+  if (!_allBets.length) return false;
+  const now = Date.now();
+  const seenGames = new Set();
+  for (const bet of _allBets) {
+    const game = bet.game || {};
+    const gid  = game.game_id;
+    if (seenGames.has(gid)) continue;
+    seenGames.add(gid);
+
+    // Check live payload if available
+    if (_lastLiveData && _lastLiveData.games) {
+      const liveGame = _lastLiveData.games.find(g => g.game_id === gid);
+      if (liveGame) {
+        if (["1H","HT","2H"].includes(liveGame.period)) return true;
+        if (liveGame.period === "pre") {
+          const msLeft = kickoffMillis(game.kickoff_iso) - now;
+          if (msLeft <= LIVE_START_MIN * 60000) return true;
+        }
+        // "FT" or "unknown" — not a reason to poll
+        continue;
+      }
+    }
+    // No live data yet — fall back to kickoff proximity
+    const msLeft = kickoffMillis(game.kickoff_iso) - now;
+    if (msLeft <= LIVE_START_MIN * 60000 && msLeft > -3 * 60 * 60 * 1000) return true;
+  }
+  return false;
+}
+
+function manageLivePolling() {
+  const should = _shouldPollLive();
+  if (should && !_livePollingActive) {
+    _startLivePolling();
+  } else if (!should && _livePollingActive) {
+    _stopLivePolling();
+  }
+}
+
+function _startLivePolling() {
+  if (_livePollingActive) return;
+  _livePollingActive = true;
+  console.info("[live] Starting live polling every", LIVE_POLL_MS, "ms");
+  pollLive(); // immediate first fetch
+  _liveInterval = setInterval(pollLive, LIVE_POLL_MS);
+}
+
+function _stopLivePolling() {
+  if (!_livePollingActive) return;
+  _livePollingActive = false;
+  console.info("[live] Stopping live polling — all games finished");
+  if (_liveInterval !== null) {
+    clearInterval(_liveInterval);
+    _liveInterval = null;
+  }
+}
+
+async function pollLive() {
+  // Task 1: pause live render while edit row is open
+  if (_chipTickerPaused) {
+    console.debug("[live] Skipping live poll — edit row open");
+    return;
+  }
+
+  try {
+    const resp = await fetch("/api/today/live");
+    if (resp.status === 404) {
+      // Endpoint not yet deployed — fail open
+      console.debug("[live] /api/today/live 404 — keeping current rendering");
+      return;
+    }
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    _lastLiveData = await resp.json();
+    console.debug("[live] received:", _lastLiveData);
+    // Patch in-place without full re-render (no edit disruption)
+    applyLiveOverlay();
+    renderScoreboard();
+    // Re-evaluate polling need
+    manageLivePolling();
+  } catch (e) {
+    console.warn("[live] pollLive failed:", e);
+    // Fail open — don't break the page
+  }
+}
+
+/**
+ * Walk rendered game rows and patch live state into them.
+ * Does NOT trigger a full re-render — surgically updates cells already in DOM.
+ */
+function applyLiveOverlay() {
+  if (!_lastLiveData || !_lastLiveData.games) return;
+  if (!els.tbodyMatches) return;
+
+  const liveMap = new Map(_lastLiveData.games.map(g => [g.game_id, g]));
+
+  _groups.forEach((group, groupIdx) => {
+    const { game, userBet, aiBet } = group;
+    const gid = game.game_id;
+    const liveGame = liveMap.get(gid);
+    if (!liveGame) return;
+
+    // ── Score cell: update scoreline and period chip ──
+    const scorelineId  = `scoreline-${gid ?? groupIdx}`;
+    const periodChipId = `period-chip-${gid ?? groupIdx}`;
+    const chipId       = `chip-game-${gid ?? group.userBet?.bet_id ?? group.aiBet?.bet_id ?? groupIdx}`;
+    const chipEl       = document.getElementById(chipId);
+
+    // The score cell is the parent of the flex wrapper that holds scoreline + period chip.
+    // We locate it via the countdown chip (still in Kickoff cell) then walk to tdScore.
+    // More reliably: use scorelineId / periodChipId since those live in tdScore now.
+    const scorelinePeerParent = (function() {
+      const existing = document.getElementById(scorelineId) || document.getElementById(periodChipId);
+      return existing ? existing.parentNode : (chipEl ? chipEl.closest("td")?.nextElementSibling?.nextElementSibling?.nextElementSibling : null);
+    })();
+
+    // Scoreline
+    let scoreEl = document.getElementById(scorelineId);
+    if (!scoreEl && liveGame.period !== "pre" && scorelinePeerParent) {
+      scoreEl = document.createElement("div");
+      scoreEl.id = scorelineId;
+      scoreEl.className = "live-scoreline";
+      scorelinePeerParent.firstElementChild
+        ? scorelinePeerParent.firstElementChild.insertBefore(scoreEl, scorelinePeerParent.firstElementChild.firstChild)
+        : scorelinePeerParent.appendChild(scoreEl);
+    }
+    if (scoreEl && liveGame.period !== "pre") {
+      const hs = liveGame.home_score ?? 0;
+      const as_ = liveGame.away_score ?? 0;
+      scoreEl.textContent = `${hs} - ${as_}`;
+      scoreEl.className = "live-scoreline" + (liveGame.finished ? " live-scoreline--ft" : "");
+    } else if (scoreEl && liveGame.period === "pre") {
+      scoreEl.textContent = "";
+    }
+
+    // Period chip
+    let pChipEl = document.getElementById(periodChipId);
+    if (!pChipEl && scorelinePeerParent) {
+      pChipEl = document.createElement("div");
+      pChipEl.id = periodChipId;
+      pChipEl.style.marginTop = "4px";
+      const flexWrap = scorelinePeerParent.firstElementChild;
+      if (flexWrap) flexWrap.appendChild(pChipEl);
+    }
+    if (pChipEl) {
+      const { text: pText, cls: pCls } = periodChipContent(liveGame);
+      const isLiveNow = ["1H","2H"].includes(liveGame.period);
+      pChipEl.className = pCls;
+      if (pText) {
+        const liveDot = isLiveNow ? `<span class="live-dot" aria-hidden="true"></span>` : "";
+        pChipEl.innerHTML = liveDot + escHtml(pText);
+      } else {
+        pChipEl.innerHTML = "";
+      }
+    }
+
+    // ── Row-state classes: finished / live ──
+    const isFinished  = liveGame.finished || liveGame.period === "FT";
+    const isLiveOrHT  = ["1H","2H","HT"].includes(liveGame.period);
+    // Find the top and bottom rows for this group by their shared groupId
+    const topRow = els.tbodyMatches.querySelector(`tr[data-group-id="${groupIdx}"]`);
+    if (topRow) {
+      let botRow = topRow.nextElementSibling;
+      while (botRow && !botRow.classList.contains("game-row--bottom")) {
+        botRow = botRow.nextElementSibling;
+      }
+      for (const tr of [topRow, botRow].filter(Boolean)) {
+        tr.classList.remove("game-row--finished", "game-row--live");
+        if (isFinished)  tr.classList.add("game-row--finished");
+        if (isLiveOrHT)  tr.classList.add("game-row--live");
+      }
+    }
+
+    // ── Odds bolding: re-evaluate based on current score ──
+    _applyOddsBolding(gid ?? groupIdx, liveGame);
+
+    // ── P&L cells: update both USER and AI bet rows ──
+    _applyLivePnlToRow(userBet, liveGame);
+    _applyLivePnlToRow(aiBet, liveGame);
+  });
+}
+
+/**
+ * Updates the P&L display in a single bet's row.
+ * - If period != "FT": show dash (hide P&L).
+ * - If period == "FT" and estimate present: show preview P&L.
+ * - If stored pnl arrives: show confirmed P&L (drop preview style).
+ */
+function _applyLivePnlToRow(bet, liveGame) {
+  if (!bet) return;
+  const pnlCellId = `pnl-cell-${bet.bet_id}`;
+  const pnlEl = document.getElementById(pnlCellId);
+  if (!pnlEl) return;
+
+  const isFinished = liveGame.finished || liveGame.period === "FT";
+  const estimate   = bet.bettor === "user" ? liveGame.user_pnl_estimate : liveGame.ai_pnl_estimate;
+  const storedPnl  = bet.pnl;
+
+  if (!isFinished) {
+    pnlEl.innerHTML = `<span class="pnl-pending">—</span>`;
+    pnlEl.className = "pnl-cell";
+    return;
+  }
+
+  if (storedPnl != null) {
+    // Confirmed result already in DB — show it plainly
+    const val = parseFloat(storedPnl);
+    const sign = val >= 0 ? "+" : "";
+    pnlEl.innerHTML = `<span class="${val >= 0 ? "pnl-positive" : "pnl-negative"}">${sign}${val.toFixed(0)} NIS</span>`;
+    pnlEl.className = "pnl-cell";
+  } else if (estimate != null) {
+    // DB hasn't synced yet — show preview
+    const val = parseFloat(estimate);
+    const sign = val >= 0 ? "+" : "";
+    pnlEl.innerHTML =
+      `<span class="${val >= 0 ? "pnl-positive" : "pnl-negative"} pnl-estimated"
+             title="Estimated — pending post-games confirmation"
+       >${sign}${val.toFixed(0)} NIS</span>`;
+    pnlEl.className = "pnl-cell";
+  } else {
+    pnlEl.innerHTML = `<span class="pnl-pending">—</span>`;
+    pnlEl.className = "pnl-cell";
+  }
+}
+
+/**
+ * Applies bold to the odds span that matches the current match result.
+ *
+ * Pre-match (no live data or period === "pre"): no span bolded.
+ * Live or FT:
+ *   home > away  → bold the "1" span
+ *   home == away → bold the "X" span
+ *   home < away  → bold the "2" span
+ *
+ * gameKey is the value used when building the odds cell ID (game.game_id ?? groupIdx).
+ */
+function _applyOddsBolding(gameKey, liveGame) {
+  const oddsId = `odds-cell-${gameKey}`;
+  const span1 = document.getElementById(`${oddsId}-1`);
+  const spanX = document.getElementById(`${oddsId}-x`);
+  const span2 = document.getElementById(`${oddsId}-2`);
+  if (!span1 || !spanX || !span2) return;
+
+  // Clear all existing bold
+  span1.classList.remove("odds-bold");
+  spanX.classList.remove("odds-bold");
+  span2.classList.remove("odds-bold");
+
+  if (!liveGame || liveGame.period === "pre") return;
+
+  const hs = liveGame.home_score ?? 0;
+  const as_ = liveGame.away_score ?? 0;
+  if (hs > as_)       span1.classList.add("odds-bold");
+  else if (hs === as_) spanX.classList.add("odds-bold");
+  else                 span2.classList.add("odds-bold");
+}
+
+/**
+ * Returns { text, cls } for a period chip given live game data.
+ * Classes extend the countdown-chip base for consistent sizing/padding.
+ */
+function periodChipContent(liveGame) {
+  const p = liveGame.period;
+  const min = liveGame.minute;
+  if (p === "1H") {
+    return {
+      text: min ? `1H ${min}` : "1H",
+      cls: "countdown-chip chip-live",
+    };
+  }
+  if (p === "HT") {
+    return { text: "HT", cls: "countdown-chip chip-ht" };
+  }
+  if (p === "2H") {
+    return {
+      text: min ? `2H ${min}` : "2H",
+      cls: "countdown-chip chip-live",
+    };
+  }
+  if (p === "FT") {
+    return { text: "FT", cls: "countdown-chip chip-ft" };
+  }
+  return { text: "", cls: "countdown-chip chip-unknown" };
+}
+
+// ─────────────────────────────────────────────
+// Today's Scoreboard (reworked — two columns)
 // ─────────────────────────────────────────────
 
 function renderScoreboard() {
@@ -204,79 +514,205 @@ function renderScoreboard() {
   const contentEl = document.getElementById("scoreboard-content");
   if (!contentEl) return;
 
-  // Count games that have finished today (pnl is non-null, result set)
-  const finishedBets = _allBets.filter(b => b.pnl !== null && b.result !== null);
-  // Unique finished games (by game_id)
-  const finishedGameIds = new Set(finishedBets.map(b => b.game_id));
-  const gamesFinished = finishedGameIds.size;
+  // ISR 04:00 cutoff: keep showing scoreboard until 04:00 ISR next day
+  const isrNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+  const isrHour = isrNow.getHours();
+  // If it's between midnight and 04:00 ISR, still show today's scoreboard
+  // If past 04:00, only show if there are today's bets loaded
+  const pastCutoff = isrHour >= 4 && isrNow.getHours() < 24;
 
-  // P&L per bettor today
-  const pnlByBettor = { user: 0, ai: 0 };
-  const winsByBettor = { user: 0, ai: 0 };
-  const lossesByBettor = { user: 0, ai: 0 };
+  if (!_allBets.length) {
+    if (loadingEl) loadingEl.style.display = "none";
+    contentEl.style.display = "none";
+    return;
+  }
 
-  finishedBets.forEach(b => {
-    const who = b.bettor;
-    if (who !== "user" && who !== "ai") return;
-    pnlByBettor[who] += b.pnl || 0;
-    if (b.pnl > 0) winsByBettor[who]++;
-    else if (b.pnl < 0) lossesByBettor[who]++;
+  // Build live game map from live data
+  const liveMap = new Map();
+  if (_lastLiveData && _lastLiveData.games) {
+    _lastLiveData.games.forEach(g => liveMap.set(g.game_id, g));
+  }
+
+  // Categorise each UNIQUE game_id into "livePlay" (in-play), "pending" (pre-kickoff), or "final"
+  const seenGames = new Set();
+  const stats = {
+    livePlay: { count: 0, userPnl: 0, aiPnl: 0, hasPnl: false },
+    pending:  { count: 0 },
+    final:    { count: 0, userPnl: 0, aiPnl: 0, userW: 0, userL: 0, userD: 0, aiW: 0, aiL: 0, aiD: 0 },
+  };
+
+  // Walk all bets — gather per-game, per-bettor P&L
+  const gameStats = new Map(); // game_id → { period, finished, pnlEstimateLive, bets: [] }
+  _allBets.forEach(bet => {
+    const game  = bet.game || {};
+    const gid   = game.game_id;
+    if (!gameStats.has(gid)) {
+      const liveGame = liveMap.get(gid);
+      gameStats.set(gid, {
+        period: liveGame ? liveGame.period : null,
+        finished: liveGame ? liveGame.finished : false,
+        pnlEstimateLive: liveGame ? !!liveGame.pnl_estimate_is_live : false,
+        liveGame: liveGame || null,
+        bets: [],
+      });
+    }
+    gameStats.get(gid).bets.push(bet);
   });
 
-  const fmtMoney = (v) => {
-    const sign = v > 0 ? "+" : v < 0 ? "" : "";
-    return `User: ${sign}${parseFloat(v).toFixed(0)} NIS`;
-  };
-  const fmtMoneyAI = (v) => {
-    const sign = v > 0 ? "+" : v < 0 ? "" : "";
-    return `AI: ${sign}${parseFloat(v).toFixed(0)} NIS`;
-  };
+  gameStats.forEach(({ period, finished, pnlEstimateLive, liveGame, bets }, gid) => {
+    // Determine bucket
+    const isFinal = finished || period === "FT" ||
+      bets.some(b => b.pnl !== null && b.result !== null);
+    const inPlay  = !isFinal && period && ["1H","HT","2H"].includes(period);
+    const isPending = !isFinal && !inPlay; // pre-match or no live data yet
 
-  // Update DOM
-  const sbGames = document.getElementById("sb-games-finished");
-  if (sbGames) sbGames.textContent = gamesFinished;
+    const bucket = isFinal ? "final" : inPlay ? "livePlay" : "pending";
 
-  const sbUserMoney = document.getElementById("sb-user-money");
-  if (sbUserMoney) {
-    const v = pnlByBettor.user;
-    const sign = v > 0 ? "+" : "";
-    sbUserMoney.textContent = `User: ${sign}${v.toFixed(0)} NIS`;
-    sbUserMoney.style.color = v > 0 ? "var(--emerald)" : v < 0 ? "var(--vermilion)" : "rgba(255,255,255,0.7)";
-  }
-
-  const sbAiMoney = document.getElementById("sb-ai-money");
-  if (sbAiMoney) {
-    const v = pnlByBettor.ai;
-    const sign = v > 0 ? "+" : "";
-    sbAiMoney.textContent = `AI: ${sign}${v.toFixed(0)} NIS`;
-    sbAiMoney.style.color = v > 0 ? "var(--emerald)" : v < 0 ? "var(--vermilion)" : "rgba(255,255,255,0.7)";
-  }
-
-  const sbUserRecord = document.getElementById("sb-user-record");
-  if (sbUserRecord) sbUserRecord.textContent = `User: ${winsByBettor.user}W / ${lossesByBettor.user}L`;
-
-  const sbAiRecord = document.getElementById("sb-ai-record");
-  if (sbAiRecord) sbAiRecord.textContent = `AI: ${winsByBettor.ai}W / ${lossesByBettor.ai}L`;
-
-  // Trophy — show next to whoever leads by money (only if there's a clear winner)
-  const leaderRow = document.getElementById("sb-leader-row");
-  const leaderLabel = document.getElementById("sb-leader-label");
-  if (leaderRow && leaderLabel && gamesFinished > 0) {
-    if (pnlByBettor.user > pnlByBettor.ai) {
-      leaderLabel.textContent = "User leads today";
-      leaderRow.style.display = "flex";
-    } else if (pnlByBettor.ai > pnlByBettor.user) {
-      leaderLabel.textContent = "AI leads today";
-      leaderRow.style.display = "flex";
-    } else {
-      leaderRow.style.display = "none";
+    if (!seenGames.has(gid)) {
+      seenGames.add(gid);
+      stats[bucket].count++;
     }
-  } else if (leaderRow) {
-    leaderRow.style.display = "none";
-  }
+
+    bets.forEach(bet => {
+      const who = bet.bettor;
+      if (who !== "user" && who !== "ai") return;
+
+      // Final bucket: accumulate confirmed/estimated P&L for record
+      if (isFinal) {
+        let pnlVal = null;
+        if (bet.pnl != null) {
+          pnlVal = parseFloat(bet.pnl);
+        } else if (liveGame) {
+          const est = who === "user" ? liveGame.user_pnl_estimate : liveGame.ai_pnl_estimate;
+          if (est != null) pnlVal = parseFloat(est);
+        }
+        if (pnlVal !== null) {
+          if (who === "user") {
+            stats.final.userPnl += pnlVal;
+            if (pnlVal > 0) stats.final.userW++;
+            else if (pnlVal < 0) stats.final.userL++;
+            else stats.final.userD++;
+          } else {
+            stats.final.aiPnl += pnlVal;
+            if (pnlVal > 0) stats.final.aiW++;
+            else if (pnlVal < 0) stats.final.aiL++;
+            else stats.final.aiD++;
+          }
+        }
+      }
+
+      // Live bucket: accumulate live P&L estimates (only when pnl_estimate_is_live flag set)
+      if (inPlay && pnlEstimateLive && liveGame) {
+        const est = who === "user" ? liveGame.user_pnl_estimate : liveGame.ai_pnl_estimate;
+        if (est != null) {
+          const val = parseFloat(est);
+          if (who === "user") stats.livePlay.userPnl += val;
+          else                stats.livePlay.aiPnl   += val;
+          stats.livePlay.hasPnl = true;
+        }
+      }
+    });
+  });
+
+  // Render three-column scoreboard
+  const fmtPnl = v => {
+    const n = parseFloat(v) || 0;
+    const sign = n > 0 ? "+" : "";
+    return `${sign}${n.toFixed(0)} NIS`;
+  };
+  const fmtRecord = (w, l, d) => `${w}W / ${l}L${d > 0 ? ` / ${d}D` : ""}`;
+  const pnlColor = v => parseFloat(v) > 0 ? "var(--emerald)" : parseFloat(v) < 0 ? "var(--vermilion)" : "rgba(255,255,255,0.6)";
+
+  // LIVE column body — count + live P&L per side (estimates, dotted underline)
+  // Falls back to "0 NIS" when estimates not yet available (pnl_estimate_is_live not set)
+  const sbLivePlayBody = stats.livePlay.count === 0
+    ? `<p class="sb-col-empty">No live games</p>`
+    : stats.livePlay.hasPnl
+      ? `<div class="sb-row">
+          <span class="sb-row-label">User</span>
+          <span class="sb-row-pnl pnl-estimated" style="color:${pnlColor(stats.livePlay.userPnl)}" title="Live estimate — updates each poll">${fmtPnl(stats.livePlay.userPnl)}</span>
+        </div>
+        <div class="sb-row">
+          <span class="sb-row-label">AI</span>
+          <span class="sb-row-pnl pnl-estimated" style="color:${pnlColor(stats.livePlay.aiPnl)}" title="Live estimate — updates each poll">${fmtPnl(stats.livePlay.aiPnl)}</span>
+        </div>`
+      : `<div class="sb-row">
+          <span class="sb-row-label">User</span>
+          <span class="sb-row-pnl" style="color:rgba(255,255,255,0.6)">0 NIS</span>
+        </div>
+        <div class="sb-row">
+          <span class="sb-row-label">AI</span>
+          <span class="sb-row-pnl" style="color:rgba(255,255,255,0.6)">0 NIS</span>
+        </div>`;
+
+  // PENDING column body — count + subtitle only
+  const sbPendingBody = stats.pending.count === 0
+    ? `<p class="sb-col-empty">None</p>`
+    : `<p class="sb-col-status">Awaiting kickoff</p>`;
+
+  // FINAL column body
+  const sbFinalBody = stats.final.count === 0
+    ? `<p class="sb-col-empty">No results yet</p>`
+    : `<div class="sb-row">
+            <span class="sb-row-label">User</span>
+            <span class="sb-row-pnl" style="color:${pnlColor(stats.final.userPnl)}">${fmtPnl(stats.final.userPnl)}</span>
+            <span class="sb-row-record">${fmtRecord(stats.final.userW, stats.final.userL, stats.final.userD)}</span>
+          </div>
+          <div class="sb-row">
+            <span class="sb-row-label">AI</span>
+            <span class="sb-row-pnl" style="color:${pnlColor(stats.final.aiPnl)}">${fmtPnl(stats.final.aiPnl)}</span>
+            <span class="sb-row-record">${fmtRecord(stats.final.aiW, stats.final.aiL, stats.final.aiD)}</span>
+          </div>`;
+
+  contentEl.innerHTML = `
+    <div class="sb-three-col">
+      <div class="sb-col sb-col--live">
+        <div class="sb-col-header">
+          <span class="sb-col-title">Live</span>
+          <span class="sb-col-count">${stats.livePlay.count} game${stats.livePlay.count !== 1 ? "s" : ""}</span>
+        </div>
+        <div class="sb-col-body">
+          ${sbLivePlayBody}
+        </div>
+      </div>
+      <div class="sb-col sb-col--pending">
+        <div class="sb-col-header">
+          <span class="sb-col-title">Pending</span>
+          <span class="sb-col-count">${stats.pending.count} game${stats.pending.count !== 1 ? "s" : ""}</span>
+        </div>
+        <div class="sb-col-body">
+          ${sbPendingBody}
+        </div>
+      </div>
+      <div class="sb-col sb-col--final">
+        <div class="sb-col-header">
+          <span class="sb-col-title">Final</span>
+          <span class="sb-col-count">${stats.final.count} game${stats.final.count !== 1 ? "s" : ""}</span>
+        </div>
+        <div class="sb-col-body">
+          ${sbFinalBody}
+        </div>
+      </div>
+    </div>
+    ${_scoreboardLeader(stats)}
+  `;
 
   if (loadingEl) loadingEl.style.display = "none";
   contentEl.style.display = "flex";
+  contentEl.style.flexDirection = "column";
+}
+
+function _scoreboardLeader(stats) {
+  const totalUser = (stats.livePlay?.userPnl || 0) + stats.final.userPnl;
+  const totalAi   = (stats.livePlay?.aiPnl   || 0) + stats.final.aiPnl;
+  const hasActivity = ((stats.livePlay?.count || 0) + (stats.pending?.count || 0) + stats.final.count) > 0;
+  if (!hasActivity) return "";
+  if (totalUser > totalAi) {
+    return `<div class="scoreboard-row scoreboard-row--leader"><span class="scoreboard-trophy">&#127942;</span><span class="scoreboard-leader-label">User leads today</span></div>`;
+  } else if (totalAi > totalUser) {
+    return `<div class="scoreboard-row scoreboard-row--leader"><span class="scoreboard-trophy">&#127942;</span><span class="scoreboard-leader-label">AI leads today</span></div>`;
+  }
+  return "";
 }
 
 // ─────────────────────────────────────────────
@@ -629,7 +1065,7 @@ function renderMatches(groups) {
 
   if (groups.length === 0) {
     els.tbodyMatches.innerHTML = `
-      <tr><td colspan="7" class="empty-state">No bets for today</td></tr>`;
+      <tr><td colspan="8" class="empty-state">No bets for today</td></tr>`;
     return;
   }
 
@@ -641,6 +1077,12 @@ function renderMatches(groups) {
   });
   const dayLocked = (earliestKickoffMs - Date.now()) / 60000 <= LOCK_MINUTES;
 
+  // Build live map for this render pass
+  const liveMap = new Map();
+  if (_lastLiveData && _lastLiveData.games) {
+    _lastLiveData.games.forEach(g => liveMap.set(g.game_id, g));
+  }
+
   els.tbodyMatches.innerHTML = "";
 
   groups.forEach((group, groupIdx) => {
@@ -648,24 +1090,38 @@ function renderMatches(groups) {
     const isEven = groupIdx % 2 === 0;
     const rowClass = isEven ? "game-row game-row--even" : "game-row game-row--odd";
 
-    // Determine colspan for LEFT columns: kickoff, league, match, odds, status = 5
-    // Then right cols: prediction+stake, edit = 2
-
     const leagueCls = leagueCssClass(game.league || "");
     const kickoffTime = game.kickoff_time || "--:--";
     const kickoffMs = kickoffMillis(game.kickoff_iso);
+    const liveGame  = liveMap.get(game.game_id);
+
+    // Determine row-state classes
+    const isFinished = liveGame
+      ? (liveGame.finished || liveGame.period === "FT")
+      : (userBet?.pnl != null && aiBet?.pnl != null);
+    const isLiveOrHT  = liveGame && ["1H","2H","HT"].includes(liveGame.period);
+
+    let rowStateClass = "";
+    if (isFinished)  rowStateClass = " game-row--finished";
+    if (isLiveOrHT)  rowStateClass = " game-row--live";
 
     // Build the top row (USER bet)
     const topRow = document.createElement("tr");
-    topRow.className = rowClass + " game-row--top";
+    topRow.className = rowClass + " game-row--top" + rowStateClass;
     if (userBet) topRow.dataset.groupId = String(groupIdx);
 
-    // LEFT cells (rowspan=2)
+    // ── LEFT cells (rowspan=2) ──
+
+    // Kickoff cell — countdown chip only (scoreline moved to Score cell)
+    const chipId = `chip-game-${game.game_id ?? group.userBet?.bet_id ?? group.aiBet?.bet_id ?? groupIdx}`;
+    const periodChipId = `period-chip-${game.game_id ?? groupIdx}`;
+    const scorelineId  = `scoreline-${game.game_id ?? groupIdx}`;
+
     const tdKickoff = document.createElement("td");
     tdKickoff.rowSpan = 2;
     tdKickoff.innerHTML = `
       <div class="kickoff-time">${escHtml(kickoffTime)}</div>
-      <div id="chip-game-${group.game.game_id ?? group.userBet?.bet_id ?? group.aiBet?.bet_id ?? groupIdx}" class="countdown-chip chip-green" style="margin-top:4px;"></div>`;
+      <div id="${chipId}" class="countdown-chip chip-green" style="margin-top:4px;"></div>`;
 
     const tdLeague = document.createElement("td");
     tdLeague.rowSpan = 2;
@@ -678,26 +1134,59 @@ function renderMatches(groups) {
       <span class="vs-sep">vs</span>
       <span class="team-name">${escHtml(game.away_team || "")}</span>`;
 
+    // Score cell — scoreline + period/countdown chip live here
+    let scorelineHtml = "";
+    let periodHtml    = "";
+
+    if (liveGame && liveGame.period !== "pre") {
+      const hs = liveGame.home_score ?? 0;
+      const as_ = liveGame.away_score ?? 0;
+      const ftCls = liveGame.finished ? " live-scoreline--ft" : "";
+      scorelineHtml = `<div id="${scorelineId}" class="live-scoreline${ftCls}">${hs} - ${as_}</div>`;
+    }
+
+    if (liveGame) {
+      const { text: pText, cls: pCls } = periodChipContent(liveGame);
+      if (pText) {
+        const isLiveNow = ["1H","2H"].includes(liveGame.period);
+        const liveDot   = isLiveNow ? `<span class="live-dot" aria-hidden="true"></span>` : "";
+        periodHtml = `<div id="${periodChipId}" class="${pCls}" style="margin-top:4px;">${liveDot}${escHtml(pText)}</div>`;
+      }
+    }
+
+    const tdScore = document.createElement("td");
+    tdScore.rowSpan = 2;
+    tdScore.className = "score-cell center";
+    tdScore.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;white-space:nowrap;">
+        ${scorelineHtml}
+        ${periodHtml}
+      </div>`;
+
+    const oddsId = `odds-cell-${game.game_id ?? groupIdx}`;
     const tdOdds = document.createElement("td");
     tdOdds.rowSpan = 2;
     tdOdds.className = "odds-cell center";
+    tdOdds.id = oddsId;
     tdOdds.innerHTML = `
-      <span class="odds-1">${fmt2(game.home_win_odd)}</span>
-      <span class="sep">/</span>${fmt2(game.draw_odd)}<span class="sep">/</span>${fmt2(game.away_win_odd)}`;
+      <span class="odds-1" id="${oddsId}-1">${fmt2(game.home_win_odd)}</span>
+      <span class="sep">/</span><span id="${oddsId}-x">${fmt2(game.draw_odd)}</span><span class="sep">/</span><span id="${oddsId}-2">${fmt2(game.away_win_odd)}</span>`;
 
     const tdStatus = document.createElement("td");
     tdStatus.rowSpan = 2;
     tdStatus.className = "center";
     tdStatus.innerHTML = `<span class="status-pill ${statusPillClass(game.status)}">${escHtml(statusDisplay(game.status || ""))}</span>`;
 
-    // RIGHT cells — USER sub-row
+    // ── RIGHT cells — USER sub-row ──
     const tdUserBet = document.createElement("td");
     tdUserBet.className = "col-bet";
     if (userBet) {
+      const pnlHtml = _renderPnlHtml(userBet, liveGame);
       tdUserBet.innerHTML = `
         <span class="bettor-label bet-user">USER</span>
         ${escHtml((userBet.prediction || "").toUpperCase())}
-        <br><span class="bet-amount">NIS ${fmt2(userBet.stake)}</span>`;
+        <br><span class="bet-amount">NIS ${fmt2(userBet.stake)}</span>
+        ${pnlHtml}`;
     } else {
       tdUserBet.innerHTML = `<span class="sub">—</span>`;
     }
@@ -721,11 +1210,14 @@ function renderMatches(groups) {
     topRow.appendChild(tdKickoff);
     topRow.appendChild(tdLeague);
     topRow.appendChild(tdMatch);
+    topRow.appendChild(tdScore);
     topRow.appendChild(tdOdds);
     topRow.appendChild(tdStatus);
     topRow.appendChild(tdUserBet);
     topRow.appendChild(tdUserEdit);
     els.tbodyMatches.appendChild(topRow);
+    // Spans are now in the live DOM — apply odds bolding
+    _applyOddsBolding(game.game_id ?? groupIdx, liveGame);
 
     // Inline edit row for USER bet (hidden by default)
     if (userBet) {
@@ -733,7 +1225,7 @@ function renderMatches(groups) {
       editTr.className = "inline-edit-row";
       editTr.id = `edit-row-${userBet.bet_id}`;
       editTr.innerHTML = `
-        <td colspan="7" class="inline-edit-cell">
+        <td colspan="8" class="inline-edit-cell">
           <div class="inline-edit-form">
             <label>Prediction</label>
             <select id="edit-pred-${userBet.bet_id}">
@@ -751,17 +1243,19 @@ function renderMatches(groups) {
       els.tbodyMatches.appendChild(editTr);
     }
 
-    // Bottom row (AI bet) — no LEFT cells (spanned above)
+    // ── Bottom row (AI bet) ──
     const botRow = document.createElement("tr");
-    botRow.className = rowClass + " game-row--bottom";
+    botRow.className = rowClass + " game-row--bottom" + rowStateClass;
 
     const tdAiBet = document.createElement("td");
     tdAiBet.className = "col-bet";
     if (aiBet) {
+      const pnlHtml = _renderPnlHtml(aiBet, liveGame);
       tdAiBet.innerHTML = `
         <span class="bettor-label bet-ai">AI</span>
         ${escHtml((aiBet.prediction || "").toUpperCase())}
-        <br><span class="bet-amount">NIS ${fmt2(aiBet.stake)}</span>`;
+        <br><span class="bet-amount">NIS ${fmt2(aiBet.stake)}</span>
+        ${pnlHtml}`;
     } else {
       tdAiBet.innerHTML = `<span class="sub">—</span>`;
     }
@@ -777,7 +1271,7 @@ function renderMatches(groups) {
     const sepRow = document.createElement("tr");
     sepRow.className = "game-group-separator";
     sepRow.setAttribute("aria-hidden", "true");
-    sepRow.innerHTML = `<td colspan="7"></td>`;
+    sepRow.innerHTML = `<td colspan="8"></td>`;
     els.tbodyMatches.appendChild(sepRow);
   });
 
@@ -786,6 +1280,48 @@ function renderMatches(groups) {
 
   // Tick chips immediately
   tickChips();
+}
+
+/**
+ * Returns the HTML for the P&L cell for a single bet, given optional live game data.
+ * - No live data or period == "pre": empty (no P&L yet)
+ * - period != "FT": dash (game in progress)
+ * - period == "FT": show confirmed or preview P&L
+ */
+function _renderPnlHtml(bet, liveGame) {
+  if (!bet) return "";
+  const betId = bet.bet_id;
+  const wrapOpen  = `<span id="pnl-cell-${betId}" class="pnl-cell">`;
+  const wrapClose = `</span>`;
+
+  // Stored result already in DB — show confirmed regardless of live state
+  if (bet.pnl != null) {
+    const val  = parseFloat(bet.pnl);
+    const sign = val >= 0 ? "+" : "";
+    const cls  = val >= 0 ? "pnl-positive" : "pnl-negative";
+    return `${wrapOpen}<span class="${cls}">${sign}${val.toFixed(0)} NIS</span>${wrapClose}`;
+  }
+
+  if (!liveGame) return `${wrapOpen}${wrapClose}`;
+
+  const isFinished = liveGame.finished || liveGame.period === "FT";
+
+  if (!isFinished) {
+    if (liveGame.period === "pre") return `${wrapOpen}${wrapClose}`;
+    // In-progress: show dash
+    return `${wrapOpen}<span class="pnl-pending">—</span>${wrapClose}`;
+  }
+
+  // FT — show estimate as preview if available
+  const estimate = bet.bettor === "user" ? liveGame.user_pnl_estimate : liveGame.ai_pnl_estimate;
+  if (estimate != null) {
+    const val  = parseFloat(estimate);
+    const sign = val >= 0 ? "+" : "";
+    const cls  = val >= 0 ? "pnl-positive" : "pnl-negative";
+    return `${wrapOpen}<span class="${cls} pnl-estimated" title="Estimated — pending post-games confirmation">${sign}${val.toFixed(0)} NIS</span>${wrapClose}`;
+  }
+
+  return `${wrapOpen}<span class="pnl-pending">—</span>${wrapClose}`;
 }
 
 // ─────────────────────────────────────────────
@@ -881,6 +1417,8 @@ function toggleEditRow(betId) {
   }
   if (!open) {
     row.classList.add("open");
+    // Pause chip ticker while this edit row is open — prevents re-render jitter / focus loss
+    _chipTickerPaused = true;
     // Auto-focus the prediction select for immediate keyboard navigation
     const predEl = document.getElementById(`edit-pred-${betId}`);
     if (predEl) predEl.focus();
@@ -918,6 +1456,8 @@ function toggleEditRow(betId) {
 function cancelEdit(betId) {
   // Fix A: stop the idle auto-cancel timer
   _clearIdleTimer();
+  // Resume chip ticker now that the edit row is closing
+  _chipTickerPaused = false;
 
   // Reset form fields to saved bet values before closing, so a quick re-open
   // within the same poll window shows the actual stored values, not stale edits.
@@ -1001,6 +1541,9 @@ async function saveEdit(betId) {
 // ─────────────────────────────────────────────
 
 function tickChips() {
+  // Pause while any EDIT row is open to avoid focus-stealing / layout jitter
+  if (_chipTickerPaused) return;
+
   // Compute day-lock from earliest kickoff across ALL bets
   let earliestKickoffMs = Infinity;
   _allBets.forEach(bet => {
@@ -1064,13 +1607,11 @@ function tickChips() {
 
 function formatCountdown(msLeft) {
   if (msLeft <= 0) return "KO";
-  const totalSec = Math.floor(msLeft / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
+  const totalMin = Math.ceil(msLeft / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
   if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s.toString().padStart(2, "0")}s`;
-  return `${s}s`;
+  return `${m}m`;
 }
 
 function kickoffMillis(kickoffIso) {
@@ -1522,7 +2063,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setInterval(poll,           POLL_MS),
     setInterval(fetchMatchData, 10000),
     setInterval(fetchPnlHistory, 60000),
-    setInterval(tickChips,      1000),
+    setInterval(tickChips,      60000),  // 60s tick — avoid UI jitter during EDIT
   ];
   tickChips();
 
@@ -1532,6 +2073,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (document.hidden) {
       _intervals.forEach(id => clearInterval(id));
       _intervals = [];
+      // Stop live polling too
+      _stopLivePolling();
       // Fix iter-18: clear idle timer so it doesn't fire silently while tab is hidden
       _clearIdleTimer();
       // Fix iter-19: disarm override countdown so it doesn't expire invisibly
@@ -1548,8 +2091,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         setInterval(poll,           POLL_MS),
         setInterval(fetchMatchData, 10000),
         setInterval(fetchPnlHistory, 60000),
-        setInterval(tickChips,      1000),
+        setInterval(tickChips,      60000),
       ];
+      // manageLivePolling will be called inside fetchMatchData callback
     }
   });
 });
@@ -1558,3 +2102,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 window.toggleEditRow = toggleEditRow;
 window.cancelEdit    = cancelEdit;
 window.saveEdit      = saveEdit;
+// Expose for DevTools testing
+window._lastLiveData       = undefined; // will be set by pollLive
+window._applyLiveOverlay   = applyLiveOverlay;
+window._pollLive           = pollLive;
+window._manageLivePolling  = manageLivePolling;
