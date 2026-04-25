@@ -130,12 +130,6 @@
       <!-- Hidden input kept for backwards-compat -->
       <input type="hidden" id="filter-input" value="">
     </div>
-    <div class="filter-dates">
-      <label class="filter-label" for="cal-from">From</label>
-      <input type="date" id="cal-from" class="cal-input">
-      <label class="filter-label" for="cal-to">To</label>
-      <input type="date" id="cal-to" class="cal-input">
-    </div>
     <button type="button" class="btn btn-insight" id="btn-insight" disabled
             title="AI analysis of your current filter (10-30 sec)">
       Generate Insight
@@ -214,17 +208,17 @@ function escHtml(s) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// ─── URL filter/calendar sync ─────────────────────────────────────────────────
-function pushStateToUrl(dsl, calFrom, calTo) {
+// ─── URL filter sync ──────────────────────────────────────────────────────────
+function pushStateToUrl(dsl) {
   const params = new URLSearchParams(window.location.search);
-  if (dsl)     { params.set("filter", dsl); } else { params.delete("filter"); }
-  if (calFrom) { params.set("from", calFrom); } else { params.delete("from"); }
-  if (calTo)   { params.set("to",   calTo);   } else { params.delete("to"); }
+  if (dsl) { params.set("filter", dsl); } else { params.delete("filter"); }
+  // Silently drop legacy from/to params if present in bookmarked URLs
+  params.delete("from");
+  params.delete("to");
   const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
   history.replaceState(null, "", newUrl);
 }
-// Convenience alias used by filter-only changes
-function pushFilterToUrl(dsl) { pushStateToUrl(dsl, _calFrom, _calTo); }
+function pushFilterToUrl(dsl) { pushStateToUrl(dsl); }
 
 // ─── SVG chart renderer ──────────────────────────────────────────────────────
 // Design decision: zero baseline always included (see docstring in stats.py).
@@ -447,26 +441,8 @@ async function fetchAndRender(dsl) {
   // Tab title reflects active filter state
   document.title = dsl ? "P&L (filtered) · SoccerSmartBet" : "SoccerSmartBet — P&L Chart";
 
-  // Build URL with DSL + calendar date range merged.
-  // If the typed DSL already contains a date: token, calendar clauses are skipped
-  // to prevent duplicate date: keys reaching the server (undefined behaviour).
-  let effectiveDsl = dsl;
-  const _dslHasDate = /(?:^|\s)date:/i.test(dsl);
-  if ((_calFrom || _calTo) && !_dslHasDate) {
-    let dateClause = "";
-    if (_calFrom && _calTo) {
-      dateClause = `date:>=${_calFrom},<=${_calTo}`;
-    } else if (_calFrom) {
-      dateClause = `date:>=${_calFrom}`;
-    } else {
-      dateClause = `date:<=${_calTo}`;
-    }
-    effectiveDsl = dsl ? `${dsl} ${dateClause}` : dateClause;
-  } else if ((_calFrom || _calTo) && _dslHasDate) {
-    console.warn("pnl: typed DSL contains date: — calendar range ignored to avoid duplicate date: clauses");
-  }
   let url = "/api/pnl";
-  if (effectiveDsl) url += "?filter=" + encodeURIComponent(effectiveDsl);
+  if (dsl) url += "?filter=" + encodeURIComponent(dsl);
 
   let data;
   try {
@@ -544,8 +520,6 @@ async function fetchAndRender(dsl) {
 }
 
 let _debounceTimer = null;
-let _calFrom = "";
-let _calTo   = "";
 let _insightPollTimer = null;
 let _insightToken = 0;
 
@@ -554,21 +528,9 @@ function onFilterChange(dsl) {
   if (dsl === undefined) {
     dsl = (document.getElementById("filter-input").value || "").trim();
   }
-  pushStateToUrl(dsl, _calFrom, _calTo);
+  pushStateToUrl(dsl);
   _debounceTimer = setTimeout(() => fetchAndRender(dsl), 350);
 }
-
-function onCalendarChange() {
-  clearTimeout(_debounceTimer);
-  _calFrom = (document.getElementById("cal-from") || {}).value || "";
-  _calTo   = (document.getElementById("cal-to")   || {}).value || "";
-  const dsl = (document.getElementById("filter-input").value || "").trim();
-  pushStateToUrl(dsl, _calFrom, _calTo);
-  _debounceTimer = setTimeout(() => fetchAndRender(dsl), 350);
-}
-
-document.getElementById("cal-from").addEventListener("change", onCalendarChange);
-document.getElementById("cal-to"  ).addEventListener("change", onCalendarChange);
 
 // ─── Insight helpers ─────────────────────────────────────────────────────────
 function stopInsightPoll() {
@@ -720,40 +682,18 @@ function restoreInsightFocus() {
 document.getElementById("btn-insight").addEventListener("click", async () => {
   const typedDsl = (document.getElementById("filter-input").value || "").trim();
 
-  // Merge calendar date range into the DSL so the AI only analyses
-  // what the user is looking at, not the whole DB.
-  // Guard: if the typed DSL already contains a date: clause, skip calendar
-  // date injection to avoid duplicate/conflicting date: clauses.
-  let effectiveDsl = typedDsl;
-  const calFromVal = (_calFrom || "").trim();
-  const calToVal   = (_calTo   || "").trim();
-  const _dslHasDate = /(?:^|\s)date:/i.test(typedDsl);
-  if ((calFromVal || calToVal) && !_dslHasDate) {
-    let dateClause = "";
-    if (calFromVal && calToVal) {
-      dateClause = `date:>=${calFromVal},<=${calToVal}`;
-    } else if (calFromVal) {
-      dateClause = `date:>=${calFromVal}`;
-    } else {
-      dateClause = `date:<=${calToVal}`;
-    }
-    effectiveDsl = typedDsl ? `${typedDsl} ${dateClause}` : dateClause;
-  } else if ((calFromVal || calToVal) && _dslHasDate) {
-    console.warn("pnl insight: typed DSL contains date: — calendar range ignored to avoid duplicate date: clauses");
-  }
-
   // Evaluated-only guard: clamp upper bound to yesterday-ISR when no explicit
-  // date:<= is present, to avoid including pending/unresolved bets from today.
+  // date:<= clause is present, to avoid including pending/unresolved bets from today.
+  let effectiveDsl = typedDsl;
+  const _dslHasDate = /(?:^|\s)date:/i.test(typedDsl);
   const _todayISR = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
   const [_gy, _gm, _gd] = _todayISR.split("-").map(Number);
   const _guardYesterday = new Date(_gy, _gm - 1, _gd - 1);
   const _yStr = `${_guardYesterday.getFullYear()}-${String(_guardYesterday.getMonth()+1).padStart(2,"0")}-${String(_guardYesterday.getDate()).padStart(2,"0")}`;
   if (!_dslHasDate) {
     const _hasUpper = /\bdate:<=/.test(effectiveDsl);
-    const _calToFuture = calToVal && calToVal > _yStr;
-    if (!_hasUpper || _calToFuture) {
+    if (!_hasUpper) {
       console.warn("Insight: appending evaluated-only guard date:<=", _yStr);
-      effectiveDsl = effectiveDsl.replace(/\bdate:<=\S+/g, "").trim();
       effectiveDsl = effectiveDsl ? `${effectiveDsl} date:<=${_yStr}` : `date:<=${_yStr}`;
     }
   }
@@ -825,25 +765,7 @@ document.addEventListener("keydown", e => {
   }
 });
 
-// Init — restore calendar from URL; filter builder handles DSL
-(function init() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const initialFrom = urlParams.get("from") || "";
-  const initialTo   = urlParams.get("to")   || "";
-
-  const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-  if (initialFrom && ISO_DATE.test(initialFrom)) {
-    _calFrom = initialFrom;
-    const el = document.getElementById("cal-from");
-    if (el) el.value = initialFrom;
-  }
-  if (initialTo && ISO_DATE.test(initialTo)) {
-    _calTo = initialTo;
-    const el = document.getElementById("cal-to");
-    if (el) el.value = initialTo;
-  }
-  // fetchAndRender called from module script after builder init
-})();
+// fetchAndRender called from module script after builder init
 </script>
 
 <script type="module">

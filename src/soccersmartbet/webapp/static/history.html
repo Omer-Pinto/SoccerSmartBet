@@ -100,12 +100,6 @@
       <div id="dsl-error" class="dsl-error" role="alert" aria-live="polite"></div>
       <div id="dsl-hint" class="dsl-hint"></div>
     </div>
-    <div class="filter-dates">
-      <label class="filter-label" for="cal-from">From</label>
-      <input type="date" id="cal-from" class="cal-input">
-      <label class="filter-label" for="cal-to">To</label>
-      <input type="date" id="cal-to" class="cal-input">
-    </div>
     <button type="button" class="btn btn-insight" id="btn-insight" disabled
             title="AI analysis of your current filter (10-30 sec)">
       Generate Insight
@@ -208,16 +202,16 @@
 function getFilterFromUrl() {
   return new URLSearchParams(window.location.search).get("filter") || "";
 }
-function pushStateToUrl(dsl, calFrom, calTo) {
+function pushStateToUrl(dsl) {
   const params = new URLSearchParams(window.location.search);
-  if (dsl)     { params.set("filter", dsl); } else { params.delete("filter"); }
-  if (calFrom) { params.set("from", calFrom); } else { params.delete("from"); }
-  if (calTo)   { params.set("to",   calTo);   } else { params.delete("to"); }
+  if (dsl) { params.set("filter", dsl); } else { params.delete("filter"); }
+  // Silently drop legacy from/to params if present in bookmarked URLs
+  params.delete("from");
+  params.delete("to");
   const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
   history.replaceState(null, "", newUrl);
 }
-// Keep old name as alias so existing call-sites work unchanged
-function pushFilterToUrl(dsl) { pushStateToUrl(dsl, _calFrom, _calTo); }
+function pushFilterToUrl(dsl) { pushStateToUrl(dsl); }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function escHtml(s) {
@@ -266,8 +260,6 @@ let _pageSize   = 25;
 let _currentPage= 1;
 let _sortCol    = "date"; // "date" | "league" | "match"
 let _sortDir    = "desc"; // "asc" | "desc" | null (null = default: date desc)
-let _calFrom    = "";
-let _calTo      = "";
 
 // ─── Grouping ─────────────────────────────────────────────────────────────────
 /**
@@ -332,15 +324,6 @@ function buildGroups(rows) {
     if (!uOk || !aOk) return false;
     return true;
   });
-
-  // Calendar filter
-  if (_calFrom || _calTo) {
-    groups = groups.filter(g => {
-      if (_calFrom && g.match_date < _calFrom) return false;
-      if (_calTo   && g.match_date > _calTo)   return false;
-      return true;
-    });
-  }
 
   return groups;
 }
@@ -789,24 +772,6 @@ function onFilterChange(dsl) {
   _debounceTimer = setTimeout(() => fetchAndRender(dsl), 350);
 }
 
-function onCalendarChange() {
-  clearTimeout(_debounceTimer);
-  _calFrom = (document.getElementById("cal-from") || {}).value || "";
-  _calTo   = (document.getElementById("cal-to")   || {}).value || "";
-  pushStateToUrl(_lastDsl, _calFrom, _calTo);
-  _currentPage = 1;
-  _sortCol = "date";
-  _sortDir = "desc";
-  updateSortHeaders();
-  // Re-build groups from already-fetched rows
-  _debounceTimer = setTimeout(() => {
-    const rawGroups = buildGroups(_allRows);
-    _groups = sortGroups(rawGroups);
-    renderSplitStats(_groups, false);
-    renderPage();
-  }, 350);
-}
-
 // ─── Insight polling ─────────────────────────────────────────────────────────
 function stopInsightPoll() {
   _insightToken++;
@@ -976,48 +941,18 @@ async function pollInsightJob(jobId) {
 document.getElementById("btn-insight").addEventListener("click", async () => {
   const typedDsl = (document.getElementById("filter-input").value || "").trim();
 
-  // Merge calendar date range into the DSL so the AI only analyses
-  // what the user is looking at, not the whole DB.
-  // Guard: if the typed DSL already contains a date: clause, skip calendar
-  // date injection entirely to avoid duplicate/conflicting date: clauses that
-  // the DSL parser would combine with OR, broadening scope unexpectedly.
+  // Evaluated-only guard: clamp upper bound to yesterday-ISR when no explicit
+  // date:<= clause is present, to avoid including pending/unresolved bets from today.
   let effectiveDsl = typedDsl;
-  const calFromVal = (_calFrom || "").trim();
-  const calToVal   = (_calTo   || "").trim();
   const _dslHasDate = /(?:^|\s)date:/i.test(typedDsl);
-  if ((calFromVal || calToVal) && !_dslHasDate) {
-    let dateClause = "";
-    if (calFromVal && calToVal) {
-      dateClause = `date:>=${calFromVal},<=${calToVal}`;
-    } else if (calFromVal) {
-      dateClause = `date:>=${calFromVal}`;
-    } else {
-      dateClause = `date:<=${calToVal}`;
-    }
-    effectiveDsl = typedDsl ? `${typedDsl} ${dateClause}` : dateClause;
-  } else if ((calFromVal || calToVal) && _dslHasDate) {
-    console.warn("history insight: typed DSL contains date: — calendar range ignored to avoid duplicate date: clauses");
-  }
-
-  // Evaluated-only guard: the table already hides today's unresolved games
-  // client-side (buildGroups filter), but the backend insight query runs
-  // independently against the DB and would include pending bets from today.
-  // Always clamp the upper bound to yesterday-ISR when:
-  //   (a) no date:<= clause exists in the DSL at all, OR
-  //   (b) calToVal is set but is in the future (beyond yesterday).
-  // Skip the guard entirely when the typed DSL already provides a date: clause
-  // (the user has explicitly scoped the query; don't clobber their intent).
   const _todayISR = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
   const [_gy, _gm, _gd] = _todayISR.split("-").map(Number);
   const _guardYesterday = new Date(_gy, _gm - 1, _gd - 1);
   const _yStr = `${_guardYesterday.getFullYear()}-${String(_guardYesterday.getMonth()+1).padStart(2,"0")}-${String(_guardYesterday.getDate()).padStart(2,"0")}`;
   if (!_dslHasDate) {
     const _hasUpper = /\bdate:<=/.test(effectiveDsl);
-    const _calToFuture = calToVal && calToVal > _yStr;
-    if (!_hasUpper || _calToFuture) {
+    if (!_hasUpper) {
       console.warn("Insight: appending evaluated-only guard date:<=", _yStr);
-      // Remove any existing date:<= clause that is beyond yesterday before re-appending.
-      effectiveDsl = effectiveDsl.replace(/\bdate:<=\S+/g, "").trim();
       effectiveDsl = effectiveDsl ? `${effectiveDsl} date:<=${_yStr}` : `date:<=${_yStr}`;
     }
   }
@@ -1122,10 +1057,6 @@ document.getElementById("h-page-size").addEventListener("change", function () {
   _pageSize = parseInt(this.value, 10); _currentPage = 1; renderPage();
 });
 
-// ─── Wire calendar ────────────────────────────────────────────────────────────
-document.getElementById("cal-from").addEventListener("change", onCalendarChange);
-document.getElementById("cal-to"  ).addEventListener("change", onCalendarChange);
-
 // ─── Keyboard pagination ──────────────────────────────────────────────────────
 // Arrow keys navigate pages when focus is inside the table, paging controls,
 // or the page-size selector. Text inputs are excluded.
@@ -1172,26 +1103,9 @@ document.getElementById("cal-to"  ).addEventListener("change", onCalendarChange)
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 // Filter builder is initialised via ES module script below; plain init wires
-// hover delegation and calendar restore.
+// hover delegation.
 (function init() {
   wireHoverDelegationOnce("tbody-history");
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const initialFrom = urlParams.get("from") || "";
-  const initialTo   = urlParams.get("to")   || "";
-
-  const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-  if (initialFrom && ISO_DATE.test(initialFrom)) {
-    _calFrom = initialFrom;
-    const el = document.getElementById("cal-from");
-    if (el) el.value = initialFrom;
-  }
-  if (initialTo && ISO_DATE.test(initialTo)) {
-    _calTo = initialTo;
-    const el = document.getElementById("cal-to");
-    if (el) el.value = initialTo;
-  }
-
   updateSortHeaders();
   // fetchAndRender called after filter builder initialises (below)
 })();

@@ -139,12 +139,6 @@
         <input type="hidden" id="filter-input" value="">
         <div id="dsl-error" class="dsl-error" role="alert" aria-live="polite"></div>
       </div>
-      <div class="filter-dates">
-        <label class="filter-label" for="cal-from">From</label>
-        <input type="date" id="cal-from" class="cal-input">
-        <label class="filter-label" for="cal-to">To</label>
-        <input type="date" id="cal-to" class="cal-input">
-      </div>
       <button type="button" class="btn btn-insight" id="btn-insight" disabled
               title="AI analysis of your current filter (10-30 sec)">
         Generate Insight
@@ -273,8 +267,6 @@ let _pageSize   = 25;
 let _currentPage= 1;
 let _sortCol    = "date";
 let _sortDir    = "desc";
-let _calFrom    = "";
-let _calTo      = "";
 let _dslFilter  = "";   // client-side DSL (bettor/outcome/result/prediction only)
 
 // ─── Client-side DSL parser ───────────────────────────────────────────────────
@@ -390,15 +382,6 @@ function buildGroups(bets) {
     }
     return uOk && aOk;
   });
-
-  // Calendar filter
-  if (_calFrom || _calTo) {
-    groups = groups.filter(g => {
-      if (_calFrom && g.match_date < _calFrom) return false;
-      if (_calTo   && g.match_date > _calTo)   return false;
-      return true;
-    });
-  }
 
   // Client-side DSL filter
   if (_dslFilter) {
@@ -707,16 +690,15 @@ function renderNotablePage() {
 }
 
 // ─── URL sync helper ──────────────────────────────────────────────────────────
-function pushStateToUrl(dsl, calFrom, calTo) {
+function pushStateToUrl(dsl) {
   const params = new URLSearchParams(window.location.search);
-  if (dsl)     { params.set("filter", dsl); } else { params.delete("filter"); }
-  if (calFrom) { params.set("from", calFrom); } else { params.delete("from"); }
-  if (calTo)   { params.set("to",   calTo);   } else { params.delete("to"); }
+  if (dsl) { params.set("filter", dsl); } else { params.delete("filter"); }
+  // Silently drop legacy from/to params if present in bookmarked URLs
+  params.delete("from");
+  params.delete("to");
   const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
   history.replaceState(null, "", newUrl);
 }
-// Back-compat alias used by calendar-only changes
-function pushCalendarToUrl(calFrom, calTo) { pushStateToUrl(_dslFilter, calFrom, calTo); }
 
 // ─── DSL error display ────────────────────────────────────────────────────────
 function setDslError(msg) {
@@ -750,30 +732,10 @@ function onDslChange(dslFromBuilder) {
   _currentPage = 1;
   _dslDebounce = setTimeout(() => {
     setDslError(null);
-    pushStateToUrl(_dslFilter, _calFrom, _calTo);
+    pushStateToUrl(_dslFilter);
     _groups = sortGroups(buildGroups(_rawBets));
     renderSplitStats(_groups);
     renderBetsPage();
-    const btnInsight = document.getElementById("btn-insight");
-    if (btnInsight) btnInsight.disabled = (_groups.length === 0);
-  }, 350);
-}
-
-// ─── Calendar change ──────────────────────────────────────────────────────────
-let _calDebounce = null;
-function onCalendarChange() {
-  clearTimeout(_calDebounce);
-  _calFrom = (document.getElementById("cal-from") || {}).value || "";
-  _calTo   = (document.getElementById("cal-to")   || {}).value || "";
-  pushCalendarToUrl(_calFrom, _calTo);
-  _currentPage = 1;
-  _sortCol = "date"; _sortDir = "desc";
-  updateSortHeaders();
-  _calDebounce = setTimeout(() => {
-    _groups = sortGroups(buildGroups(_rawBets));
-    renderSplitStats(_groups);
-    renderBetsPage();
-    // Update insight button state when calendar changes
     const btnInsight = document.getElementById("btn-insight");
     if (btnInsight) btnInsight.disabled = (_groups.length === 0);
   }, 350);
@@ -947,37 +909,20 @@ function wireInsightButton(leagueName) {
     if (insightBody)  { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Submitting insight request..."; }
     setInsightBtnState(true);
 
-    // Build DSL: prefix with league context, AND-merge typed filter + calendar date range
+    // Build DSL: prefix with league context, AND-merge typed filter
     let dsl = `league:"${leagueName}"`;
     if (_dslFilter) dsl = `${dsl} ${_dslFilter}`;
-    const calFromVal = (_calFrom || "").trim();
-    const calToVal   = (_calTo   || "").trim();
-    const _dslHasDate = /(?:^|\s)date:/i.test(_dslFilter);
-    if ((calFromVal || calToVal) && !_dslHasDate) {
-      let dateClause = "";
-      if (calFromVal && calToVal) {
-        dateClause = `date:>=${calFromVal},<=${calToVal}`;
-      } else if (calFromVal) {
-        dateClause = `date:>=${calFromVal}`;
-      } else {
-        dateClause = `date:<=${calToVal}`;
-      }
-      dsl = `${dsl} ${dateClause}`;
-    } else if ((calFromVal || calToVal) && _dslHasDate) {
-      console.warn("league insight: typed DSL contains date: — calendar range ignored to avoid duplicate date: clauses");
-    }
 
     // Evaluated-only guard: exclude today's unresolved games from the AI context.
-    // Clamp to yesterday-ISR when no upper bound exists OR when calToVal is beyond yesterday.
+    // Clamp to yesterday-ISR when no upper bound exists in the DSL.
+    const _dslHasDate = /(?:^|\s)date:/i.test(_dslFilter);
     const todayISR = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
     const [_gy, _gm, _gd] = todayISR.split("-").map(Number);
     const _yesterdayDate = new Date(_gy, _gm - 1, _gd - 1);
     const _yStr = `${_yesterdayDate.getFullYear()}-${String(_yesterdayDate.getMonth()+1).padStart(2,"0")}-${String(_yesterdayDate.getDate()).padStart(2,"0")}`;
     const _hasUpper = /\bdate:<=/.test(dsl);
-    const _calToFuture = calToVal && calToVal > _yStr;
-    if (!_hasUpper || _calToFuture) {
+    if (!_hasUpper && !_dslHasDate) {
       console.warn("Insight: appending evaluated-only guard date:<=", _yStr);
-      dsl = dsl.replace(/\bdate:<=\S+/g, "").trim();
       dsl = `${dsl} date:<=${_yStr}`;
     }
 
@@ -1143,21 +1088,14 @@ document.addEventListener("keydown", e => {
 
   _rawBets = data.bets || [];
 
-  // Restore DSL + calendar from URL BEFORE building groups so initial render is filtered
+  // Restore DSL from URL BEFORE building groups so initial render is filtered
   const _urlParams = new URLSearchParams(window.location.search);
   const _urlFilter = _urlParams.get("filter") || "";
-  const _urlFrom = _urlParams.get("from") || "";
-  const _urlTo   = _urlParams.get("to")   || "";
-  const calFrom = document.getElementById("cal-from");
-  const calTo   = document.getElementById("cal-to");
-  const _ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
   if (_urlFilter) {
     _dslFilter = _urlFilter;
     const dslInput = document.getElementById("filter-input");
     if (dslInput) dslInput.value = _urlFilter;
   }
-  if (_urlFrom && _ISO_DATE.test(_urlFrom)) { _calFrom = _urlFrom; if (calFrom) calFrom.value = _urlFrom; }
-  if (_urlTo   && _ISO_DATE.test(_urlTo))   { _calTo   = _urlTo;   if (calTo)   calTo.value   = _urlTo;   }
 
   // Build evaluated groups + render split stats
   _groups = sortGroups(buildGroups(_rawBets));
@@ -1180,10 +1118,6 @@ document.addEventListener("keydown", e => {
       });
     }
   });
-
-  // Wire calendar
-  if (calFrom) calFrom.addEventListener("change", onCalendarChange);
-  if (calTo)   calTo.addEventListener("change", onCalendarChange);
 
   // Wire paging — All Bets
   document.getElementById("b-first").addEventListener("click", () => { _currentPage = 1; renderBetsPage(); });
