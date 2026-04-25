@@ -272,16 +272,30 @@ let _sortDir    = "desc";
 let _dslFilter  = "";   // client-side DSL (bettor/outcome/result/prediction only)
 
 // ─── Client-side DSL parser ───────────────────────────────────────────────────
-// Supports: bettor:user|ai, outcome:win|loss, result:1|2|X, prediction:1|2|X
+// Supports: bettor:user|ai, outcome:win|loss|1|2|x|home_win|away_win|draw|tie,
+//           result:1|2|x, prediction:1|2|x
 // All keys are case-insensitive. Tokens are AND-combined.
-// Unknown keys trigger a visible error via setDslError.
+// Unknown keys are silently dropped so server-side-only keys (league, date, …)
+// in shared URLs don't produce visible errors on this page.
 const _DSL_SUPPORTED_KEYS = new Set(["bettor", "outcome", "result", "prediction"]);
+
+// outcome value aliases: maps user-facing strings → canonical form understood
+// by groupMatchesDsl.  "win"/"loss" are P&L-based; "1"/"x"/"2" and their
+// long-form aliases check the game outcome column.
+const _OUTCOME_ALIASES = {
+  "home_win": "1", "home": "1", "1": "1",
+  "away_win": "2", "away": "2", "2": "2",
+  "draw": "x",    "tie": "x",  "x": "x",
+  "win": "win",   "loss": "loss",
+};
+
 const _DSL_ALLOWLISTS = {
   bettor:     new Set(["user", "ai"]),
-  outcome:    new Set(["win", "loss"]),
+  outcome:    new Set(Object.keys(_OUTCOME_ALIASES)),
   result:     new Set(["1", "x", "2"]),
   prediction: new Set(["1", "x", "2"]),
 };
+
 function parseDslTokens(dsl) {
   if (!dsl) return { tokens: [], unknowns: [], invalid: [] };
   const tokens = [];
@@ -293,20 +307,24 @@ function parseDslTokens(dsl) {
   while ((m = re.exec(dsl)) !== null) {
     const negated = m[1] === "!";
     const key = m[2].toLowerCase();
-    const val = m[3].toLowerCase();
+    const rawVal = m[3].toLowerCase();
     if (negated) {
       // Surface negation as an error — do not silently drop it
-      invalid.push({ key: "!" + key, val, reason: "negation" });
+      invalid.push({ key: "!" + key, val: rawVal, reason: "negation" });
       continue;
     }
     if (!_DSL_SUPPORTED_KEYS.has(key)) {
+      // Silently drop server-side-only keys (league, date, team, …) so URLs
+      // copied from history page work on team/league pages without error.
       unknowns.push(key);
       continue;
     }
+    // Normalise outcome aliases before allowlist check
+    const val = key === "outcome" ? (_OUTCOME_ALIASES[rawVal] || rawVal) : rawVal;
     // MED-2: validate value against per-key allowlist
     const allowed = _DSL_ALLOWLISTS[key];
-    if (allowed && !allowed.has(val)) {
-      invalid.push({ key, val, reason: "value" });
+    if (allowed && !allowed.has(rawVal) && !allowed.has(val)) {
+      invalid.push({ key, val: rawVal, reason: "value" });
       continue;
     }
     tokens.push({ key, val });
@@ -323,10 +341,12 @@ function groupMatchesDsl(group, tokens) {
       if (val === "ai")   return !!group.aiBet;
     }
     if (key === "outcome") {
-      // outcome:win — at least one bet with pnl > 0; outcome:loss — at least one with pnl < 0
       const bets = [group.userBet, group.aiBet].filter(Boolean);
+      // P&L-based win/loss
       if (val === "win")  return bets.some(b => b.pnl !== null && parseFloat(b.pnl) > 0);
       if (val === "loss") return bets.some(b => b.pnl !== null && parseFloat(b.pnl) < 0);
+      // Game-result based (1/x/2): check the outcome column on any bet in the group
+      return bets.some(b => b.outcome !== null && String(b.outcome).toLowerCase() === val);
     }
     if (key === "result") {
       const bets = [group.userBet, group.aiBet].filter(Boolean);
@@ -828,14 +848,16 @@ function simpleMarkdown(md) {
 
     closeList();
     if (line.trim() === "") { out.push("<p></p>"); return; }
-    out.push(inlineTransform(line));
+    // Plain paragraph text — wrap in <p> so CSS margin/line-height applies
+    out.push(`<p>${inlineTransform(line)}</p>`);
   });
 
   closeList();
   text = out.join("\n");
 
   text = text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i, 10)]);
-  text = text.replace(/\n/g, "<br>");
+  // Strip bare newlines between block elements (block tags control spacing)
+  text = text.replace(/\n/g, "");
   return text;
 }
 

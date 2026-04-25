@@ -404,8 +404,15 @@ def compile(  # noqa: A001  (shadows built-in; intentional for readability)
         where_clause = "TRUE"
     else:
         # Group clauses by key, preserving insertion order.
-        # Clauses with the same key are combined with OR inside parentheses;
-        # distinct-key groups are combined with AND.
+        # Clauses with the same key are combined with OR inside parentheses,
+        # EXCEPT when all clauses in the group are inequality-range operators
+        # (gt / gte / lt / lte).  Range operators for the same key represent
+        # bounds of a compound range (e.g. date:>=2026-04-20 date:<=2026-04-23)
+        # and MUST be AND-combined so both bounds are enforced simultaneously.
+        # Using OR would produce a tautology (any date satisfies one of the two
+        # half-open conditions), returning the full unfiltered result set.
+        _RANGE_OPS: frozenset[str] = frozenset({"gt", "gte", "lt", "lte"})
+
         groups: dict[str, list[tuple[int, FilterClause]]] = defaultdict(list)
         # Use a list to preserve the first-seen key order for deterministic SQL.
         key_order: list[str] = []
@@ -421,10 +428,20 @@ def compile(  # noqa: A001  (shadows built-in; intentional for readability)
                 idx, clause = group[0]
                 and_fragments.append(_compile_clause(clause, idx, params))
             else:
-                or_parts: list[str] = []
-                for idx, clause in group:
-                    or_parts.append(_compile_clause(clause, idx, params))
-                and_fragments.append("(" + " OR ".join(or_parts) + ")")
+                # If every clause in this key-group uses a range operator,
+                # AND-combine them (range bounds must all hold simultaneously).
+                # Otherwise fall back to OR-combine (e.g. league:pl league:bundesliga).
+                all_range = all(clause.op in _RANGE_OPS for _, clause in group)
+                if all_range:
+                    range_parts: list[str] = []
+                    for idx, clause in group:
+                        range_parts.append(_compile_clause(clause, idx, params))
+                    and_fragments.append("(" + " AND ".join(range_parts) + ")")
+                else:
+                    or_parts: list[str] = []
+                    for idx, clause in group:
+                        or_parts.append(_compile_clause(clause, idx, params))
+                    and_fragments.append("(" + " OR ".join(or_parts) + ")")
 
         where_clause = "\n  AND ".join(and_fragments)
 

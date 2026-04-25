@@ -15,6 +15,27 @@ logger = logging.getLogger(__name__)
 from soccersmartbet.db import get_conn
 from soccersmartbet.pre_gambling_flow.state import GameContext, Phase, PreGamblingState
 
+# ---------------------------------------------------------------------------
+# League name normalisation
+# ---------------------------------------------------------------------------
+# Maps every known raw variant (lower-case) from football-data.org and the LLM
+# to the canonical display name stored in the DB.  This prevents the DB from
+# accumulating aliases like "Primera Division" alongside "La Liga" that are the
+# same competition.  Add entries here whenever a new alias appears.
+_LEAGUE_NAME_ALIASES: dict[str, str] = {
+    "primera division": "La Liga",
+    "primera división": "La Liga",
+    "laliga": "La Liga",
+    "la liga": "La Liga",
+    "spanish la liga": "La Liga",
+    "spain primera division": "La Liga",
+}
+
+
+def _normalise_league(name: str) -> str:
+    """Return the canonical league name for *name*, or *name* unchanged if unknown."""
+    return _LEAGUE_NAME_ALIASES.get(name.strip().lower(), name)
+
 _INSERT_SQL = """
 INSERT INTO games (
     match_date,
@@ -80,7 +101,7 @@ def persist_games(state: PreGamblingState) -> dict[str, Any]:
                         "kickoff_time": game["kickoff_time"],
                         "home_team": game["home_team"],
                         "away_team": game["away_team"],
-                        "league": game["league"],
+                        "league": _normalise_league(game["league"]),
                         "venue": game["venue"],
                         "home_win_odd": game["home_win_odd"],
                         "away_win_odd": game["away_win_odd"],

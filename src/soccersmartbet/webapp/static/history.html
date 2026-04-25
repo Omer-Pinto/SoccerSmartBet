@@ -870,13 +870,14 @@ function simpleMarkdown(md) {
 
     closeList();
 
-    // Blank line → paragraph break
+    // Blank line → visual spacer (empty paragraph)
     if (line.trim() === "") {
       out.push("<p></p>");
       return;
     }
 
-    out.push(inlineTransform(line));
+    // Plain paragraph text — wrap in <p> so CSS margin/line-height applies
+    out.push(`<p>${inlineTransform(line)}</p>`);
   });
 
   closeList();
@@ -886,8 +887,9 @@ function simpleMarkdown(md) {
   // 5. Restore fenced code blocks.
   text = text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i, 10)]);
 
-  // 6. Convert remaining bare newlines to <br> (inside paragraphs / non-block lines).
-  text = text.replace(/\n/g, "<br>");
+  // 6. Strip bare newlines between block elements (no <br> needed — block tags
+  //    already control spacing).
+  text = text.replace(/\n/g, "");
 
   return text;
 }

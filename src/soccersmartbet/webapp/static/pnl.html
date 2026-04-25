@@ -57,7 +57,7 @@
   color: #fff;
   font-family: 'Space Grotesk', system-ui, sans-serif;
   font-weight: 600;
-  min-width: 140px;
+  min-width: 175px;
   display: none;
   z-index: 1000;
 }
@@ -283,13 +283,32 @@ function buildSvg(points) {
   const zeroY = yOf(0);
   const zeroLine = `<line class="zero-line" x1="${PAD_L}" y1="${zeroY}" x2="${SVG_W - PAD_R}" y2="${zeroY}"/>`;
 
-  // Polyline data
+  // Check whether a series has any non-zero value (used to suppress flat-zero lines
+  // that appear when a bettor filter hides all bets for that bettor).
+  function hasData(vals) { return vals.some(v => v !== 0); }
+
+  // Polyline data — only rendered when the series contains at least one non-zero value
   function polyline(vals, color) {
+    if (!hasData(vals)) return "";
     const pts = vals.map((v, i) => `${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(" ");
     return `<polyline fill="none" stroke="${color}" stroke-width="2.5"
                       stroke-linejoin="round" stroke-linecap="round"
                       points="${pts}"/>`;
   }
+
+  // Hide legend items for series with no data (flat zero throughout)
+  const userHasData = hasData(userVals);
+  const aiHasData   = hasData(aiVals);
+  // Synchronise the HTML legend outside the SVG
+  (function syncLegend() {
+    const items = document.querySelectorAll(".legend-item");
+    items.forEach(item => {
+      const dot = item.querySelector(".legend-dot");
+      if (!dot) return;
+      if (dot.classList.contains("user")) item.style.display = userHasData ? "" : "none";
+      if (dot.classList.contains("ai"))   item.style.display = aiHasData   ? "" : "none";
+    });
+  })();
 
   // Invisible hover targets (vertical bars per point)
   // Attach data-index so JS tooltip can read
@@ -341,10 +360,18 @@ function showTooltipForIndex(idx, anchorEl) {
   const tooltip = document.getElementById("chart-tooltip");
   const p = _tooltipPoints[idx];
   if (!p || !tooltip) return;
+
+  // Compute daily diff vs previous point (first point has no prior, show cumulative as daily)
+  const prev = _tooltipPoints[idx - 1];
+  const userDaily = prev ? (p.cumulative_user - prev.cumulative_user) : p.cumulative_user;
+  const aiDaily   = prev ? (p.cumulative_ai   - prev.cumulative_ai)   : p.cumulative_ai;
+
   tooltip.innerHTML =
     `<div class="tt-date">${escHtml(p.date)}</div>` +
     `<div class="tt-user">User: ${pnlSign(p.cumulative_user)}${p.cumulative_user.toFixed(2)}</div>` +
-    `<div class="tt-ai">AI: ${pnlSign(p.cumulative_ai)}${p.cumulative_ai.toFixed(2)}</div>`;
+    `<div class="tt-user" style="opacity:0.7;font-size:11px;">Day: ${pnlSign(userDaily)}${userDaily.toFixed(2)}</div>` +
+    `<div class="tt-ai">AI: ${pnlSign(p.cumulative_ai)}${p.cumulative_ai.toFixed(2)}</div>` +
+    `<div class="tt-ai" style="opacity:0.7;font-size:11px;">Day: ${pnlSign(aiDaily)}${aiDaily.toFixed(2)}</div>`;
   tooltip.style.display = "block";
 
   // Position near the anchor element when keyboard-triggered (anchorEl provided)
@@ -611,14 +638,16 @@ function simpleMarkdown(md) {
     closeList();
 
     if (line.trim() === "") { out.push("<p></p>"); return; }
-    out.push(inlineTransform(line));
+    // Plain paragraph text — wrap in <p> so CSS margin/line-height applies
+    out.push(`<p>${inlineTransform(line)}</p>`);
   });
 
   closeList();
 
   text = out.join("\n");
   text = text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i, 10)]);
-  text = text.replace(/\n/g, "<br>");
+  // Strip bare newlines between block elements (block tags control spacing)
+  text = text.replace(/\n/g, "");
   return text;
 }
 
