@@ -28,7 +28,8 @@ The system is organized around **four main application flows**, each responsible
 | **Runtime** | Python 3.13 |
 | **Graph Engine** | LangGraph 1.x (Send() API for parallelism) |
 | **Database** | PostgreSQL 16 (Docker, port 5433, TZ=Asia/Jerusalem) |
-| **Frontend** | Telegram Bot (python-telegram-bot) |
+| **Telegram UI** | python-telegram-bot |
+| **Operator Dashboard** | FastAPI + Uvicorn, vanilla JS (ES modules), custom DSL filter engine |
 | **AI Models** | OpenAI gpt-5.4 / gpt-5.4-mini |
 | **Data Sources** | FotMob (custom signed client), football-data.org, winner.co.il, The Odds API, Open-Meteo |
 | **Scheduling** | Wall-clock polling (60s asyncio loop, macOS sleep resistant) |
@@ -169,6 +170,19 @@ flowchart TD
     DR2 --> POLL
 ```
 
+### Operator Dashboard — Live Updates
+
+```mermaid
+flowchart TD
+    BROWSER([Browser /today]) --> FE[today.js]
+    FE -->|60s poll while games live or imminent| LIVE[GET /api/today/live]
+    LIVE --> ROUTE[live.py route\n30s response cache]
+    ROUTE -->|asyncio.gather per live game| FM[FotMob /api/data/match]
+    ROUTE --> DB[(games + bets\nfotmob_match_id mapping)]
+    ROUTE -->|score, period, minute,\non-the-fly P&L estimate| FE
+    FE --> RENDER[Update score column,\nperiod chip + pulse,\nLIVE / PENDING / FINAL\nscoreboard]
+```
+
 ---
 
 ## Data Collection
@@ -206,6 +220,34 @@ flowchart TD
 | Open-Meteo | None | Weather forecasts |
 
 > **Design principle**: Subflows are modular and extendible. New fetchers can be added as nodes to game/team subflows.
+
+---
+
+## Operator Dashboard
+
+A self-hosted web dashboard at `/today`, `/history`, `/pnl`, `/team/{slug}`, `/league/{slug}` for monitoring the system, reviewing bets, and analysing performance. Hosted by the same FastAPI process that runs the Telegram bot.
+
+### Today — Matchday Console (live)
+
+Live updates each minute via FotMob: score, period chip (1H / HT / 2H / FT) with match minute, pulsing dot on in-play games. P&L is suppressed for in-progress bets; on FT it is computed on-the-fly from the final score so it is visible before the post-games flow has settled the row in DB. Today's Scoreboard splits into LIVE / PENDING / FINAL with live in-play P&L estimates per side. Inline EDIT preserved — chip ticker pauses while a row is being edited so the UI does not jitter.
+
+![Today page — live scores, bets, scoreboard](./docs/images/today_live.png)
+
+### History — Bet History with chip-based DSL filter
+
+Side-by-side User / AI stats (totals, win-rate, P&L) + the full bet table with results.
+
+![History page — baseline](./docs/images/history.png)
+
+A custom token / chip filter builder generates a DSL string (e.g. `league:"La Liga" outcome:home_win odds:>2.0`) which the backend parser + compiler (`src/soccersmartbet/webapp/query/`) turns into a parameterised SQL `WHERE`. Category values autocomplete from `/api/filter/values?key=…`; multi-select inside one chip = OR (`league:pl,bundesliga`); chips combine across categories = AND. Same-key range clauses (e.g. two `date:` bounds) AND-merge so date windows behave correctly. The free-text DSL input is gone — the chip builder makes "Malformed DSL" unreachable.
+
+![History page — DSL filter chips](./docs/images/history_filter_dsl.png)
+
+### P&L — Cumulative Bankroll
+
+Y-axis is the actual bankroll, starting from 10,000 NIS — not deltas. Two lines (User, AI) plot the running balance per evaluated day. The status strip surfaces current balance and date range. Hover (in-app) shows total NIS, daily diff, and percent change from the starting bankroll.
+
+![P&L bankroll chart](./docs/images/pnl_bankroll.png)
 
 ---
 
