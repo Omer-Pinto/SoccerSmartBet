@@ -81,7 +81,7 @@ _RE_NUMERIC = re.compile(r"^-?\d+(\.\d+)?$")
 _RE_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # Matches a YYYY-MM year-month string (e.g. 2026-04)
 _RE_ISO_YEAR_MONTH = re.compile(r"^\d{4}-\d{2}$")
-_RE_CLAUSE = re.compile(r'^([a-zA-Z]+):("(?:[^"]*)"|[^\s]+)')
+_RE_CLAUSE = re.compile(r'^([a-zA-Z]+):((?:"[^"]*"|[^\s])+)')
 _RE_TOKEN_SPLIT = re.compile(r'"[^"]*"|[^,]+')
 
 

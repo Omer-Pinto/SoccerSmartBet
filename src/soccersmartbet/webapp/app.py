@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _PROCESS_START = now_isr()
 
+from soccersmartbet.webapp.routes.filter_values import router as filter_values_router
 from soccersmartbet.webapp.routes.insights import router as insights_router
 from soccersmartbet.webapp.routes.stats import router as stats_router
 from soccersmartbet.webapp.routes.today import router as today_router
@@ -56,6 +57,9 @@ app.include_router(stats_router)
 
 # Wave 12B: AI insights endpoint (async job manager + LLM call)
 app.include_router(insights_router)
+
+# Filter-values endpoint: GET /api/filter/values?key=<dsl_key>
+app.include_router(filter_values_router)
 
 
 @app.get("/", include_in_schema=False)

@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/shared.css">
+<link rel="stylesheet" href="/static/filter-builder.css">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
@@ -130,30 +131,15 @@
       <h2>All Bets</h2>
     </div>
 
-    <!-- Filter bar with DSL input + calendar + Generate Insight -->
+    <!-- Filter bar with chip builder + calendar + Generate Insight -->
     <div class="filter-bar" style="margin-bottom:16px;">
-      <div class="filter-input-wrap">
-        <div class="filter-label">Filter DSL</div>
-        <!-- datalist: key-only entries for the 4 client-side supported keys -->
-        <datalist id="dsl-keys">
-          <option value="bettor:">
-          <option value="outcome:">
-          <option value="result:">
-          <option value="prediction:">
-        </datalist>
-        <div class="filter-input-inner" id="filter-input-inner">
-          <input class="filter-input" id="filter-input" type="text"
-                 list="dsl-keys"
-                 placeholder="bettor:user  outcome:win  result:1 ..."
-                 autocomplete="off" spellcheck="false">
-          <button type="button" class="dsl-clear-btn" id="dsl-clear" aria-label="Clear filter">&times;</button>
-        </div>
+      <div class="filter-input-wrap" style="flex:1;min-width:0;">
+        <div class="filter-label">Filters</div>
+        <!-- Filter builder mount point (4 keys only: bettor/outcome/result/prediction) -->
+        <div id="fb-container"></div>
+        <!-- Hidden input kept for backwards-compat -->
+        <input type="hidden" id="filter-input" value="">
         <div id="dsl-error" class="dsl-error" role="alert" aria-live="polite"></div>
-        <div class="filter-hint">
-          Supported: bettor:user/ai &nbsp;&middot;&nbsp; outcome:win/loss &nbsp;&middot;&nbsp; result:1/2/X &nbsp;&middot;&nbsp; prediction:1/2/X
-          &nbsp;&middot;&nbsp; Client-side only &mdash; other DSL keys are not applied here.
-          &nbsp;&middot;&nbsp; Negation not supported here.
-        </div>
       </div>
       <div class="filter-dates">
         <label class="filter-label" for="cal-from">From</label>
@@ -750,42 +736,24 @@ function setDslError(msg) {
 
 // ─── DSL clear button sync ────────────────────────────────────────────────────
 function _syncDslClear() {
-  const inp = document.getElementById("filter-input");
-  const inner = document.getElementById("filter-input-inner");
-  if (!inp || !inner) return;
-  if (inp.value.trim()) {
-    inner.classList.add("has-value");
-  } else {
-    inner.classList.remove("has-value");
-  }
+  // no-op: filter builder handles its own state
 }
 
-// ─── DSL filter change (client-side only) ────────────────────────────────────
+// ─── DSL filter change (client-side only, driven by filter builder) ──────────
 let _dslDebounce = null;
-function onDslChange() {
+function onDslChange(dslFromBuilder) {
   clearTimeout(_dslDebounce);
-  _dslFilter = (document.getElementById("filter-input") || {}).value || "";
-  _syncDslClear();
+  // Accept DSL from filter builder directly, or fall back to hidden input
+  if (dslFromBuilder !== undefined) {
+    _dslFilter = dslFromBuilder;
+    const inp = document.getElementById("filter-input");
+    if (inp) inp.value = dslFromBuilder;
+  } else {
+    _dslFilter = (document.getElementById("filter-input") || {}).value || "";
+  }
   _currentPage = 1;
   _dslDebounce = setTimeout(() => {
-    const { unknowns, invalid } = parseDslTokens(_dslFilter);
-    if (unknowns.length > 0) {
-      setDslError("Unknown key(s): " + unknowns.join(", ") + ". Supported: bettor, outcome, result, prediction");
-    } else if (invalid.length > 0) {
-      const negations = invalid.filter(t => t.reason === "negation");
-      const badVals   = invalid.filter(t => t.reason === "value");
-      if (negations.length > 0) {
-        setDslError("Negation (!) not supported in client-side filter on this page");
-      } else {
-        const hints = badVals.map(t => {
-          const allowed = _DSL_ALLOWLISTS[t.key] ? Array.from(_DSL_ALLOWLISTS[t.key]).join("|") : "?";
-          return `${t.key}:${t.val} (try ${t.key}:${allowed})`;
-        });
-        setDslError("Invalid value(s): " + hints.join(", "));
-      }
-    } else {
-      setDslError(null);
-    }
+    setDslError(null);
     pushStateToUrl(_dslFilter, _calFrom, _calTo);
     _groups = sortGroups(buildGroups(_rawBets));
     renderSplitStats(_groups);
@@ -1179,7 +1147,8 @@ document.addEventListener("keydown", e => {
 
   _rawBets = data.bets || [];
 
-  // Restore DSL + calendar from URL BEFORE building groups so initial render is filtered
+  // Restore calendar from URL BEFORE building groups
+  // (DSL is restored by filter builder module script after this function)
   const _urlParams = new URLSearchParams(window.location.search);
   const _urlFilter = _urlParams.get("filter") || "";
   const _urlFrom = _urlParams.get("from") || "";
@@ -1187,6 +1156,7 @@ document.addEventListener("keydown", e => {
   const calFrom = document.getElementById("cal-from");
   const calTo   = document.getElementById("cal-to");
   const _ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+  // Apply DSL to hidden input so buildGroups picks it up on initial render
   if (_urlFilter) {
     _dslFilter = _urlFilter;
     const dslInput = document.getElementById("filter-input");
@@ -1220,19 +1190,6 @@ document.addEventListener("keydown", e => {
   // Wire calendar
   if (calFrom) calFrom.addEventListener("change", onCalendarChange);
   if (calTo)   calTo.addEventListener("change", onCalendarChange);
-
-  // Wire DSL filter input + clear button
-  const dslInput = document.getElementById("filter-input");
-  if (dslInput) dslInput.addEventListener("input", onDslChange);
-  const dslClear = document.getElementById("dsl-clear");
-  if (dslClear && dslInput) {
-    dslClear.addEventListener("click", () => {
-      dslInput.value = "";
-      dslInput.focus();
-      onDslChange();
-    });
-  }
-  _syncDslClear(); // reflect URL-restored value
 
   // Wire paging — All Bets
   document.getElementById("b-first").addEventListener("click", () => { _currentPage = 1; renderBetsPage(); });
@@ -1296,6 +1253,28 @@ document.addEventListener("keydown", e => {
   document.getElementById("history-section").style.display = "block";
   updateSortHeaders();
   renderBetsPage();
+})();
+</script>
+
+<script type="module">
+import { createFilterBuilder } from "/static/filter-builder.js";
+
+(function initFilterBuilder() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialDsl = urlParams.get("filter") || "";
+
+  window._fb = createFilterBuilder({
+    container:   document.getElementById("fb-container"),
+    enabledKeys: ["bettor","outcome","result","prediction"],
+    initialDsl,
+    hiddenInput: document.getElementById("filter-input"),
+    onChange: (dsl) => {
+      onDslChange(dsl);
+    },
+  });
+  // Note: initial render already done in the main init() above.
+  // If DSL was in URL, we need to re-render with it now that builder is up.
+  // (The main init already applied _dslFilter from URL to buildGroups)
 })();
 </script>
 </body>

@@ -310,3 +310,56 @@ def test_result_x_parses_without_error() -> None:
     clauses = parse("result:x")
     assert clauses[0].key == "result"
     assert clauses[0].values == ("x",)
+
+
+# ---------------------------------------------------------------------------
+# 16. Multi-quoted comma-list values (regression for _RE_CLAUSE fix)
+# ---------------------------------------------------------------------------
+
+
+def test_multi_quoted_team_three_values() -> None:
+    """Failing input from the bug report: three quoted teams with spaces and dots."""
+    clauses = parse('team:"1. FC Köln","1. FC Union Berlin","1. FSV Mainz 05"')
+    assert len(clauses) == 1
+    c = clauses[0]
+    assert c.key == "team"
+    assert c.op == "in"
+    assert c.values == ("1. FC Köln", "1. FC Union Berlin", "1. FSV Mainz 05")
+
+
+def test_multi_quoted_league_two_values() -> None:
+    """Two quoted league names in a comma-list."""
+    clauses = parse('league:"Premier League","La Liga"')
+    assert len(clauses) == 1
+    c = clauses[0]
+    assert c.key == "league"
+    assert c.op == "in"
+    assert c.values == ("Premier League", "La Liga")
+
+
+def test_mixed_quoted_and_bare_in_list() -> None:
+    """Comma-list mixing a quoted token and a bare word."""
+    clauses = parse('team:"Real Madrid",arsenal')
+    assert len(clauses) == 1
+    c = clauses[0]
+    assert c.op == "in"
+    # Quoted token is verbatim; bare token gets slug expansion (no hyphens here).
+    assert "Real Madrid" in c.values
+    assert "arsenal" in c.values
+    assert len(c.values) == 2
+
+
+def test_multiple_multi_quoted_clauses_on_one_line() -> None:
+    """Two clauses on a single line, each with multiple quoted values."""
+    clauses = parse('team:"AC Milan","Inter Milan" league:"Serie A"')
+    assert len(clauses) == 2
+
+    team_clause = clauses[0]
+    assert team_clause.key == "team"
+    assert team_clause.op == "in"
+    assert team_clause.values == ("AC Milan", "Inter Milan")
+
+    league_clause = clauses[1]
+    assert league_clause.key == "league"
+    assert league_clause.op == "eq"
+    assert league_clause.values == ("Serie A",)

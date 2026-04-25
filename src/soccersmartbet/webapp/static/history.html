@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/shared.css">
+<link rel="stylesheet" href="/static/filter-builder.css">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
@@ -89,37 +90,15 @@
 
   <!-- FILTER BAR -->
   <div class="filter-bar">
-    <div class="filter-input-wrap">
-      <div class="filter-label">Filter DSL</div>
-      <!-- datalist provides key autocomplete — browsers filter as user types -->
-      <datalist id="dsl-keys">
-        <option value="bettor:">
-        <option value="outcome:">
-        <option value="result:">
-        <option value="prediction:">
-        <option value="date:">
-        <option value="month:">
-        <option value="stake:">
-        <option value="odds:">
-        <option value="league:">
-        <option value="team:">
-      </datalist>
-      <div class="filter-input-inner" id="filter-input-inner">
-        <input class="filter-input" id="filter-input" type="text"
-               list="dsl-keys"
-               placeholder="league:pl  date:2026-04  bettor:user  result:1 ..."
-               autocomplete="off" spellcheck="false">
-        <button type="button" class="dsl-clear-btn" id="dsl-clear" aria-label="Clear filter">&times;</button>
-      </div>
+    <div class="filter-input-wrap" style="flex:1;min-width:0;">
+      <div class="filter-label">Filters</div>
+      <!-- Filter builder mount point — chips rendered here by filter-builder.js -->
+      <div id="fb-container"></div>
+      <!-- Hidden input kept for backwards-compat: downstream JS reads .value -->
+      <input type="hidden" id="filter-input" value="">
       <!-- Inline DSL error (shown when API rejects the filter) -->
       <div id="dsl-error" class="dsl-error" role="alert" aria-live="polite"></div>
-      <!-- Did-you-mean hint (static client-side check) -->
       <div id="dsl-hint" class="dsl-hint"></div>
-      <div class="filter-hint">
-        Keys: league, team, date, month, stake, odds, outcome, bettor, prediction, result
-        &nbsp;&middot;&nbsp; Ranges: &gt;2.5, 1.5-3.0 &nbsp;&middot;&nbsp; Lists: pl,bundesliga
-        &nbsp;&middot;&nbsp; Negation: !draw &nbsp;&middot;&nbsp; Example: outcome:win
-      </div>
     </div>
     <div class="filter-dates">
       <label class="filter-label" for="cal-from">From</label>
@@ -787,23 +766,18 @@ async function fetchAndRender(dsl) {
 }
 
 function _syncDslClear() {
-  const inp = document.getElementById("filter-input");
-  const inner = document.getElementById("filter-input-inner");
-  if (!inp || !inner) return;
-  if (inp.value.trim()) {
-    inner.classList.add("has-value");
-  } else {
-    inner.classList.remove("has-value");
-  }
+  // no-op: filter builder handles its own clear state
 }
 
-function onFilterChange() {
+function onFilterChange(dsl) {
   clearTimeout(_debounceTimer);
-  const dsl = document.getElementById("filter-input").value.trim();
+  // dsl may be passed directly from the filter builder onChange callback
+  if (dsl === undefined) {
+    dsl = document.getElementById("filter-input").value.trim();
+  }
   pushFilterToUrl(dsl);
   setDslError(null);
   checkDslHint(dsl);
-  _syncDslClear();
   // Update tab title to reflect active filter state
   document.title = dsl
     ? "History (filtered) · SoccerSmartBet"
@@ -1000,7 +974,7 @@ async function pollInsightJob(jobId) {
 }
 
 document.getElementById("btn-insight").addEventListener("click", async () => {
-  const typedDsl = document.getElementById("filter-input").value.trim();
+  const typedDsl = (document.getElementById("filter-input").value || "").trim();
 
   // Merge calendar date range into the DSL so the AI only analyses
   // what the user is looking at, not the whole DB.
@@ -1148,23 +1122,9 @@ document.getElementById("h-page-size").addEventListener("change", function () {
   _pageSize = parseInt(this.value, 10); _currentPage = 1; renderPage();
 });
 
-// ─── Wire filter + calendar ──────────────────────────────────────────────────
-document.getElementById("filter-input").addEventListener("input", onFilterChange);
+// ─── Wire calendar ────────────────────────────────────────────────────────────
 document.getElementById("cal-from").addEventListener("change", onCalendarChange);
 document.getElementById("cal-to"  ).addEventListener("change", onCalendarChange);
-
-// ─── Wire DSL clear button ────────────────────────────────────────────────────
-(function () {
-  const clearBtn = document.getElementById("dsl-clear");
-  const inp = document.getElementById("filter-input");
-  if (clearBtn && inp) {
-    clearBtn.addEventListener("click", () => {
-      inp.value = "";
-      inp.focus();
-      onFilterChange();
-    });
-  }
-})();
 
 // ─── Keyboard pagination ──────────────────────────────────────────────────────
 // Arrow keys navigate pages when focus is inside the table, paging controls,
@@ -1211,20 +1171,14 @@ document.getElementById("cal-to"  ).addEventListener("change", onCalendarChange)
 })();
 
 // ─── Init ────────────────────────────────────────────────────────────────────
+// Filter builder is initialised via ES module script below; plain init wires
+// hover delegation and calendar restore.
 (function init() {
-  // Wire hover delegation once on the stable tbody (not per render)
   wireHoverDelegationOnce("tbody-history");
 
-  // Restore DSL + calendar from URL before first fetch
   const urlParams = new URLSearchParams(window.location.search);
-  const initialDsl   = urlParams.get("filter") || "";
-  const initialFrom  = urlParams.get("from")   || "";
-  const initialTo    = urlParams.get("to")     || "";
-
-  document.getElementById("filter-input").value = initialDsl;
-  _syncDslClear();
-  // Reflect initial filter state in tab title
-  if (initialDsl) document.title = "History (filtered) · SoccerSmartBet";
+  const initialFrom = urlParams.get("from") || "";
+  const initialTo   = urlParams.get("to")   || "";
 
   const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
   if (initialFrom && ISO_DATE.test(initialFrom)) {
@@ -1239,6 +1193,31 @@ document.getElementById("cal-to"  ).addEventListener("change", onCalendarChange)
   }
 
   updateSortHeaders();
+  // fetchAndRender called after filter builder initialises (below)
+})();
+</script>
+
+<script type="module">
+import { createFilterBuilder } from "/static/filter-builder.js";
+
+(function initFilterBuilder() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialDsl = urlParams.get("filter") || "";
+
+  // Reflect initial filter state in tab title
+  if (initialDsl) document.title = "History (filtered) · SoccerSmartBet";
+
+  window._fb = createFilterBuilder({
+    container:   document.getElementById("fb-container"),
+    enabledKeys: ["league","team","date","month","stake","odds","outcome","bettor","prediction","result"],
+    initialDsl,
+    hiddenInput: document.getElementById("filter-input"),
+    onChange: (dsl) => {
+      onFilterChange(dsl);
+    },
+  });
+
+  // Initial fetch using the DSL from URL (filter builder has already populated the hidden input)
   fetchAndRender(initialDsl);
 })();
 </script>

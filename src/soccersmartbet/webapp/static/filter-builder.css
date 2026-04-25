@@ -1,0 +1,468 @@
+/* ─────────────────────────────────────────────
+   filter-builder.css — chip/token filter bar
+   Shares the carnival design system from shared.css
+   (tokens are resolved from :root variables set there)
+───────────────────────────────────────────── */
+
+/* Per-key chip accent colours — one per DSL key */
+:root {
+  --chip-league:     #7c3aed; /* violet  */
+  --chip-team:       #0e7490; /* teal    */
+  --chip-bettor:     #00a85a; /* emerald */
+  --chip-outcome:    #d97706; /* amber   */
+  --chip-prediction: #2563eb; /* blue    */
+  --chip-result:     #0891b2; /* cyan    */
+  --chip-date:       #db2777; /* pink    */
+  --chip-month:      #9d174d; /* rose    */
+  --chip-stake:      #b45309; /* warm amber */
+  --chip-odds:       #6d28d9; /* purple  */
+}
+
+/* ── Filter builder root ─────────────────────────────────────────────── */
+.fb-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 4px 0;
+  position: relative;
+}
+
+/* Empty state placeholder text inside the bar */
+.fb-empty-hint {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.28);
+  letter-spacing: 0.3px;
+  pointer-events: none;
+  user-select: none;
+  padding: 4px 2px;
+}
+
+/* AND divider between chips */
+.fb-and-sep {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.25);
+  padding: 0 2px;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ── Chip ────────────────────────────────────────────────────────────── */
+@keyframes fb-chip-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes fb-chip-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.75); }
+}
+
+.fb-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 20px;
+  overflow: hidden;
+  font-family: var(--font-body, 'Space Grotesk', sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: default;
+  animation: fb-chip-in 120ms cubic-bezier(0.34,1.56,0.64,1) both;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  max-width: 420px;
+  transition: box-shadow 0.12s;
+}
+
+.fb-chip:focus-within {
+  box-shadow: 0 0 0 2.5px var(--magenta), 0 1px 4px rgba(0,0,0,0.25);
+}
+
+/* Key label (left half) */
+.fb-chip-key {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #fff;
+  padding: 0 10px 0 12px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+  /* background set inline via JS per-key colour */
+}
+
+/* Value area (right half) */
+.fb-chip-val {
+  background: rgba(255,255,255,0.13);
+  color: #fff;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+/* OR separator inside multi-value chip */
+.fb-val-or {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  margin: 0 5px;
+  flex-shrink: 0;
+}
+
+/* Single value label inside chip */
+.fb-val-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.fb-val-text:hover {
+  text-decoration: underline;
+  text-decoration-color: rgba(255,255,255,0.4);
+}
+
+/* Delete (×) button on chip */
+.fb-chip-del {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.15);
+  color: rgba(255,255,255,0.55);
+  width: 26px;
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  transition: background 0.1s, color 0.1s;
+}
+.fb-chip-del:hover {
+  background: rgba(0,0,0,0.3);
+  color: #fff;
+}
+.fb-chip-del:focus-visible {
+  outline: 2px solid var(--magenta);
+  outline-offset: -2px;
+}
+
+/* ── Chip editing state ─────────────────────────────────────────────── */
+/* When a chip is in "editing" mode its right half becomes an editor */
+.fb-chip.is-editing {
+  /* keep chip-in look but don't re-animate */
+  animation: none;
+}
+.fb-chip.is-editing .fb-chip-val {
+  background: rgba(255,255,255,0.18);
+}
+
+/* ── "+ Add filter" trigger ─────────────────────────────────────────── */
+.fb-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-body, 'Space Grotesk', sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.07);
+  border: 1.5px dashed rgba(255,255,255,0.22);
+  border-radius: 20px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+.fb-add-btn:hover {
+  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.11);
+  border-color: rgba(255,255,255,0.4);
+}
+.fb-add-btn:focus-visible {
+  outline: 2.5px solid var(--magenta);
+  outline-offset: 2px;
+}
+.fb-add-icon {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+/* Clear-all button (shown when any chips exist) */
+.fb-clear-all {
+  display: none;
+  align-items: center;
+  font-family: var(--font-body, 'Space Grotesk', sans-serif);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  margin-left: 4px;
+  transition: color 0.12s;
+}
+.fb-clear-all:hover { color: rgba(255,255,255,0.75); }
+.fb-clear-all:focus-visible {
+  outline: 2px solid var(--magenta);
+  outline-offset: 2px;
+}
+.fb-bar.has-chips .fb-clear-all { display: inline-flex; }
+
+/* ── Dropdown panel (category picker + value editors) ─────────────── */
+.fb-dropdown {
+  position: absolute;
+  z-index: 1000;
+  background: #1e1a7a; /* --indigo-mid */
+  border: 1.5px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.25);
+  min-width: 220px;
+  max-width: 360px;
+  overflow: hidden;
+  /* positioned by JS */
+}
+
+/* Header row inside dropdown (e.g. "Choose category") */
+.fb-dd-header {
+  padding: 10px 14px 6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+}
+
+/* Search input inside dropdown */
+.fb-dd-search {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 0 10px 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.18);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-family: var(--font-body, 'Space Grotesk', sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  letter-spacing: 0.3px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.fb-dd-search::placeholder { color: rgba(255,255,255,0.28); }
+.fb-dd-search:focus { border-color: var(--magenta); }
+
+/* Scrollable list inside dropdown */
+.fb-dd-list {
+  list-style: none;
+  margin: 0;
+  padding: 2px 0 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+  scrollbar-width: thin;
+}
+.fb-dd-list::-webkit-scrollbar { width: 5px; }
+.fb-dd-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+.fb-dd-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  transition: background 0.08s;
+  letter-spacing: 0.2px;
+  user-select: none;
+}
+.fb-dd-item:hover,
+.fb-dd-item.is-focused {
+  background: rgba(255,255,255,0.1);
+}
+.fb-dd-item.is-selected {
+  color: #fff;
+  font-weight: 700;
+}
+.fb-dd-item.is-selected::after {
+  content: '✓';
+  margin-left: auto;
+  color: var(--emerald);
+  font-size: 12px;
+}
+
+/* Key colour dot in category picker */
+.fb-key-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* "No values" / loading / unavailable message */
+.fb-dd-msg {
+  padding: 8px 14px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.35);
+  font-style: italic;
+}
+
+/* ── Numeric editor ─────────────────────────────────────────────────── */
+.fb-numeric-editor {
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fb-num-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fb-num-op-sel {
+  background: rgba(255,255,255,0.1);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: var(--font-body, 'Space Grotesk', sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 56px;
+  color-scheme: dark;
+  transition: border-color 0.12s;
+}
+.fb-num-op-sel:focus { border-color: var(--magenta); }
+
+.fb-num-input {
+  flex: 1;
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.18);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: var(--font-body, 'Space Grotesk', sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  outline: none;
+  transition: border-color 0.12s;
+  min-width: 0;
+}
+.fb-num-input::placeholder { color: rgba(255,255,255,0.28); }
+.fb-num-input:focus { border-color: var(--magenta); }
+
+.fb-num-between-sep {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Date editor ───────────────────────────────────────────────────── */
+.fb-date-editor {
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fb-date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fb-date-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  white-space: nowrap;
+  width: 28px;
+  flex-shrink: 0;
+}
+.fb-date-input {
+  flex: 1;
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.18);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: var(--font-body, 'Space Grotesk', sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cream, #fff7ea);
+  color-scheme: dark;
+  outline: none;
+  min-width: 0;
+  transition: border-color 0.12s;
+}
+.fb-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+  cursor: pointer;
+}
+.fb-date-input:focus { border-color: var(--magenta); }
+
+/* ── Confirm / Apply button inside dropdown ─────────────────────────── */
+.fb-dd-apply {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 4px 12px 10px;
+  background: var(--magenta);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 15px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.12s, transform 0.12s;
+}
+.fb-dd-apply:hover { opacity: 0.88; transform: translateY(-1px); }
+.fb-dd-apply:focus-visible {
+  outline: 2.5px solid var(--yellow);
+  outline-offset: 2px;
+}
+.fb-dd-apply:active { transform: translateY(0); }
+
+/* ── Warning / same-key duplicate notice ─────────────────────────────── */
+.fb-dup-warn {
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--yellow);
+  background: rgba(255,201,48,0.08);
+  border-top: 1px solid rgba(255,201,48,0.15);
+  display: none;
+}
+.fb-dup-warn.visible { display: block; }
+
+/* ── DSL error/hint (kept from original) ─────────────────────────────── */
+/* These rules live in shared.css already; kept here for co-location reference */

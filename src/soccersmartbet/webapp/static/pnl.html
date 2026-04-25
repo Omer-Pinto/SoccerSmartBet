@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/shared.css">
+<link rel="stylesheet" href="/static/filter-builder.css">
 <style>
 .pnl-page-body {
   max-width: 1380px;
@@ -122,28 +123,12 @@
 
   <!-- FILTER BAR -->
   <div class="filter-bar">
-    <div class="filter-input-wrap">
-      <div class="filter-label">Filter DSL</div>
-      <!-- datalist provides key autocomplete — browsers filter as user types -->
-      <datalist id="dsl-suggestions">
-        <option value="bettor:">
-        <option value="outcome:">
-        <option value="result:">
-        <option value="prediction:">
-        <option value="date:">
-        <option value="month:">
-        <option value="stake:">
-        <option value="odds:">
-        <option value="league:">
-        <option value="team:">
-      </datalist>
-      <input class="filter-input" id="filter-input" type="text"
-             list="dsl-suggestions"
-             placeholder="league:pl  date:2026-04  bettor:user ..."
-             autocomplete="off" spellcheck="false">
-      <div class="filter-hint">
-        Keys: league, team, date, month, stake, odds, outcome, bettor, prediction, result
-      </div>
+    <div class="filter-input-wrap" style="flex:1;min-width:0;">
+      <div class="filter-label">Filters</div>
+      <!-- Filter builder mount point -->
+      <div id="fb-container"></div>
+      <!-- Hidden input kept for backwards-compat -->
+      <input type="hidden" id="filter-input" value="">
     </div>
     <div class="filter-dates">
       <label class="filter-label" for="cal-from">From</label>
@@ -563,11 +548,12 @@ let _calFrom = "";
 let _calTo   = "";
 let _insightPollTimer = null;
 let _insightToken = 0;
-const filterInput = document.getElementById("filter-input");
 
-function onFilterChange() {
+function onFilterChange(dsl) {
   clearTimeout(_debounceTimer);
-  const dsl = filterInput.value.trim();
+  if (dsl === undefined) {
+    dsl = (document.getElementById("filter-input").value || "").trim();
+  }
   pushStateToUrl(dsl, _calFrom, _calTo);
   _debounceTimer = setTimeout(() => fetchAndRender(dsl), 350);
 }
@@ -576,12 +562,11 @@ function onCalendarChange() {
   clearTimeout(_debounceTimer);
   _calFrom = (document.getElementById("cal-from") || {}).value || "";
   _calTo   = (document.getElementById("cal-to")   || {}).value || "";
-  const dsl = filterInput.value.trim();
+  const dsl = (document.getElementById("filter-input").value || "").trim();
   pushStateToUrl(dsl, _calFrom, _calTo);
   _debounceTimer = setTimeout(() => fetchAndRender(dsl), 350);
 }
 
-filterInput.addEventListener("input", onFilterChange);
 document.getElementById("cal-from").addEventListener("change", onCalendarChange);
 document.getElementById("cal-to"  ).addEventListener("change", onCalendarChange);
 
@@ -733,7 +718,7 @@ function restoreInsightFocus() {
 
 // ─── Insight click handler ───────────────────────────────────────────────────
 document.getElementById("btn-insight").addEventListener("click", async () => {
-  const typedDsl = filterInput.value.trim();
+  const typedDsl = (document.getElementById("filter-input").value || "").trim();
 
   // Merge calendar date range into the DSL so the AI only analyses
   // what the user is looking at, not the whole DB.
@@ -840,14 +825,11 @@ document.addEventListener("keydown", e => {
   }
 });
 
-// Init — restore DSL + calendar from URL before first fetch
+// Init — restore calendar from URL; filter builder handles DSL
 (function init() {
   const urlParams = new URLSearchParams(window.location.search);
-  const initialDsl  = urlParams.get("filter") || "";
-  const initialFrom = urlParams.get("from")   || "";
-  const initialTo   = urlParams.get("to")     || "";
-
-  filterInput.value = initialDsl;
+  const initialFrom = urlParams.get("from") || "";
+  const initialTo   = urlParams.get("to")   || "";
 
   const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
   if (initialFrom && ISO_DATE.test(initialFrom)) {
@@ -860,6 +842,26 @@ document.addEventListener("keydown", e => {
     const el = document.getElementById("cal-to");
     if (el) el.value = initialTo;
   }
+  // fetchAndRender called from module script after builder init
+})();
+</script>
+
+<script type="module">
+import { createFilterBuilder } from "/static/filter-builder.js";
+
+(function initFilterBuilder() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialDsl = urlParams.get("filter") || "";
+
+  window._fb = createFilterBuilder({
+    container:   document.getElementById("fb-container"),
+    enabledKeys: ["league","team","date","month","stake","odds","outcome","bettor","prediction","result"],
+    initialDsl,
+    hiddenInput: document.getElementById("filter-input"),
+    onChange: (dsl) => {
+      onFilterChange(dsl);
+    },
+  });
 
   fetchAndRender(initialDsl);
 })();
