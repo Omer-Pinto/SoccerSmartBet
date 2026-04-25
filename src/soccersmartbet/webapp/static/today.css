@@ -441,7 +441,9 @@ body {
   text-align: center;
   white-space: nowrap;
 }
-.odds-cell .odds-1 { color: var(--indigo); font-weight: 700; }
+.odds-cell .odds-1 { color: var(--indigo); }
+/* Bold whichever odds span matches the current match result */
+.odds-cell .odds-bold { font-weight: 700; }
 .odds-cell .sep    { color: #ccc; margin: 0 3px; font-size: 10px; }
 
 .bet-cell {
@@ -1097,7 +1099,118 @@ body {
 }
 
 /* ─────────────────────────────────────────────
-   TODAY'S SCOREBOARD
+   SCORE CELL
+───────────────────────────────────────────── */
+.score-cell {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────────
+   LIVE SCORELINE — big score in game row
+───────────────────────────────────────────── */
+.live-scoreline {
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: 2px;
+  color: var(--indigo);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.live-scoreline--ft {
+  font-size: 26px;
+  color: var(--indigo);
+}
+
+/* ─────────────────────────────────────────────
+   PERIOD CHIPS — extend .countdown-chip base
+───────────────────────────────────────────── */
+/* Legacy period-chip class preserved for any old DOM nodes still in flight */
+.period-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.period-chip--live { background: var(--magenta); color: #fff; }
+.period-chip--ht   { background: var(--cobalt);  color: #fff; }
+.period-chip--ft   { background: var(--emerald); color: #fff; }
+
+/* New spec classes — sibling to .countdown-chip (shares base padding/radius/size) */
+.chip-live {
+  background: var(--magenta);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.chip-ht {
+  background: var(--cobalt);
+  color: #fff;
+}
+.chip-ft {
+  background: var(--emerald);
+  color: #fff;
+}
+.chip-unknown {
+  background: rgba(20,18,93,0.12);
+  color: var(--text-sub);
+}
+
+/* ─────────────────────────────────────────────
+   GAME ROW STATE — finished / live
+───────────────────────────────────────────── */
+tr.game-row--finished {
+  opacity: 0.65;
+}
+tr.game-row--live {
+  border-left: 4px solid var(--magenta);
+  background: rgba(236,43,135,0.04) !important;
+}
+
+/* ─────────────────────────────────────────────
+   LIVE PULSE DOT — inside .chip-live only
+───────────────────────────────────────────── */
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  flex-shrink: 0;
+  animation: live-pulse 1.2s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.65); }
+}
+
+/* ─────────────────────────────────────────────
+   PER-ROW P&L CELL
+───────────────────────────────────────────── */
+.pnl-cell {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.pnl-positive { color: var(--emerald); }
+.pnl-negative { color: var(--vermilion); }
+.pnl-pending  { color: rgba(20,18,93,0.3); }
+
+/* Estimated P&L: no decoration. Context (LIVE column header / FT chip) is sufficient. */
+.pnl-estimated, .pnl-preview { /* no styling — class kept for hook compatibility */ }
+
+/* ─────────────────────────────────────────────
+   TODAY'S SCOREBOARD — two-column rework
 ───────────────────────────────────────────── */
 .scoreboard-container {
   padding: 24px 28px;
@@ -1113,6 +1226,93 @@ body {
 }
 .scoreboard-content { display: flex; flex-direction: column; gap: 14px; }
 
+/* Three-column layout */
+.sb-three-col {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+}
+.sb-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.sb-col:first-child { padding-left: 0; }
+.sb-col:last-child  { padding-right: 0; }
+.sb-col--live {
+  border-right: 1px solid rgba(255,255,255,0.08);
+}
+.sb-col--pending {
+  border-right: 1px solid rgba(255,255,255,0.08);
+}
+.sb-col-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.sb-col-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.7);
+}
+.sb-col-count {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+}
+.sb-col-body { display: flex; flex-direction: column; gap: 8px; }
+.sb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sb-row-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  min-width: 28px;
+}
+.sb-row-pnl {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  min-width: 80px;
+}
+.sb-row-record {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.45);
+}
+
+/* Empty column placeholder */
+.sb-col-empty {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  font-style: italic;
+}
+
+/* Live & Pending column status line */
+.sb-col-status {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.75);
+}
+
+/* Legacy single-col rows kept for leader trophy row */
 .scoreboard-row {
   display: flex;
   align-items: center;
@@ -1133,27 +1333,11 @@ body {
   color: #fff;
   letter-spacing: 2px;
 }
-.scoreboard-money-score,
-.scoreboard-hits-score {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
 .scoreboard-sep {
   color: rgba(255,255,255,0.25);
   font-size: 14px;
 }
-.sb-user-money,
-.sb-ai-money,
-#sb-user-record,
-#sb-ai-record {
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.85);
-}
-.scoreboard-row--leader { gap: 8px; }
+.scoreboard-row--leader { gap: 8px; margin-top: 4px; }
 .scoreboard-trophy { font-size: 20px; line-height: 1; }
 .scoreboard-leader-label {
   font-size: 12px;

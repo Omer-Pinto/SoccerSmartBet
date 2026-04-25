@@ -28,6 +28,7 @@ _PROCESS_START = now_isr()
 
 from soccersmartbet.webapp.routes.filter_values import router as filter_values_router
 from soccersmartbet.webapp.routes.insights import router as insights_router
+from soccersmartbet.webapp.routes.live import router as live_router
 from soccersmartbet.webapp.routes.stats import router as stats_router
 from soccersmartbet.webapp.routes.today import router as today_router
 from soccersmartbet.webapp.runtime_state import LAST_POLLER_TICK
@@ -51,6 +52,9 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 # Wave 11A: Today tab routes
 app.include_router(today_router)
+
+# Live-score endpoint: GET /api/today/live
+app.include_router(live_router)
 
 # Wave 12A: History / P&L / Team / League stats routes
 app.include_router(stats_router)

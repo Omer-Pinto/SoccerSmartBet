@@ -64,6 +64,18 @@ VALUES (
 RETURNING game_id
 """
 
+# Deferred import so fotmob_fixtures is only loaded when this node runs,
+# keeping the import graph clean and test mocking straightforward.
+def _enrich_with_fotmob(game_ids: list[int]) -> None:
+    """Best-effort FotMob enrichment — never raises."""
+    try:
+        from soccersmartbet.pre_gambling_flow.tools.fotmob_fixtures import (  # noqa: PLC0415
+            enrich_games_with_fotmob_ids,
+        )
+        enrich_games_with_fotmob_ids(game_ids)
+    except Exception as exc:
+        logger.warning("persist_games: FotMob enrichment skipped due to error: %s", exc)
+
 
 def persist_games(state: PreGamblingState) -> dict[str, Any]:
     """LangGraph node: insert selected games into the DB and return real game IDs.
@@ -113,6 +125,10 @@ def persist_games(state: PreGamblingState) -> dict[str, Any]:
         conn.commit()
 
     logger.info("persist_games: inserted game_ids=%s", game_ids)
+
+    # Best-effort: write fotmob_match_id for live-score polling.
+    # Never blocks the flow; any failure is caught inside _enrich_with_fotmob.
+    _enrich_with_fotmob(game_ids)
 
     return {
         "games_to_analyze": game_ids,

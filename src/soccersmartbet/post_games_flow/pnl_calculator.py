@@ -15,6 +15,60 @@ from soccersmartbet.post_games_flow.state import PostGamesState
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Pure P&L helper (no DB I/O)
+# ---------------------------------------------------------------------------
+
+
+def compute_bet_pnl_estimate(
+    prediction: str,
+    stake: float,
+    odds: float,
+    home_score: int,
+    away_score: int,
+) -> float | None:
+    """Compute a bet's P&L estimate given known final scores.
+
+    This is a pure function — no DB reads or writes.  It is used by the
+    live endpoint to include on-the-fly P&L for finished games before the
+    post-gambling flow runs and writes official results.
+
+    Outcome derivation follows the same logic as post_games fetch_results:
+      - home wins (1)  when home_score > away_score
+      - draw     (x)  when home_score == away_score
+      - away wins (2)  when home_score < away_score
+
+    Israeli Toto P&L formula: won → stake * (odds - 1), lost → -stake.
+
+    Args:
+        prediction: Bettor's prediction — "1", "x", or "2".
+        stake: Stake amount in NIS (positive float).
+        odds: Decimal odds (> 1.0).
+        home_score: Final home goals.
+        away_score: Final away goals.
+
+    Returns:
+        Estimated P&L as a float, or None if inputs are invalid
+        (negative scores, unknown prediction value, non-positive stake/odds).
+    """
+    if home_score < 0 or away_score < 0:
+        return None
+    if prediction not in ("1", "x", "2"):
+        return None
+    if stake <= 0 or odds <= 1.0:
+        return None
+
+    if home_score > away_score:
+        outcome = "1"
+    elif home_score == away_score:
+        outcome = "x"
+    else:
+        outcome = "2"
+
+    won = prediction == outcome
+    return stake * (odds - 1.0) if won else -stake
+
 _FETCH_BETS_SQL = """
 SELECT bet_id, game_id, bettor, prediction, odds, stake
 FROM bets
