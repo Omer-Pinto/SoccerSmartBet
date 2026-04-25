@@ -212,7 +212,13 @@ def _compile_generic(
 
     if op == "eq":
         pname = _param_name(key, idx)
-        bound = _normalise_enum_value(key, str(values[0])) if is_enum else values[0]
+        raw_v = str(values[0])
+        if is_enum:
+            bound = _normalise_enum_value(key, raw_v)
+        elif key in _LOWERCASE_KEYS:
+            bound = raw_v.lower()
+        else:
+            bound = raw_v
         params[pname] = bound
         if is_text:
             return f"{col} ILIKE %({pname})s"
@@ -220,7 +226,13 @@ def _compile_generic(
 
     if op == "negated":
         pname = _param_name(key, idx)
-        bound = _normalise_enum_value(key, str(values[0])) if is_enum else values[0]
+        raw_v = str(values[0])
+        if is_enum:
+            bound = _normalise_enum_value(key, raw_v)
+        elif key in _LOWERCASE_KEYS:
+            bound = raw_v.lower()
+        else:
+            bound = raw_v
         params[pname] = bound
         if is_text:
             return f"NOT ({col} ILIKE %({pname})s)"
@@ -230,7 +242,13 @@ def _compile_generic(
         frags = []
         for sub_i, val in enumerate(values):
             pname = _param_name(key, idx, sub_i)
-            bound = _normalise_enum_value(key, str(val)) if is_enum else val
+            raw_v = str(val)
+            if is_enum:
+                bound = _normalise_enum_value(key, raw_v)
+            elif key in _LOWERCASE_KEYS:
+                bound = raw_v.lower()
+            else:
+                bound = raw_v
             params[pname] = bound
             frags.append(f"%({pname})s")
         in_list = ", ".join(frags)
@@ -273,6 +291,11 @@ def _is_text_key(key: str) -> bool:
     because their values are single-char CHECK-constrained ('1'|'x'|'2').
     """
     return key in {"league", "bettor"}
+
+
+#: Keys whose values should be lower-cased before binding to normalise
+#: case-variant user input (e.g. ``bettor:User`` → ``'user'``).
+_LOWERCASE_KEYS: frozenset[str] = frozenset({"bettor"})
 
 
 def _compile_team(
@@ -404,8 +427,15 @@ def compile(  # noqa: A001  (shadows built-in; intentional for readability)
         where_clause = "TRUE"
     else:
         # Group clauses by key, preserving insertion order.
-        # Clauses with the same key are combined with OR inside parentheses;
-        # distinct-key groups are combined with AND.
+        # Clauses with the same key are combined with OR inside parentheses,
+        # EXCEPT when all clauses in the group are inequality-range operators
+        # (gt / gte / lt / lte).  Range operators for the same key represent
+        # bounds of a compound range (e.g. date:>=2026-04-20 date:<=2026-04-23)
+        # and MUST be AND-combined so both bounds are enforced simultaneously.
+        # Using OR would produce a tautology (any date satisfies one of the two
+        # half-open conditions), returning the full unfiltered result set.
+        _RANGE_OPS: frozenset[str] = frozenset({"gt", "gte", "lt", "lte"})
+
         groups: dict[str, list[tuple[int, FilterClause]]] = defaultdict(list)
         # Use a list to preserve the first-seen key order for deterministic SQL.
         key_order: list[str] = []
@@ -421,10 +451,20 @@ def compile(  # noqa: A001  (shadows built-in; intentional for readability)
                 idx, clause = group[0]
                 and_fragments.append(_compile_clause(clause, idx, params))
             else:
-                or_parts: list[str] = []
-                for idx, clause in group:
-                    or_parts.append(_compile_clause(clause, idx, params))
-                and_fragments.append("(" + " OR ".join(or_parts) + ")")
+                # If every clause in this key-group uses a range operator,
+                # AND-combine them (range bounds must all hold simultaneously).
+                # Otherwise fall back to OR-combine (e.g. league:pl league:bundesliga).
+                all_range = all(clause.op in _RANGE_OPS for _, clause in group)
+                if all_range:
+                    range_parts: list[str] = []
+                    for idx, clause in group:
+                        range_parts.append(_compile_clause(clause, idx, params))
+                    and_fragments.append("(" + " AND ".join(range_parts) + ")")
+                else:
+                    or_parts: list[str] = []
+                    for idx, clause in group:
+                        or_parts.append(_compile_clause(clause, idx, params))
+                    and_fragments.append("(" + " OR ".join(or_parts) + ")")
 
         where_clause = "\n  AND ".join(and_fragments)
 

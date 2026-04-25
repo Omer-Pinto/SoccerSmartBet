@@ -9,6 +9,8 @@
    tokens; the stats pages @import this file.
    today.css is NOT changed (owned by Wave 11A).
 ───────────────────────────────────────────── */
+html { scroll-behavior: smooth; }
+
 :root {
   --indigo:      #14125d;
   --cream:       #fff7ea;
@@ -101,25 +103,29 @@ body {
   color: rgba(255,255,255,0.55);
   text-transform: uppercase;
 }
-.masthead-accent {
-  width: 220px;
-  height: 80px;
-  background: var(--magenta);
-  clip-path: polygon(20px 0%, 100% 0%, 100% 100%, 0% 100%);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 20px;
-  flex-shrink: 0;
+/* ─────────────────────────────────────────────
+   SKIP LINK (accessibility — keyboard users)
+───────────────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 8px;
+  z-index: 9000;
+  background: var(--yellow);
+  color: var(--indigo);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-decoration: none;
+  padding: 10px 18px;
+  border-radius: var(--r);
+  transition: top 0.12s;
 }
-.masthead-accent-text {
-  font-family: var(--font-display);
-  font-size: 13px;
-  letter-spacing: 2px;
-  color: #fff;
-  text-align: right;
-  line-height: 1.3;
-  text-transform: uppercase;
+.skip-link:focus-visible {
+  top: 8px;
+  outline: 2.5px solid var(--indigo);
+  outline-offset: 2px;
 }
 
 /* ─────────────────────────────────────────────
@@ -141,7 +147,7 @@ body {
   font-size: 14px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.55);
   text-decoration: none;
   padding: 14px 22px;
   border-bottom: 3px solid transparent;
@@ -184,7 +190,7 @@ body {
   font-weight: 700;
   letter-spacing: 3px;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.45);
+  color: rgba(255,255,255,0.60);
 }
 .stat-tile-value {
   font-family: var(--font-display);
@@ -193,10 +199,12 @@ body {
   color: #fff;
   text-transform: uppercase;
   word-break: break-all;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 .stat-tile-value .check     { color: var(--emerald); }
 .stat-tile-value .highlight { color: var(--cobalt); }
-.stat-tile-value .sub       { color: rgba(255,255,255,0.5); font-size: 14px; }
+.stat-tile-value .sub       { color: rgba(255,255,255,0.55); font-size: 14px; }
 .stat-tile-value .pos       { color: var(--emerald); }
 .stat-tile-value .neg       { color: var(--vermilion); }
 
@@ -230,6 +238,11 @@ body {
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--indigo);
+  border-bottom: 2px solid var(--yellow);
+  padding-bottom: 8px;
+  line-height: 1;
+  display: block;
+  width: 100%;
 }
 
 /* ─────────────────────────────────────────────
@@ -292,6 +305,33 @@ body {
   letter-spacing: 0.3px;
   position: relative; z-index: 1;
 }
+
+/* ── DSL clear (×) button ─────────────────── */
+.filter-input-inner {
+  position: relative;
+  display: block;
+}
+.filter-input-inner .filter-input {
+  padding-right: 36px; /* room for the × button */
+}
+.dsl-clear-btn {
+  display: none; /* hidden until input is non-empty */
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: rgba(255,255,255,0.45);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  transition: color 0.15s;
+  z-index: 2;
+}
+.dsl-clear-btn:hover { color: #fff; }
+.filter-input-inner.has-value .dsl-clear-btn { display: block; }
 .filter-cap-badge {
   font-size: 10px;
   font-weight: 700;
@@ -321,7 +361,7 @@ body {
   align-items: center;
   gap: 10px;
   position: relative;
-  transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.15s;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -357,7 +397,79 @@ body {
   cursor: not-allowed !important;
   box-shadow: none !important;
   transform: none !important;
+  opacity: 0.55;
 }
+.btn:disabled:hover,
+.btn[disabled]:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ─────────────────────────────────────────────
+   LEAGUE PILL — canonical shared definition
+   (today.css and inline overrides are kept for
+   backwards compat but these rules take priority
+   for pages that load shared.css only)
+───────────────────────────────────────────── */
+.league-pill {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 20px;
+  color: #fff;
+  white-space: nowrap;
+  background: var(--indigo-light);
+  text-decoration: none;
+  vertical-align: middle;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+}
+.league-pill:hover { opacity: 0.85; }
+.league-pill.laliga     { background: var(--magenta); }
+.league-pill.premier    { background: var(--cobalt); }
+.league-pill.bundesliga { background: var(--yellow); color: var(--indigo); }
+.league-pill.seriea     { background: var(--indigo); }
+
+/* ─────────────────────────────────────────────
+   RESULT BADGES — stronger filled chips
+───────────────────────────────────────────── */
+.result-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  padding: 3px 9px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+.result-win  { background: var(--emerald);  color: #fff; }
+.result-loss { background: var(--vermilion);color: #fff; }
+.result-open { background: rgba(20,18,93,0.12); color: var(--text-sub); letter-spacing: 1px; }
+
+/* ─────────────────────────────────────────────
+   LOADING animation — dot-pulse for empty-state
+───────────────────────────────────────────── */
+@keyframes dot-pulse {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40%            { opacity: 1;   transform: scale(1); }
+}
+.loading-dots {
+  display: inline-flex;
+  gap: 5px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.loading-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-sub);
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
 
 /* ─────────────────────────────────────────────
    MATCHES / BETS TABLE
@@ -405,25 +517,6 @@ body {
   letter-spacing: 0.5px;
   white-space: nowrap;
 }
-.league-pill {
-  display: inline-block;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  padding: 4px 9px;
-  border-radius: 20px;
-  color: #fff;
-  white-space: nowrap;
-  background: var(--indigo-light);
-  text-decoration: none;
-}
-.league-pill:hover { opacity: 0.85; }
-.league-pill.laliga     { background: var(--magenta); }
-.league-pill.premier    { background: var(--cobalt); }
-.league-pill.bundesliga { background: var(--yellow); color: var(--indigo); }
-.league-pill.seriea     { background: var(--indigo); }
-
 .team-name { font-size: 14px; font-weight: 600; color: var(--indigo); }
 .team-name a { color: inherit; text-decoration: none; }
 .team-name a:hover { color: var(--magenta); text-decoration: underline; }
@@ -449,18 +542,24 @@ body {
 .pnl-pos    { color: var(--emerald); font-weight: 700; }
 .pnl-neg    { color: var(--vermilion); font-weight: 700; }
 .pnl-null   { color: rgba(20,18,93,0.3); }
-.result-badge {
+
+/* Status pill (used by today.html via today.css; also available here for other pages) */
+.status-pill {
   display: inline-block;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 1px;
-  padding: 3px 8px;
-  border-radius: 3px;
   text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: rgba(20,18,93,0.1);
+  color: var(--text-sub);
+  white-space: nowrap;
 }
-.result-win  { background: var(--emerald);  color: #fff; }
-.result-loss { background: var(--vermilion);color: #fff; }
-.result-open { background: rgba(20,18,93,0.12); color: var(--text-sub); }
+.status-pill--scheduled  { background: rgba(20,18,93,0.1);  color: var(--text-sub); }
+.status-pill--live       { background: var(--yellow);        color: var(--indigo); }
+.status-pill--finished   { background: var(--emerald);       color: #fff; }
+.status-pill--cancelled  { background: var(--vermilion);     color: #fff; }
 
 /* ─────────────────────────────────────────────
    CHART CONTAINER (P&L page)
@@ -572,32 +671,69 @@ body {
 /* ─────────────────────────────────────────────
    INSIGHT PANEL
 ───────────────────────────────────────────── */
+@keyframes insight-slide-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .insight-panel {
   margin-top: 24px;
   background: #fff;
   border-radius: var(--r-lg);
   box-shadow: 0 2px 24px rgba(20,18,93,0.1);
   overflow: hidden;
+  animation: insight-slide-in 220ms ease-out both;
 }
 .insight-panel-header {
   background: var(--indigo);
-  padding: 14px 20px;
+  padding: 16px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .insight-panel-title {
   font-family: var(--font-display);
-  font-size: 16px;
-  letter-spacing: 2px;
+  font-size: 20px;
+  letter-spacing: 2.5px;
   color: #fff;
   text-transform: uppercase;
 }
+.insight-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.insight-panel-status {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.insight-panel-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255,255,255,0.5);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+}
+.insight-panel-close:hover { color: #fff; }
 .insight-panel-body {
-  padding: 20px 24px;
+  padding: 22px 28px;
   font-size: 14px;
-  line-height: 1.65;
+  line-height: 1.7;
   color: var(--text-main);
+  /* Fix C: clamp prevents severe clipping on short viewports (e.g. 600px → ~400px
+     instead of 316px) while still capping on tall displays */
+  max-height: clamp(280px, 60vh, calc(100vh - 200px));
+  overflow-y: auto;
+  scrollbar-color: var(--cream-dark) transparent;
+  /* Fix C: allow keyboard scrolling via arrow keys when focused */
+  outline: none;
+}
+.insight-panel-body:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: -2px;
 }
 .insight-panel-body.loading {
   color: var(--text-sub);
@@ -606,17 +742,58 @@ body {
 }
 .insight-panel-body.error { color: var(--vermilion); }
 /* markdown inside insight panel */
-.insight-panel-body h1,
-.insight-panel-body h2,
-.insight-panel-body h3 {
+.insight-panel-body h3,
+.insight-panel-body h4,
+.insight-panel-body h5 {
   font-family: var(--font-display);
   letter-spacing: 1px;
   color: var(--indigo);
-  margin: 12px 0 6px;
+  margin: 16px 0 8px;
 }
-.insight-panel-body ul { padding-left: 20px; }
-.insight-panel-body li { margin-bottom: 4px; }
+.insight-panel-body h3 { font-size: 20px; }
+.insight-panel-body h4 { font-size: 16px; }
+.insight-panel-body h5 { font-size: 14px; }
+.insight-panel-body ul,
+.insight-panel-body ol { padding-left: 22px; margin: 8px 0; }
+.insight-panel-body li { margin-bottom: 5px; line-height: 1.6; }
 .insight-panel-body strong { color: var(--indigo); }
+.insight-panel-body em { font-style: italic; }
+.insight-panel-body p  { margin: 8px 0; }
+.insight-panel-body code {
+  font-family: monospace;
+  font-size: 12px;
+  background: rgba(20,18,93,0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.insight-panel-body pre {
+  background: rgba(20,18,93,0.88);
+  border-radius: 6px;
+  padding: 14px 18px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+.insight-panel-body pre code {
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--cream);
+}
+
+/* ─────────────────────────────────────────────
+   ROW CAP BANNER
+───────────────────────────────────────────── */
+.row-cap-banner {
+  background: var(--vermilion);
+  color: var(--cream);
+  padding: 10px 18px;
+  border-radius: 6px;
+  font-family: var(--font-body, Space Grotesk, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  letter-spacing: 0.2px;
+}
 
 /* ─────────────────────────────────────────────
    FOOTER
@@ -642,25 +819,427 @@ body {
   letter-spacing: 1px;
   text-transform: uppercase;
 }
+.footer-sep { opacity: 0.5; }
+
+/* ─────────────────────────────────────────────
+   MERGED-ROW TABLE (History / Team)
+───────────────────────────────────────────── */
+
+/* Disable nth-child striping — done per group via JS class */
+.merged-row-table tbody tr:nth-child(even) { background: transparent; }
+
+.game-row--even { background: #fff; }
+.game-row--odd  { background: #faf7ff; }
+.game-row.row-hover {
+  background: #e8f0ff !important;
+  box-shadow: inset 3px 0 0 var(--yellow);
+}
+
+/* Separator between game groups */
+.game-group-separator td {
+  height: 4px;
+  padding: 0;
+  background: var(--cream-dark);
+  border-bottom: none;
+}
+.game-group-separator { border-bottom: none; }
+
+/* Bettor micro-label */
+.bettor-label {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.bettor-label.bet-user { background: var(--emerald); color: #fff; }
+.bettor-label.bet-ai   { background: var(--vermilion); color: #fff; }
+
+/* Prediction + result cells */
+.col-bet    { vertical-align: middle; }
+.col-result { vertical-align: middle; }
+.bet-odds   { color: var(--text-sub); font-size: 11px; font-weight: 500; margin-left: 2px; }
+.bet-amount { color: var(--text-sub); font-weight: 400; font-size: 11px; }
+
+/* ─────────────────────────────────────────────
+   SORTABLE HEADERS
+───────────────────────────────────────────── */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  position: relative;
+}
+th.sortable:hover { color: rgba(255,255,255,0.85); }
+th.sortable .sort-icon {
+  display: inline-block;
+  margin-left: 5px;
+  color: var(--yellow);
+  font-size: 10px;
+}
+th.sortable .sort-icon.sort-icon--inactive {
+  color: rgba(255,255,255,0.35);
+  opacity: 0.3;
+}
+
+/* ─────────────────────────────────────────────
+   CALENDAR INPUTS (filter bar)
+───────────────────────────────────────────── */
+.filter-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.filter-dates .filter-label {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+.cal-input {
+  background: var(--indigo-mid);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cream);
+  color-scheme: dark;
+  min-width: 130px;
+  transition: border-color 0.15s;
+}
+.cal-input:focus { outline: none; border-color: var(--cobalt); }
+/* Dark-mode calendar picker icon — makes the native icon visible on Chromium */
+.cal-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.cal-input::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+/* ─────────────────────────────────────────────
+   PAGING REFRESH BUTTON (Fix A)
+   Subtle icon button placed left of page-size
+   selector on History / Team / League pages.
+───────────────────────────────────────────── */
+.paging-refresh-btn {
+  background: none;
+  border: 1.5px solid rgba(20,18,93,0.2);
+  border-radius: var(--r);
+  padding: 5px 8px;
+  cursor: pointer;
+  color: var(--text-sub);
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s, color 0.12s, transform 0.2s;
+  margin-left: auto; /* pushes it to the right, just before page-size-select */
+}
+.paging-refresh-btn:hover {
+  border-color: var(--cobalt);
+  color: var(--cobalt);
+}
+.paging-refresh-btn:focus-visible {
+  outline: 2.5px solid var(--cobalt);
+  outline-offset: 2px;
+}
+.paging-refresh-btn.spinning svg,
+.paging-refresh-btn.spinning {
+  animation: refresh-spin 0.6s linear;
+}
+@keyframes refresh-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ─────────────────────────────────────────────
+   PAGING CONTROLS
+───────────────────────────────────────────── */
+.paging-summary {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  margin-bottom: 10px;
+  margin-top: 4px;
+}
+.paging-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.page-btn {
+  font-family: var(--font-display);
+  font-size: 15px;
+  background: var(--indigo);
+  color: rgba(255,255,255,0.7);
+  border: none;
+  border-radius: var(--r);
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.12s;
+  letter-spacing: 1px;
+}
+.page-btn:hover:not(:disabled) { background: var(--indigo-mid); color: #fff; }
+.page-btn:disabled { background: #e8e4f5; color: #b0a8d0; cursor: not-allowed; }
+.page-info {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  padding: 0 6px;
+}
+.page-size-select {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--indigo);
+  color: rgba(255,255,255,0.7);
+  border: none;
+  border-radius: var(--r);
+  padding: 6px 10px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* ─────────────────────────────────────────────
+   USER / AI STATS TILES (side-by-side)
+───────────────────────────────────────────── */
+.split-stats-block {
+  background: var(--indigo);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 28px;
+  border: 1px solid rgba(255,233,196,0.25);
+  box-shadow: inset 0 1px 8px rgba(0,0,0,0.25), 0 4px 20px rgba(20,18,93,0.15);
+}
+.split-stats-stripe { height: 6px; display: flex; }
+.split-stats-stripe span { flex: 1; }
+.split-stats-stripe span:nth-child(1) { background: var(--emerald); }
+.split-stats-stripe span:nth-child(2) { background: var(--yellow); }
+.split-stats-stripe span:nth-child(3) { background: var(--vermilion); }
+.split-stats-header {
+  display: flex;
+  padding: 12px 24px 6px;
+  gap: 0;
+}
+.split-stats-col {
+  flex: 1;
+  min-width: 120px;
+}
+.split-stats-col-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 4px;
+}
+.split-stats-col-label.user-col { color: var(--emerald); }
+.split-stats-col-label.ai-col   { color: var(--vermilion); }
+.split-stats-rows {
+  display: flex;
+  flex-direction: column;
+}
+.split-stats-row {
+  display: flex;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.split-stats-row-label {
+  width: 120px;
+  flex-shrink: 0;
+  padding: 12px 24px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  display: flex;
+  align-items: center;
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+.split-stats-cell {
+  flex: 1;
+  padding: 12px 24px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 1px;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.split-stats-cell:last-child { border-right: none; }
+.split-stats-cell.pos { color: var(--emerald); }
+.split-stats-cell.neg { color: var(--vermilion); }
+
+/* ─────────────────────────────────────────────
+   BREADCRUMB (team.html / league.html)
+───────────────────────────────────────────── */
+.breadcrumb {
+  background: var(--indigo-mid);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.breadcrumb-inner {
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 8px 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.breadcrumb-link {
+  color: rgba(255,255,255,0.55);
+  text-decoration: none;
+  transition: color 0.12s;
+}
+.breadcrumb-link:hover { color: var(--cream-dark); }
+.breadcrumb-sep {
+  color: var(--cream-dark);
+  opacity: 0.4;
+  font-size: 14px;
+  line-height: 1;
+}
+.breadcrumb-current {
+  color: var(--cream-dark);
+  opacity: 0.85;
+}
+
+/* ─────────────────────────────────────────────
+   FOCUS RINGS (keyboard navigation)
+───────────────────────────────────────────── */
+.btn:focus-visible,
+.page-btn:focus-visible,
+.page-size-select:focus-visible,
+.nav-tab:focus-visible,
+.league-pill:focus-visible,
+.breadcrumb-link:focus-visible {
+  outline: 2.5px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.cal-input:focus-visible {
+  outline: 2.5px solid var(--cobalt);
+  outline-offset: 2px;
+  border-color: var(--cobalt);
+}
+
+th.sortable:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: -2px;
+}
+
+
+/* ─────────────────────────────────────────────
+   DISABLED BUTTON visual (belt-and-suspenders)
+───────────────────────────────────────────── */
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.55;
+}
+/* page-btn disabled: override inherited hover */
+.page-btn:disabled:hover { background: #e8e4f5; color: #b0a8d0; }
 
 /* ─────────────────────────────────────────────
    UTILITY
 ───────────────────────────────────────────── */
 .empty-state {
   text-align: center;
-  padding: 40px 20px;
+  padding: 44px 20px;
   color: var(--text-sub);
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 1px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  opacity: 0.6;
+  opacity: 0.55;
 }
+.empty-state.is-loading { opacity: 0.45; font-style: italic; }
 .error-state {
   text-align: center;
-  padding: 20px;
+  padding: 32px 20px;
   color: var(--vermilion);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.5px;
+}
+
+/* ─────────────────────────────────────────────
+   DSL INLINE FEEDBACK (history.html)
+───────────────────────────────────────────── */
+.dsl-error {
+  display: none;
+  margin-top: 5px;
+  padding: 5px 10px;
+  background: rgba(20,18,93,0.9);
+  color: var(--vermilion);
+  font-family: monospace;
+  font-size: 12px;
+  border-left: 3px solid var(--vermilion);
+  border-radius: 0 4px 4px 0;
+}
+.dsl-hint {
+  display: none;
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+  font-family: monospace;
+}
+
+/* ─────────────────────────────────────────────
+   TABLE OVERFLOW (responsive)
+───────────────────────────────────────────── */
+.table-scroll-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 900px) {
+  .matches-table { min-width: 680px; }
+  .page-body, .pnl-page-body { padding-left: 16px; padding-right: 16px; }
+  .masthead-inner { padding-left: 16px; padding-right: 16px; }
+  .nav-bar-inner  { padding-left: 16px; padding-right: 16px; }
+  .breadcrumb-inner { padding-left: 16px; padding-right: 16px; }
+}
+
+/* ─────────────────────────────────────────────
+   RESPONSIVE — narrow viewport (≤700px)
+   Operator-console context: no full mobile
+   redesign, but prevent obvious overflow.
+───────────────────────────────────────────── */
+@media (max-width: 700px) {
+  /* Insight panel height cap on small screens */
+  .insight-panel-body { max-height: 50vh; }
+
+  /* Split-stats USER/AI tiles stack vertically */
+  .split-stats-header,
+  .split-stats-row {
+    flex-wrap: wrap;
+  }
+  .split-stats-col,
+  .split-stats-cell {
+    min-width: 100%;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .split-stats-row-label { width: 100%; }
+
+  /* Masthead title scales down */
+  .masthead-title { font-size: 48px; }
 }

@@ -265,6 +265,36 @@ def get_team_aliases(canonical: str) -> list[str]:
     return []
 
 
+def get_normalized_variants(canonical: str) -> frozenset[str]:
+    """Return every normalized string form that maps to a canonical team name.
+
+    Collects the canonical name, all aliases, and the short name, then runs
+    each through ``normalize_team_name``.  The resulting frozenset is used by
+    the stats route for Python-side filtering: ``normalize_team_name(stored)``
+    is compared against this set, which handles accent and prefix divergence
+    (e.g. stored ``"Club Atlético de Madrid"`` normalises to
+    ``"atletico de madrid"``, which appears in the set for
+    canonical ``"Atletico Madrid"`` via the alias ``"Club Atletico de Madrid"``
+    or ``"Atlético de Madrid"``).
+
+    Args:
+        canonical: Exact canonical name (e.g. ``"Atletico Madrid"``).
+
+    Returns:
+        Frozenset of normalised strings; empty frozenset if team not found.
+    """
+    _ensure_loaded()
+    for team in _teams:
+        if team["canonical_name"] == canonical:
+            names: list[str] = [canonical]
+            names.extend(team.get("aliases") or [])
+            short = team.get("short_name")
+            if short:
+                names.append(short)
+            return frozenset(normalize_team_name(n) for n in names if n)
+    return frozenset()
+
+
 def get_source_id(canonical: str, source: str) -> Optional[int]:
     """Return the numeric ID used by a data source for a team.
 

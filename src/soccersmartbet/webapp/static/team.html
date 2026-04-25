@@ -8,8 +8,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/shared.css">
+<link rel="stylesheet" href="/static/filter-builder.css">
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to main content</a>
 
 <!-- MASTHEAD -->
 <header class="masthead">
@@ -24,16 +26,11 @@
       </div>
       <div class="masthead-date" id="masthead-date"></div>
     </div>
-    <div class="masthead-accent">
-      <div class="masthead-accent-text">
-        WAVE 12<br>STATS<br>TEAM
-      </div>
-    </div>
   </div>
 </header>
 
 <!-- NAV -->
-<nav class="nav-bar">
+<nav class="nav-bar" aria-label="Main navigation">
   <div class="nav-bar-inner">
     <a class="nav-tab" href="/today">Today</a>
     <a class="nav-tab" href="/history">History</a>
@@ -41,28 +38,46 @@
   </div>
 </nav>
 
-<!-- PAGE BODY -->
-<main class="page-body">
+<!-- BREADCRUMB -->
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <div class="breadcrumb-inner">
+    <a class="breadcrumb-link" href="/history">History</a>
+    <span class="breadcrumb-sep">&rsaquo;</span>
+    <span class="breadcrumb-current" id="breadcrumb-current">Team</span>
+  </div>
+</nav>
 
-  <!-- SUMMARY BLOCK -->
-  <div class="summary-block" id="summary-block" style="display:none;">
-    <div class="summary-stripe"><span></span><span></span><span></span></div>
-    <div class="summary-tiles">
-      <div class="summary-tile">
-        <div class="summary-tile-label">Total Bets</div>
-        <div class="summary-tile-value" id="sum-bets">&mdash;</div>
+<!-- PAGE BODY -->
+<main class="page-body" id="main" tabindex="-1">
+
+  <!-- USER / AI SIDE-BY-SIDE STATS BLOCK -->
+  <div class="split-stats-block" id="split-stats" style="display:none;">
+    <div class="split-stats-stripe"><span></span><span></span><span></span></div>
+    <div class="split-stats-header">
+      <div class="split-stats-row-label"></div>
+      <div class="split-stats-cell split-stats-col-label user-col">USER</div>
+      <div class="split-stats-cell split-stats-col-label ai-col">AI</div>
+    </div>
+    <div class="split-stats-rows">
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Total Bets</div>
+        <div class="split-stats-cell" id="t-user-bets">&mdash;</div>
+        <div class="split-stats-cell" id="t-ai-bets">&mdash;</div>
       </div>
-      <div class="summary-tile">
-        <div class="summary-tile-label">Win Rate</div>
-        <div class="summary-tile-value" id="sum-wr">&mdash;</div>
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Win Rate</div>
+        <div class="split-stats-cell" id="t-user-wr">&mdash;</div>
+        <div class="split-stats-cell" id="t-ai-wr">&mdash;</div>
       </div>
-      <div class="summary-tile">
-        <div class="summary-tile-label">Total Stake</div>
-        <div class="summary-tile-value" id="sum-stake">&mdash;</div>
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Total Stake</div>
+        <div class="split-stats-cell" id="t-user-stake">&mdash;</div>
+        <div class="split-stats-cell" id="t-ai-stake">&mdash;</div>
       </div>
-      <div class="summary-tile">
-        <div class="summary-tile-label">Total P&amp;L</div>
-        <div class="summary-tile-value" id="sum-pnl">&mdash;</div>
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Total P&amp;L</div>
+        <div class="split-stats-cell" id="t-user-pnl">&mdash;</div>
+        <div class="split-stats-cell" id="t-ai-pnl">&mdash;</div>
       </div>
     </div>
   </div>
@@ -75,48 +90,114 @@
       <div class="section-label-bar" style="background:var(--yellow);"></div>
       <h2>Notable Games (Top 5 by |P&amp;L|)</h2>
     </div>
-    <table class="matches-table" style="margin-bottom:32px;">
+
+    <!-- Paging summary (usually empty for notable — ≤5 rows) -->
+    <div class="paging-summary" id="notable-summary"></div>
+
+    <div class="table-scroll-wrap">
+    <table class="matches-table merged-row-table" style="margin-bottom:32px;">
       <thead>
         <tr>
           <th>Date</th>
           <th>League</th>
-          <th>Match</th>
-          <th class="center">Bettor</th>
-          <th class="center">Pick</th>
-          <th class="center">Odds</th>
-          <th class="center">Stake</th>
-          <th class="center">P&amp;L</th>
+          <th>Match + Score</th>
+          <th>Prediction / Odds / Stake</th>
+          <th>P&amp;L</th>
         </tr>
       </thead>
       <tbody id="tbody-notable"></tbody>
     </table>
+    </div>
+
+    <!-- Paging controls for notable (structurally present; hidden when ≤1 page) -->
+    <div class="paging-controls" id="paging-notable" style="display:none;">
+      <button type="button" class="page-btn" id="n-first" aria-label="First page">&laquo;</button>
+      <button type="button" class="page-btn" id="n-prev" aria-label="Previous page">&lsaquo;</button>
+      <span class="page-info" id="n-page-info"></span>
+      <button type="button" class="page-btn" id="n-next" aria-label="Next page">&rsaquo;</button>
+      <button type="button" class="page-btn" id="n-last" aria-label="Last page">&raquo;</button>
+      <select class="page-size-select" id="n-page-size" aria-label="Rows per page">
+        <option value="25" selected>25 / page</option>
+        <option value="50">50 / page</option>
+        <option value="100">100 / page</option>
+      </select>
+    </div>
   </div>
 
-  <!-- FULL BET HISTORY -->
+  <!-- FULL BET HISTORY — All Bets (evaluated only) -->
   <div id="history-section" style="display:none;">
     <div class="section-label">
       <div class="section-label-bar" style="background:var(--cobalt);"></div>
       <h2>All Bets</h2>
     </div>
-    <table class="matches-table">
+
+    <!-- Filter bar with chip builder + calendar + Generate Insight -->
+    <div class="filter-bar" style="margin-bottom:16px;">
+      <div class="filter-input-wrap" style="flex:1;min-width:0;">
+        <div class="filter-label">Filters</div>
+        <!-- Filter builder mount point — full filter set except bettor (both bettors always shown) -->
+        <div id="fb-container"></div>
+        <!-- Hidden input kept for backwards-compat -->
+        <input type="hidden" id="filter-input" value="">
+        <div id="dsl-error" class="dsl-error" role="alert" aria-live="polite"></div>
+      </div>
+      <button type="button" class="btn btn-insight" id="btn-insight" disabled
+              title="AI analysis of your current filter (10-30 sec)">
+        Generate Insight
+      </button>
+    </div>
+
+    <!-- INSIGHT PANEL — inline directly below filter bar -->
+    <div class="insight-panel" id="insight-panel" style="display:none;margin-top:-4px;margin-bottom:24px;">
+      <div class="insight-panel-header">
+        <div class="insight-panel-title">AI Insight</div>
+        <div class="insight-panel-actions">
+          <div class="insight-panel-status" id="insight-status"></div>
+          <button type="button" class="insight-panel-close" id="insight-close" aria-label="Close insight panel" title="Close">&times;</button>
+        </div>
+      </div>
+      <div class="insight-panel-body" id="insight-body" tabindex="0">Waiting&hellip;</div>
+    </div>
+
+    <!-- Paging summary -->
+    <div class="paging-summary" id="bets-summary"></div>
+
+    <div class="table-scroll-wrap">
+    <table class="matches-table merged-row-table" id="bets-table">
       <thead>
         <tr>
-          <th>Date</th>
-          <th>Kickoff</th>
-          <th>League</th>
-          <th>Match</th>
-          <th class="center">Bettor</th>
-          <th class="center">Pick</th>
-          <th class="center">Odds</th>
-          <th class="center">Stake</th>
-          <th class="center">Result</th>
-          <th class="center">P&amp;L</th>
+          <th class="sortable" data-col="date" aria-sort="descending" tabindex="0">
+            Date <span class="sort-icon" id="sort-icon-date" aria-hidden="true">&#9660;</span>
+          </th>
+          <th class="sortable" data-col="league" aria-sort="none" tabindex="0">
+            League <span class="sort-icon sort-icon--inactive" id="sort-icon-league" aria-hidden="true">&#8597;</span>
+          </th>
+          <th class="sortable" data-col="match" aria-sort="none" tabindex="0">
+            Match + Score <span class="sort-icon sort-icon--inactive" id="sort-icon-match" aria-hidden="true">&#8597;</span>
+          </th>
+          <th>Prediction / Odds / Stake</th>
+          <th>Result / P&amp;L</th>
         </tr>
       </thead>
       <tbody id="tbody-bets">
-        <tr><td colspan="10" class="empty-state">Loading&hellip;</td></tr>
+        <tr><td colspan="5" class="empty-state is-loading">Loading<span class="loading-dots"><span></span><span></span><span></span></span></td></tr>
       </tbody>
     </table>
+    </div>
+
+    <!-- Paging controls -->
+    <div class="paging-controls" id="paging-bets" style="display:none;">
+      <button type="button" class="page-btn" id="b-first" aria-label="First page">&laquo;</button>
+      <button type="button" class="page-btn" id="b-prev" aria-label="Previous page">&lsaquo;</button>
+      <span class="page-info" id="b-page-info"></span>
+      <button type="button" class="page-btn" id="b-next" aria-label="Next page">&rsaquo;</button>
+      <button type="button" class="page-btn" id="b-last" aria-label="Last page">&raquo;</button>
+      <select class="page-size-select" id="b-page-size" aria-label="Rows per page">
+        <option value="25" selected>25 / page</option>
+        <option value="50">50 / page</option>
+        <option value="100">100 / page</option>
+      </select>
+    </div>
   </div>
 
 </main>
@@ -124,7 +205,7 @@
 <!-- FOOTER -->
 <footer class="page-footer">
   <div class="footer-brand">SoccerSmartBet</div>
-  <div class="footer-info">Team &nbsp;&middot;&nbsp; Wave 12 &nbsp;&middot;&nbsp; ISR Timezone</div>
+  <div class="footer-info">Team &nbsp;<span class="footer-sep">&middot;</span>&nbsp; ISR Timezone</div>
 </footer>
 
 <script>
@@ -143,8 +224,12 @@
     }) + " ISR";
 })();
 
-// ─── Shared renderers ────────────────────────────────────────────────────────
-function pnlClass(pnl) { return pnl === null ? "pnl-null" : pnl >= 0 ? "pnl-pos" : "pnl-neg"; }
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function pnlClass(pnl) { return pnl === null || pnl === undefined ? "pnl-null" : pnl >= 0 ? "pnl-pos" : "pnl-neg"; }
 function pnlLabel(pnl) {
   if (pnl === null || pnl === undefined) return "&mdash;";
   return (pnl >= 0 ? "+" : "") + pnl.toFixed(2);
@@ -154,74 +239,785 @@ function resultClass(pnl) {
   return pnl > 0 ? "result-win" : "result-loss";
 }
 function resultLabel(bet) {
-  if (!bet.result) return "Open";
+  if (bet.result === null || bet.result === undefined) return "Open";
   if (bet.pnl !== null && bet.pnl > 0) return "Win";
   if (bet.pnl !== null && bet.pnl < 0) return "Loss";
-  return bet.result;
+  return bet.result ?? "Open";
 }
 function leagueClass(league) {
   const l = (league || "").toLowerCase().replace(/\s/g,"");
   if (l.includes("premier")) return "premier";
-  if (l.includes("laliga") || l.includes("liga")) return "laliga";
   if (l.includes("bundesliga")) return "bundesliga";
+  if (l.includes("laliga") || l.includes("liga") || l.includes("primeradivision")) return "laliga";
   if (l.includes("seriea") || l.includes("serie")) return "seriea";
   return "";
 }
-
-function renderNotableRow(bet) {
-  const leagueSlug = encodeURIComponent(bet.league);
-  return `<tr>
-    <td class="match-date-cell">${bet.match_date}</td>
-    <td><a class="league-pill ${leagueClass(bet.league)}" href="/league/${leagueSlug}">${bet.league}</a></td>
-    <td class="team-name">
-      <a href="/team/${encodeURIComponent(bet.home_team)}">${bet.home_team}</a>
-      <span class="vs-sep">vs</span>
-      <a href="/team/${encodeURIComponent(bet.away_team)}">${bet.away_team}</a>
-      ${bet.home_score !== null ? `<span style="font-size:11px;color:var(--text-sub);margin-left:6px;">(${bet.home_score}–${bet.away_score})</span>` : ""}
-    </td>
-    <td class="bet-cell ${bet.bettor === 'user' ? 'bet-user' : 'bet-ai'}">${bet.bettor.toUpperCase()}</td>
-    <td class="bet-cell">${bet.prediction.toUpperCase()}</td>
-    <td class="odds-cell">${parseFloat(bet.odds).toFixed(2)}</td>
-    <td class="bet-cell">${parseFloat(bet.stake).toFixed(0)}</td>
-    <td class="bet-cell"><span class="${pnlClass(bet.pnl)}">${pnlLabel(bet.pnl)}</span></td>
-  </tr>`;
+function leagueDisplay(league) {
+  // U3: normalise legacy alias → canonical UI label (DB unchanged)
+  if ((league || "").trim().toLowerCase() === "primera division") return "La Liga";
+  return league;
+}
+function todayISR() {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
 }
 
-function renderBetRow(bet) {
-  return `<tr>
-    <td class="match-date-cell">${bet.match_date}</td>
-    <td class="kickoff-time">${bet.kickoff_time}</td>
-    <td><a class="league-pill ${leagueClass(bet.league)}" href="/league/${encodeURIComponent(bet.league)}">${bet.league}</a></td>
-    <td class="team-name">
-      <a href="/team/${encodeURIComponent(bet.home_team)}">${bet.home_team}</a>
-      <span class="vs-sep">vs</span>
-      <a href="/team/${encodeURIComponent(bet.away_team)}">${bet.away_team}</a>
-      ${bet.home_score !== null ? `<span style="font-size:11px;color:var(--text-sub);margin-left:6px;">(${bet.home_score}–${bet.away_score})</span>` : ""}
-    </td>
-    <td class="bet-cell ${bet.bettor === 'user' ? 'bet-user' : 'bet-ai'}">${bet.bettor.toUpperCase()}</td>
-    <td class="bet-cell">${bet.prediction.toUpperCase()}</td>
-    <td class="odds-cell">${parseFloat(bet.odds).toFixed(2)}</td>
-    <td class="bet-cell">${parseFloat(bet.stake).toFixed(0)}</td>
-    <td class="bet-cell"><span class="result-badge ${resultClass(bet.pnl)}">${resultLabel(bet)}</span></td>
-    <td class="bet-cell"><span class="${pnlClass(bet.pnl)}">${pnlLabel(bet.pnl)}</span></td>
-  </tr>`;
+// ─── State ───────────────────────────────────────────────────────────────────
+let _rawBets    = [];   // flat bets from API (initial load or latest server-side filter)
+let _groups     = [];   // game-groups (evaluated, sorted)
+let _notable    = [];   // notable groups
+let _pageSize   = 25;
+let _currentPage= 1;
+let _sortCol    = "date";
+let _sortDir    = "desc";
+let _dslFilter  = "";   // current user DSL (additional filters beyond team pin)
+let _teamName   = "";   // canonical team name, set after initial load
+let _fetchGeneration = 0; // stale-response guard for server-side filter fetches
+
+// ─── Group bets into games ────────────────────────────────────────────────────
+// Note: _rawBets is now already server-filtered; no client-side DSL filtering needed.
+function buildGroups(bets) {
+  const map = new Map();
+
+  bets.forEach(bet => {
+    const key = `${bet.match_date}|${bet.home_team}|${bet.away_team}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        match_date: bet.match_date,
+        league: bet.league || "",
+        home_team: bet.home_team,
+        away_team: bet.away_team,
+        home_score: bet.home_score,
+        away_score: bet.away_score,
+        userBet: null,
+        aiBet: null,
+      });
+    }
+    const g = map.get(key);
+    if (bet.bettor === "user") g.userBet = bet;
+    else if (bet.bettor === "ai") g.aiBet = bet;
+    if (bet.home_score !== null && bet.home_score !== undefined) {
+      g.home_score = bet.home_score;
+      g.away_score = bet.away_score;
+    }
+  });
+
+  const groups = Array.from(map.values()).filter(g => {
+    const u = g.userBet;
+    const a = g.aiBet;
+
+    // Evaluated-only: result + pnl must be non-null for each bet present
+    if (!u && !a) return false;
+    const uOk = u
+      ? (u.result !== null && u.result !== undefined && u.pnl !== null && u.pnl !== undefined)
+      : true;
+    const aOk = a
+      ? (a.result !== null && a.result !== undefined && a.pnl !== null && a.pnl !== undefined)
+      : true;
+
+    if ((u && !uOk) !== (a && !aOk)) {
+      console.warn("Partially-evaluated game hidden:", g.match_date, g.home_team, "vs", g.away_team);
+      return false;
+    }
+    return uOk && aOk;
+  });
+
+  return groups;
 }
+
+function sortGroups(groups) {
+  const sorted = [...groups];
+  if (_sortCol === "date") {
+    sorted.sort((a, b) => {
+      const cmp = _sortDir === "asc"
+        ? a.match_date.localeCompare(b.match_date)
+        : b.match_date.localeCompare(a.match_date);
+      return cmp !== 0 ? cmp : a.home_team.localeCompare(b.home_team);
+    });
+  } else if (_sortCol === "league") {
+    sorted.sort((a, b) => {
+      const c = a.league.localeCompare(b.league);
+      return _sortDir === "asc" ? c : -c;
+    });
+  } else if (_sortCol === "match") {
+    sorted.sort((a, b) => {
+      const c = a.home_team.localeCompare(b.home_team);
+      return _sortDir === "asc" ? c : -c;
+    });
+  }
+  return sorted;
+}
+
+// ─── Sort header click ────────────────────────────────────────────────────────
+const SORT_COLS = ["date", "league", "match"];
+
+function onSortClick(col) {
+  if (_sortCol === col) {
+    if (_sortDir === "asc") {
+      _sortDir = "desc";
+    } else {
+      _sortCol = "date"; _sortDir = "desc";
+    }
+  } else {
+    _sortCol = col; _sortDir = "asc";
+  }
+  _currentPage = 1;
+  updateSortHeaders();
+  _groups = sortGroups(buildGroups(_rawBets));
+  renderBetsPage();
+}
+
+function updateSortHeaders() {
+  SORT_COLS.forEach(col => {
+    const th = document.querySelector(`th[data-col="${col}"]`);
+    const icon = document.getElementById(`sort-icon-${col}`);
+    if (!th || !icon) return;
+    if (_sortCol === col) {
+      th.setAttribute("aria-sort", _sortDir === "asc" ? "ascending" : "descending");
+      icon.className = "sort-icon";
+      icon.innerHTML = _sortDir === "asc" ? "&#9650;" : "&#9660;";
+    } else {
+      th.setAttribute("aria-sort", "none");
+      icon.className = "sort-icon sort-icon--inactive";
+      icon.innerHTML = "&#8597;";
+    }
+  });
+}
+
+// ─── USER/AI split stats ──────────────────────────────────────────────────────
+function renderSplitStats(groups) {
+  const block = document.getElementById("split-stats");
+  if (!block) return;
+  block.style.display = "block";
+
+  const stats = { user: { bets:0, wins:0, stake:0, pnl:0 }, ai: { bets:0, wins:0, stake:0, pnl:0 } };
+  groups.forEach(g => {
+    ["userBet","aiBet"].forEach(field => {
+      const bet = g[field];
+      if (!bet) return;
+      const who = bet.bettor;
+      if (!stats[who]) return;
+      stats[who].bets++;
+      stats[who].stake += parseFloat(bet.stake) || 0;
+      if (bet.pnl !== null && bet.pnl !== undefined) {
+        stats[who].pnl += parseFloat(bet.pnl);
+        if (parseFloat(bet.pnl) > 0) stats[who].wins++;
+      }
+    });
+  });
+
+  const setCell = (id, html, cls) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = html;
+    el.className = "split-stats-cell" + (cls ? " " + cls : "");
+  };
+  const wrPct = s => s.bets === 0 ? "&mdash;" : (s.wins / s.bets * 100).toFixed(1) + "%";
+  const wrCls = s => s.bets === 0 ? "" : (s.wins / s.bets) >= 0.5 ? "pos" : "neg";
+
+  setCell("t-user-bets",  stats.user.bets.toLocaleString(), "");
+  setCell("t-ai-bets",    stats.ai.bets.toLocaleString(),   "");
+  setCell("t-user-wr",    wrPct(stats.user), wrCls(stats.user));
+  setCell("t-ai-wr",      wrPct(stats.ai),   wrCls(stats.ai));
+  setCell("t-user-stake", "NIS " + Math.round(stats.user.stake).toLocaleString(), "");
+  setCell("t-ai-stake",   "NIS " + Math.round(stats.ai.stake).toLocaleString(),   "");
+  const up = stats.user.pnl, ap = stats.ai.pnl;
+  setCell("t-user-pnl", (up >= 0 ? "+" : "") + up.toFixed(2), up >= 0 ? "pos" : "neg");
+  setCell("t-ai-pnl",   (ap >= 0 ? "+" : "") + ap.toFixed(2), ap >= 0 ? "pos" : "neg");
+}
+
+// ─── Merged-row renderer ──────────────────────────────────────────────────────
+function renderMergedGroups(groups, tbodyId, colspan) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+
+  if (groups.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">No evaluated bets match this filter.</td></tr>`;
+    wireHoverDelegation(tbody);
+    return;
+  }
+
+  tbody.innerHTML = "";
+
+  groups.forEach((group, groupIdx) => {
+    const { match_date, league, home_team, away_team, home_score, away_score, userBet, aiBet } = group;
+    const isEven = groupIdx % 2 === 0;
+    const rowCls = "game-row " + (isEven ? "game-row--even" : "game-row--odd");
+    const leagueCls = leagueClass(league);
+    const leagueSlug = encodeURIComponent(league);
+    const homeSlug = encodeURIComponent(home_team);
+    const awaySlug = encodeURIComponent(away_team);
+    const scoreHtml = (home_score !== null && home_score !== undefined)
+      ? `<span style="font-size:11px;color:var(--text-sub);margin-left:6px;">(${home_score}&ndash;${away_score})</span>`
+      : "";
+
+    if (!userBet && !aiBet) return;
+
+    if (!userBet || !aiBet) {
+      // Single-bettor row
+      const bet = userBet || aiBet;
+      const label = userBet ? "USER" : "AI";
+      const labelCls = userBet ? "bet-user" : "bet-ai";
+      const tr = document.createElement("tr");
+      tr.className = rowCls + " game-row--top";
+      tr.innerHTML = `
+        <td class="match-date-cell">${escHtml(match_date)}</td>
+        <td><a class="league-pill ${leagueCls}" href="/league/${leagueSlug}">${escHtml(leagueDisplay(league))}</a></td>
+        <td class="team-name">
+          <a href="/team/${homeSlug}">${escHtml(home_team)}</a>
+          <span class="vs-sep">vs</span>
+          <a href="/team/${awaySlug}">${escHtml(away_team)}</a>
+          ${scoreHtml}
+        </td>
+        <td class="col-bet">
+          <span class="bettor-label ${labelCls}">${label}</span>
+          ${escHtml((bet.prediction || "").toUpperCase())}
+          <span class="bet-odds"> @ ${parseFloat(bet.odds || 0).toFixed(2)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(bet.stake || 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+        </td>
+        <td class="col-result">
+          ${bet.result !== null && bet.result !== undefined
+            ? `<span class="result-badge ${resultClass(bet.pnl)}">${resultLabel(bet)}</span><br>`
+            : ""}
+          <span class="${pnlClass(bet.pnl)}">${pnlLabel(bet.pnl)}</span>
+        </td>`;
+      tbody.appendChild(tr);
+    } else {
+      // Two-bettor merged row
+      const trTop = document.createElement("tr");
+      trTop.className = rowCls + " game-row--top";
+      trTop.innerHTML = `
+        <td rowspan="2" class="match-date-cell">${escHtml(match_date)}</td>
+        <td rowspan="2"><a class="league-pill ${leagueCls}" href="/league/${leagueSlug}">${escHtml(leagueDisplay(league))}</a></td>
+        <td rowspan="2" class="team-name">
+          <a href="/team/${homeSlug}">${escHtml(home_team)}</a>
+          <span class="vs-sep">vs</span>
+          <a href="/team/${awaySlug}">${escHtml(away_team)}</a>
+          ${scoreHtml}
+        </td>
+        <td class="col-bet">
+          <span class="bettor-label bet-user">USER</span>
+          ${escHtml((userBet.prediction || "").toUpperCase())}
+          <span class="bet-odds"> @ ${parseFloat(userBet.odds || 0).toFixed(2)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(userBet.stake || 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+        </td>
+        <td class="col-result">
+          <span class="result-badge ${resultClass(userBet.pnl)}">${resultLabel(userBet)}</span>
+          <br><span class="${pnlClass(userBet.pnl)}">${pnlLabel(userBet.pnl)}</span>
+        </td>`;
+      tbody.appendChild(trTop);
+
+      const trBot = document.createElement("tr");
+      trBot.className = rowCls + " game-row--bottom";
+      trBot.innerHTML = `
+        <td class="col-bet">
+          <span class="bettor-label bet-ai">AI</span>
+          ${escHtml((aiBet.prediction || "").toUpperCase())}
+          <span class="bet-odds"> @ ${parseFloat(aiBet.odds || 0).toFixed(2)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(aiBet.stake || 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+        </td>
+        <td class="col-result">
+          <span class="result-badge ${resultClass(aiBet.pnl)}">${resultLabel(aiBet)}</span>
+          <br><span class="${pnlClass(aiBet.pnl)}">${pnlLabel(aiBet.pnl)}</span>
+        </td>`;
+      tbody.appendChild(trBot);
+    }
+
+    // Separator
+    const sep = document.createElement("tr");
+    sep.className = "game-group-separator";
+    sep.setAttribute("aria-hidden", "true");
+    sep.innerHTML = `<td colspan="${colspan}"></td>`;
+    tbody.appendChild(sep);
+  });
+
+  wireHoverDelegation(tbody);
+}
+
+// Hover delegation — wired once per tbody (not per render) to prevent listener
+// accumulation. renderMergedGroups passes tbody in but we guard with _hoverWired.
+function wireHoverDelegation(tbody) {
+  if (!tbody || tbody._hoverWired) return;
+  tbody._hoverWired = true;
+  // Use mouseover/mouseout (which bubble) instead of mouseenter/mouseleave (which don't).
+  tbody.addEventListener("mouseover", e => {
+    const row = e.target.closest("tr.game-row");
+    if (!row) return;
+    const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
+    const bot = top ? top.nextElementSibling : null;
+    if (top && top.classList.contains("game-row")) top.classList.add("row-hover");
+    if (bot && bot.classList.contains("game-row")) bot.classList.add("row-hover");
+  });
+  tbody.addEventListener("mouseout", e => {
+    const row = e.target.closest("tr.game-row");
+    if (!row) return;
+    const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
+    const bot = top ? top.nextElementSibling : null;
+    if (top) top.classList.remove("row-hover");
+    if (bot) bot.classList.remove("row-hover");
+  });
+}
+
+// ─── Paging for All Bets ──────────────────────────────────────────────────────
+function renderBetsPage() {
+  const total = _groups.length;
+  const totalPages = Math.max(1, Math.ceil(total / _pageSize));
+  _currentPage = Math.max(1, Math.min(_currentPage, totalPages));
+
+  const start = (_currentPage - 1) * _pageSize;
+  const end   = Math.min(start + _pageSize, total);
+  const slice = _groups.slice(start, end);
+
+  const sumEl = document.getElementById("bets-summary");
+  if (sumEl) sumEl.textContent = total === 0
+    ? "No evaluated bets match this filter"
+    : `Showing ${start + 1}–${end} of ${total} games`;
+
+  const pagingEl = document.getElementById("paging-bets");
+  if (pagingEl) pagingEl.style.display = totalPages > 1 ? "flex" : "none";
+
+  const infoEl = document.getElementById("b-page-info");
+  if (infoEl) infoEl.textContent = `Page ${_currentPage} of ${totalPages}`;
+
+  const updBtn = (id, disabled) => { const el = document.getElementById(id); if (el) el.disabled = disabled; };
+  updBtn("b-first", _currentPage === 1);
+  updBtn("b-prev",  _currentPage === 1);
+  updBtn("b-next",  _currentPage === totalPages);
+  updBtn("b-last",  _currentPage === totalPages);
+
+  renderMergedGroups(slice, "tbody-bets", 5);
+}
+
+// ─── Notable games paging ──────────────────────────────────────────────────────
+let _notablePageSize = 25;
+let _notableCurrentPage = 1;
+
+function renderNotablePage() {
+  const total = _notable.length;
+  const totalPages = Math.max(1, Math.ceil(total / _notablePageSize));
+  _notableCurrentPage = Math.max(1, Math.min(_notableCurrentPage, totalPages));
+
+  const start = (_notableCurrentPage - 1) * _notablePageSize;
+  const end   = Math.min(start + _notablePageSize, total);
+  const slice = _notable.slice(start, end);
+
+  const sumEl = document.getElementById("notable-summary");
+  if (sumEl && total > 0) sumEl.textContent = `Showing ${start + 1}–${end} of ${total} games`;
+
+  const pagingEl = document.getElementById("paging-notable");
+  if (pagingEl) pagingEl.style.display = totalPages > 1 ? "flex" : "none";
+
+  const infoEl = document.getElementById("n-page-info");
+  if (infoEl) infoEl.textContent = `Page ${_notableCurrentPage} of ${totalPages}`;
+
+  const updBtn = (id, disabled) => { const el = document.getElementById(id); if (el) el.disabled = disabled; };
+  updBtn("n-first", _notableCurrentPage === 1);
+  updBtn("n-prev",  _notableCurrentPage === 1);
+  updBtn("n-next",  _notableCurrentPage === totalPages);
+  updBtn("n-last",  _notableCurrentPage === totalPages);
+
+  renderMergedGroups(slice, "tbody-notable", 5);
+}
+
+// ─── URL sync helper ──────────────────────────────────────────────────────────
+function pushStateToUrl(dsl) {
+  const params = new URLSearchParams(window.location.search);
+  if (dsl) { params.set("filter", dsl); } else { params.delete("filter"); }
+  // Silently drop legacy from/to params if present in bookmarked URLs
+  params.delete("from");
+  params.delete("to");
+  const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+  history.replaceState(null, "", newUrl);
+}
+
+// ─── DSL error display ────────────────────────────────────────────────────────
+function setDslError(msg) {
+  const el = document.getElementById("dsl-error");
+  if (!el) return;
+  if (!msg) {
+    el.textContent = "";
+    el.style.display = "none";
+  } else {
+    el.textContent = msg;
+    el.style.display = "block";
+  }
+}
+
+// ─── DSL clear button sync ────────────────────────────────────────────────────
+function _syncDslClear() {
+  // no-op: filter builder handles its own state
+}
+
+// ─── Server-side filter fetch ─────────────────────────────────────────────────
+// Builds a DSL that pins the team and AND-merges the user's additional filters,
+// then hits /api/bets to get server-filtered results.
+async function fetchFilteredBets(additionalDsl) {
+  if (!_teamName) return;
+  const myGen = ++_fetchGeneration;
+
+  // Show loading state
+  const tbody = document.getElementById("tbody-bets");
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty-state is-loading">Loading<span class="loading-dots"><span></span><span></span><span></span></span></td></tr>`;
+
+  // Build pinned DSL: team constraint + optional user filters
+  let dsl = `team:"${_teamName}"`;
+  if (additionalDsl && additionalDsl.trim()) dsl = `${dsl} ${additionalDsl.trim()}`;
+
+  let data;
+  try {
+    const resp = await fetch(`/api/bets?filter=${encodeURIComponent(dsl)}`);
+    if (myGen !== _fetchGeneration) return; // stale
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      setDslError(err.detail?.detail || err.detail || `Error ${resp.status}`);
+      return;
+    }
+    data = await resp.json();
+  } catch (e) {
+    if (myGen !== _fetchGeneration) return;
+    setDslError("Network error: " + e.message);
+    return;
+  }
+  if (myGen !== _fetchGeneration) return;
+
+  setDslError(null);
+  _rawBets = data.rows || [];
+  _currentPage = 1;
+  _groups = sortGroups(buildGroups(_rawBets));
+  renderSplitStats(_groups);
+  renderBetsPage();
+  const btnInsight = document.getElementById("btn-insight");
+  if (btnInsight) btnInsight.disabled = (_groups.length === 0);
+}
+
+// ─── DSL filter change (server-side, driven by filter builder) ────────────────
+let _dslDebounce = null;
+function onDslChange(dslFromBuilder) {
+  clearTimeout(_dslDebounce);
+  if (dslFromBuilder !== undefined) {
+    _dslFilter = dslFromBuilder;
+    const inp = document.getElementById("filter-input");
+    if (inp) inp.value = dslFromBuilder;
+  } else {
+    _dslFilter = (document.getElementById("filter-input") || {}).value || "";
+  }
+  pushStateToUrl(_dslFilter);
+  _dslDebounce = setTimeout(() => {
+    fetchFilteredBets(_dslFilter);
+  }, 350);
+}
+
+// ─── Insight polling ─────────────────────────────────────────────────────────
+let _insightPollTimer = null;
+let _insightToken = 0;
+function stopInsightPoll() {
+  _insightToken++;
+  if (_insightPollTimer) { clearInterval(_insightPollTimer); _insightPollTimer = null; }
+}
+
+function setInsightBtnState(generating) {
+  const btn = document.getElementById("btn-insight");
+  if (!btn) return;
+  btn.disabled = generating;
+  btn.textContent = generating ? "Generating…" : "Generate Insight";
+}
+
+/**
+ * Minimal Markdown → HTML converter for AI insight output.
+ * Headers map to h3/h4/h5 (not h1/h2) to preserve page hierarchy.
+ * Escapes raw HTML before processing to prevent XSS from AI output.
+ */
+function simpleMarkdown(md) {
+  if (!md) return "";
+
+  const esc = s => String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  let text = esc(md);
+
+  const codeBlocks = [];
+  text = text.replace(/```[^\n]*\n([\s\S]*?)```/g, (_, inner) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push(`<pre><code>${inner}</code></pre>`);
+    return `\x00CODEBLOCK${idx}\x00`;
+  });
+
+  // Inline transform helper — applied per-line BEFORE structure tags are emitted.
+  const inlineTransform = s => {
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
+    // Italic *text*: require non-space immediately after opening * and before closing *.
+    s = s.replace(/\*(\S(?:[^*\n]*?\S)?)\*/g, "<em>$1</em>");
+    // Italic _text_: require word boundary + non-space content to avoid DB ids / underscores.
+    s = s.replace(/\b_(\S[^_\n]*?\S)_\b/g, "<em>$1</em>");
+    return s;
+  };
+
+  const lines = text.split("\n");
+  const out = [];
+  let inUl = false, inOl = false;
+
+  const closeList = () => {
+    if (inUl) { out.push("</ul>"); inUl = false; }
+    if (inOl) { out.push("</ol>"); inOl = false; }
+  };
+
+  lines.forEach(line => {
+    const h3 = line.match(/^### (.+)$/);
+    const h2 = line.match(/^## (.+)$/);
+    const h1 = line.match(/^# (.+)$/);
+    if (h3)      { closeList(); out.push(`<h5>${inlineTransform(h3[1])}</h5>`); return; }
+    if (h2)      { closeList(); out.push(`<h4>${inlineTransform(h2[1])}</h4>`); return; }
+    if (h1)      { closeList(); out.push(`<h3>${inlineTransform(h1[1])}</h3>`); return; }
+
+    const ulItem = line.match(/^[-*] (.+)$/);
+    if (ulItem) {
+      if (inOl) { out.push("</ol>"); inOl = false; }
+      if (!inUl) { out.push("<ul>"); inUl = true; }
+      out.push(`<li>${inlineTransform(ulItem[1])}</li>`);
+      return;
+    }
+
+    const olItem = line.match(/^\d+\. (.+)$/);
+    if (olItem) {
+      if (inUl) { out.push("</ul>"); inUl = false; }
+      if (!inOl) { out.push("<ol>"); inOl = true; }
+      out.push(`<li>${inlineTransform(olItem[1])}</li>`);
+      return;
+    }
+
+    closeList();
+    if (line.trim() === "") { out.push("<p></p>"); return; }
+    // Plain paragraph text — wrap in <p> so CSS margin/line-height applies
+    out.push(`<p>${inlineTransform(line)}</p>`);
+  });
+
+  closeList();
+  text = out.join("\n");
+
+  text = text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i, 10)]);
+  // Strip bare newlines between block elements (block tags control spacing)
+  text = text.replace(/\n/g, "");
+  return text;
+}
+
+async function pollInsightJob(jobId) {
+  const insightBody = document.getElementById("insight-body");
+  const insightStat = document.getElementById("insight-status");
+  stopInsightPoll();
+  if (insightStat) insightStat.textContent = "Queued";
+  if (insightBody) { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Waiting for AI analysis..."; }
+
+  const myToken = ++_insightToken;
+  _insightPollTimer = setInterval(async () => {
+    let resp;
+    try { resp = await fetch(`/api/insights/${jobId}`); }
+    catch (e) {
+      if (myToken !== _insightToken) return;
+      stopInsightPoll();
+      if (insightStat) insightStat.textContent = "Error";
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = "Network error polling insight."; }
+      setInsightBtnState(false);
+      return;
+    }
+    if (myToken !== _insightToken) return;
+    if (!resp.ok) {
+      stopInsightPoll();
+      if (insightStat) insightStat.textContent = "Error";
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = `Error ${resp.status} polling insight job.`; }
+      setInsightBtnState(false);
+      return;
+    }
+    const job = await resp.json();
+    if (myToken !== _insightToken) return;
+    if (insightStat) insightStat.textContent = job.state.toUpperCase();
+    if (job.state === "done") {
+      stopInsightPoll();
+      const md = (job.markdown || "").trim();
+      if (insightBody) {
+        insightBody.className = "insight-panel-body";
+        insightBody.innerHTML = md ? simpleMarkdown(md) : "<em>No insight returned.</em>";
+      }
+      setInsightBtnState(false);
+    } else if (job.state === "failed") {
+      stopInsightPoll();
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = job.error || "Insight generation failed."; }
+      setInsightBtnState(false);
+    }
+  }, 2500);
+}
+
+function wireInsightButton(teamName) {
+  const btn = document.getElementById("btn-insight");
+  if (!btn) return;
+
+  // Wire close button
+  const closeBtn = document.getElementById("insight-close");
+  const panel    = document.getElementById("insight-panel");
+  if (closeBtn && panel) {
+    closeBtn.addEventListener("click", () => {
+      stopInsightPoll();
+      panel.style.display = "none";
+      setInsightBtnState(false);
+      restoreInsightFocus();
+    });
+  }
+
+  btn.addEventListener("click", async () => {
+    const insightPanel = document.getElementById("insight-panel");
+    const insightBody  = document.getElementById("insight-body");
+    const insightStat  = document.getElementById("insight-status");
+    // Capture focus owner so we can restore it on close (avoids scroll-jump to #btn-insight)
+    if (insightPanel) insightPanel.dataset.prevFocus = document.activeElement?.id || "";
+    stopInsightPoll();
+    if (insightPanel) insightPanel.style.display = "block";
+    if (insightStat)  insightStat.textContent = "Starting";
+    if (insightBody)  { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Submitting insight request..."; }
+    setInsightBtnState(true);
+
+    // Build DSL: prefix with team context, AND-merge typed filter
+    let dsl = `team:"${teamName}"`;
+    if (_dslFilter) dsl = `${dsl} ${_dslFilter}`;
+
+    // Evaluated-only guard: exclude today's unresolved games from the AI context.
+    // Clamp to yesterday-ISR when no upper bound exists in the DSL.
+    const _dslHasDate = /(?:^|\s)date:/i.test(_dslFilter);
+    const todayISR = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
+    const [_gy, _gm, _gd] = todayISR.split("-").map(Number);
+    const _yesterdayDate = new Date(_gy, _gm - 1, _gd - 1);
+    const _yStr = `${_yesterdayDate.getFullYear()}-${String(_yesterdayDate.getMonth()+1).padStart(2,"0")}-${String(_yesterdayDate.getDate()).padStart(2,"0")}`;
+    const _hasUpper = /\bdate:<=/.test(dsl);
+    if (!_hasUpper && !_dslHasDate) {
+      console.warn("Insight: appending evaluated-only guard date:<=", _yStr);
+      dsl = `${dsl} date:<=${_yStr}`;
+    }
+
+    let resp;
+    try {
+      resp = await fetch("/api/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filter_dsl: dsl }),
+      });
+    } catch (e) {
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = "Network error submitting insight request."; }
+      setInsightBtnState(false);
+      return;
+    }
+
+    if (resp.status === 422) {
+      if (insightPanel) insightPanel.style.display = "none";
+      setInsightBtnState(false);
+      return;
+    }
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = err.detail || `Error ${resp.status}`; }
+      setInsightBtnState(false);
+      return;
+    }
+
+    const { job_id } = await resp.json();
+    pollInsightJob(job_id);
+  });
+}
+
+// ─── Restore focus after closing insight panel ───────────────────────────────
+// Prefers the element focused when the panel opened; falls back to #btn-insight
+// only when that element is gone or lives inside the panel.
+function restoreInsightFocus() {
+  const panel    = document.getElementById("insight-panel");
+  const prevId   = panel?.dataset.prevFocus || "";
+  const prevEl   = prevId ? document.getElementById(prevId) : null;
+  const fallback = document.getElementById("btn-insight");
+  const target   = (prevEl && !panel?.contains(prevEl)) ? prevEl : fallback;
+  target?.focus({ preventScroll: true });
+}
+
+// ─── Escape closes insight panel ─────────────────────────────────────────────
+// Document-level handler; skips when focus is inside a text input or modal.
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  const tag = (e.target.tagName || "").toUpperCase();
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  const panel = document.getElementById("insight-panel");
+  if (panel && panel.style.display !== "none") {
+    stopInsightPoll();
+    panel.style.display = "none";
+    setInsightBtnState(false);
+    restoreInsightFocus();
+  }
+});
+
+// ─── Keyboard pagination ──────────────────────────────────────────────────────
+// Arrow keys navigate the "All Bets" table when focus is in the table or paging
+// controls. The "Notable" table rarely exceeds 1 page, so only bets paging is wired.
+(function wireKeyboardPaging() {
+  document.addEventListener("keydown", e => {
+    const tag = (e.target.tagName || "").toUpperCase();
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+    const tableRegion = document.getElementById("bets-table");
+    const pagingRegion = document.getElementById("paging-bets");
+    const active = document.activeElement;
+    const inRegion = (tableRegion && tableRegion.contains(active)) ||
+                     (pagingRegion && pagingRegion.contains(active)) ||
+                     active === document.body || active === document.documentElement;
+    if (!inRegion) return;
+
+    const totalPages = Math.max(1, Math.ceil(_groups.length / _pageSize));
+
+    if (e.key === "ArrowLeft" || e.key === "PageUp") {
+      if (_currentPage <= 1) return;
+      e.preventDefault();
+      _currentPage--;
+      renderBetsPage();
+    } else if (e.key === "ArrowRight" || e.key === "PageDown") {
+      if (_currentPage >= totalPages) return;
+      e.preventDefault();
+      _currentPage++;
+      renderBetsPage();
+    } else if (e.key === "Home") {
+      if (_currentPage === 1) return;
+      e.preventDefault();
+      _currentPage = 1;
+      renderBetsPage();
+    } else if (e.key === "End") {
+      if (_currentPage === totalPages) return;
+      e.preventDefault();
+      _currentPage = totalPages;
+      renderBetsPage();
+    }
+  });
+})();
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 (async function init() {
   // Read slug from URL path: /team/<slug>
   const pathParts = window.location.pathname.split("/");
   const slug = pathParts[pathParts.length - 1] || "";
-  const teamName = decodeURIComponent(slug);
-
-  // Update page title with raw slug initially; updated to canonical after API responds
-  if (teamName) {
-    document.title = `SoccerSmartBet — ${teamName}`;
-    document.getElementById("page-title").innerHTML =
-      `${teamName.toUpperCase().slice(0, 20)}<br><em>STATS</em>`;
+  let teamName;
+  try {
+    teamName = decodeURIComponent(slug);
+  } catch (_e) {
+    teamName = slug; // malformed percent-encoding — use raw slug as fallback
+    const errEl2 = document.getElementById("error-msg");
+    if (errEl2) {
+      errEl2.textContent = "Team not found.";
+      errEl2.style.display = "block";
+    }
   }
 
-  const errEl = document.getElementById("error-msg");
+  if (teamName) {
+    document.title = `${teamName} · SoccerSmartBet`;
+    document.getElementById("page-title").innerHTML =
+      `${escHtml(teamName.toUpperCase().slice(0, 20))}<br><em>STATS</em>`;
+    const bc = document.getElementById("breadcrumb-current");
+    if (bc) bc.textContent = `Team: ${teamName}`;
+  }
+
+  const errEl    = document.getElementById("error-msg");
   const tbodyBets = document.getElementById("tbody-bets");
 
   let data;
@@ -230,7 +1026,7 @@ function renderBetRow(bet) {
     if (resp.status === 404) {
       errEl.textContent = `No bets found for team matching "${teamName}".`;
       errEl.style.display = "block";
-      tbodyBets.innerHTML = `<tr><td colspan="10" class="empty-state">No data.</td></tr>`;
+      if (tbodyBets) tbodyBets.innerHTML = `<tr><td colspan="5" class="empty-state">No bets found for this team.</td></tr>`;
       document.getElementById("history-section").style.display = "block";
       return;
     }
@@ -247,41 +1043,129 @@ function renderBetRow(bet) {
     return;
   }
 
-  // Update heading to canonical name returned by API
+  // Update heading to canonical name
   const canonical = data.team_name;
   if (canonical) {
-    document.title = `SoccerSmartBet — ${canonical}`;
+    document.title = `${canonical} · SoccerSmartBet`;
     document.getElementById("page-title").innerHTML =
-      `${canonical.toUpperCase().slice(0, 20)}<br><em>STATS</em>`;
+      `${escHtml(canonical.toUpperCase().slice(0, 20))}<br><em>STATS</em>`;
+    const bc = document.getElementById("breadcrumb-current");
+    if (bc) bc.textContent = `Team: ${canonical}`;
   }
 
-  // Summary block
-  const sumBlock = document.getElementById("summary-block");
-  sumBlock.style.display = "block";
-  document.getElementById("sum-bets").textContent = data.total_bets;
-  const wr = data.win_rate;
-  const wrEl = document.getElementById("sum-wr");
-  wrEl.textContent = wr !== null ? (wr * 100).toFixed(1) + "%" : "—";
-  wrEl.className = "summary-tile-value" + (wr !== null ? (wr >= 0.5 ? " pos" : " neg") : "");
-  document.getElementById("sum-stake").textContent = "NIS " + data.total_stake.toFixed(0);
-  const pnlEl = document.getElementById("sum-pnl");
-  pnlEl.textContent = (data.total_pnl >= 0 ? "+" : "") + data.total_pnl.toFixed(2);
-  pnlEl.className = "summary-tile-value" + (data.total_pnl >= 0 ? " pos" : " neg");
+  // Save canonical team name for server-side filter construction
+  _teamName = canonical || teamName;
 
-  // Notable games
+  // Restore DSL from URL BEFORE building groups
+  const _urlParams = new URLSearchParams(window.location.search);
+  const _urlFilter = _urlParams.get("filter") || "";
+  if (_urlFilter) {
+    _dslFilter = _urlFilter;
+    const dslInput = document.getElementById("filter-input");
+    if (dslInput) dslInput.value = _urlFilter;
+  }
+
+  // Initial bets load: server-side fetch with team pinned + optional URL filter
+  // This replaces the client-side filter on _rawBets from the stats endpoint
+  await fetchFilteredBets(_dslFilter);
+
+  // Wire insight button with resolved canonical team name
+  wireInsightButton(_teamName);
+
+  // Wire sort headers
+  SORT_COLS.forEach(col => {
+    const th = document.querySelector(`th[data-col="${col}"]`);
+    if (th) {
+      th.addEventListener("click", () => onSortClick(col));
+      th.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSortClick(col); }
+      });
+    }
+  });
+
+  // Wire paging — All Bets
+  document.getElementById("b-first").addEventListener("click", () => { _currentPage = 1; renderBetsPage(); });
+  document.getElementById("b-prev" ).addEventListener("click", () => { _currentPage--; renderBetsPage(); });
+  document.getElementById("b-next" ).addEventListener("click", () => { _currentPage++; renderBetsPage(); });
+  document.getElementById("b-last" ).addEventListener("click", () => {
+    _currentPage = Math.ceil(_groups.length / _pageSize) || 1; renderBetsPage();
+  });
+  document.getElementById("b-page-size").addEventListener("change", function () {
+    _pageSize = parseInt(this.value, 10); _currentPage = 1; renderBetsPage();
+  });
+
+  // Wire paging — Notable
+  document.getElementById("n-first").addEventListener("click", () => { _notableCurrentPage = 1; renderNotablePage(); });
+  document.getElementById("n-prev" ).addEventListener("click", () => { _notableCurrentPage--; renderNotablePage(); });
+  document.getElementById("n-next" ).addEventListener("click", () => { _notableCurrentPage++; renderNotablePage(); });
+  document.getElementById("n-last" ).addEventListener("click", () => {
+    _notableCurrentPage = Math.ceil(_notable.length / _notablePageSize) || 1; renderNotablePage();
+  });
+  document.getElementById("n-page-size").addEventListener("change", function () {
+    _notablePageSize = parseInt(this.value, 10); _notableCurrentPage = 1; renderNotablePage();
+  });
+
+  // Notable games — from API (pre-filtered top-5 by |pnl|)
+  // Convert flat bet list to game-groups (same pair-up logic)
   if (data.notable_games && data.notable_games.length > 0) {
-    document.getElementById("notable-section").style.display = "block";
-    document.getElementById("tbody-notable").innerHTML =
-      data.notable_games.map(renderNotableRow).join("");
+    // notable_games: flat bet rows, top-5 by |pnl|.
+    // Group them into pairs (the API may return individual bets or pairs)
+    const notableMap = new Map();
+    data.notable_games.forEach(bet => {
+      const key = `${bet.match_date}|${bet.home_team}|${bet.away_team}`;
+      if (!notableMap.has(key)) {
+        notableMap.set(key, {
+          match_date: bet.match_date,
+          league: bet.league || "",
+          home_team: bet.home_team,
+          away_team: bet.away_team,
+          home_score: bet.home_score,
+          away_score: bet.away_score,
+          userBet: null,
+          aiBet: null,
+        });
+      }
+      const g = notableMap.get(key);
+      if (bet.bettor === "user") g.userBet = bet;
+      else if (bet.bettor === "ai") g.aiBet = bet;
+      if (bet.home_score !== null && bet.home_score !== undefined) {
+        g.home_score = bet.home_score;
+        g.away_score = bet.away_score;
+      }
+    });
+    _notable = Array.from(notableMap.values());
+
+    if (_notable.length > 0) {
+      document.getElementById("notable-section").style.display = "block";
+      renderNotablePage();
+    }
   }
 
-  // Full bet history
+  // All Bets
+  // Show history section (fetchFilteredBets already populated and rendered)
   document.getElementById("history-section").style.display = "block";
-  if (data.bets && data.bets.length > 0) {
-    tbodyBets.innerHTML = data.bets.map(renderBetRow).join("");
-  } else {
-    tbodyBets.innerHTML = `<tr><td colspan="10" class="empty-state">No bets found.</td></tr>`;
-  }
+  updateSortHeaders();
+})();
+</script>
+
+<script type="module">
+import { createFilterBuilder } from "/static/filter-builder.js";
+
+(function initFilterBuilder() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialDsl = urlParams.get("filter") || "";
+
+  window._fb = createFilterBuilder({
+    container:   document.getElementById("fb-container"),
+    // Full filter set: bettor omitted (both bettors always shown side-by-side).
+    // League omitted too — team is pre-pinned server-side via /api/bets.
+    enabledKeys: ["date","month","stake","odds","outcome","result","prediction"],
+    initialDsl,
+    hiddenInput: document.getElementById("filter-input"),
+    onChange: (dsl) => {
+      onDslChange(dsl);
+    },
+  });
 })();
 </script>
 </body>

@@ -81,7 +81,7 @@ _RE_NUMERIC = re.compile(r"^-?\d+(\.\d+)?$")
 _RE_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # Matches a YYYY-MM year-month string (e.g. 2026-04)
 _RE_ISO_YEAR_MONTH = re.compile(r"^\d{4}-\d{2}$")
-_RE_CLAUSE = re.compile(r'^([a-zA-Z]+):("(?:[^"]*)"|[^\s]+)')
+_RE_CLAUSE = re.compile(r'^([a-zA-Z]+):((?:"[^"]*"|[^\s])+)')
 _RE_TOKEN_SPLIT = re.compile(r'"[^"]*"|[^,]+')
 
 
@@ -180,9 +180,13 @@ def parse(dsl: str) -> list[FilterClause]:
     An empty or whitespace-only string returns ``[]`` (match-everything).
 
     Repeated keys are allowed; each occurrence produces a separate clause.
-    The compiler groups same-key clauses with OR so both
+    The compiler groups same-key clauses with OR by default so both
     ``league:pl league:bundesliga`` and ``league:pl,bundesliga`` are
     semantically equivalent (both return games from either league).
+    Exception: when all same-key clauses use inequality-range operators
+    (gt / gte / lt / lte), the compiler AND-combines them so that
+    ``date:>=2026-04-20 date:<=2026-04-23`` produces a bounded range
+    rather than an OR-tautology that returns all rows.
 
     Args:
         dsl: Raw filter string from the user, e.g.
@@ -237,10 +241,14 @@ def parse(dsl: str) -> list[FilterClause]:
 # ---------------------------------------------------------------------------
 # Design decisions
 # ---------------------------------------------------------------------------
-# 1. Repeated keys: OR semantics within each key group.  ``league:pl league:bundesliga``
-#    compiles to ``(g.league ILIKE %(p0)s OR g.league ILIKE %(p1)s)`` — equivalent to
+# 1. Repeated keys: OR semantics within each key group by default.
+#    ``league:pl league:bundesliga`` compiles to
+#    ``(g.league ILIKE %(p0)s OR g.league ILIKE %(p1)s)`` — equivalent to
 #    the comma-list form ``league:pl,bundesliga``.  Both forms are accepted and produce
-#    the same result set.  Distinct keys are still AND-combined across groups.
+#    the same result set.  Distinct keys are AND-combined across groups.
+#    Exception (compiler-side): when all same-key clauses use inequality-range ops
+#    (gt / gte / lt / lte), the compiler AND-combines them instead of OR-combining,
+#    so that ``date:>=2026-04-20 date:<=2026-04-23`` produces a bounded date range.
 #
 # 2. Multi-word team slugs: bare hyphens expand to spaces
 #    (``real-madrid`` → ``real madrid``).  Quoted values are verbatim.

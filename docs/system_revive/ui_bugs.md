@@ -1,0 +1,24 @@
+# UI Bug Tracker — SoccerSmartBet Operator Dashboard
+
+## Fixed
+
+| ID | Description | Commit | Notes |
+|----|-------------|--------|-------|
+| U1 | AI bets editable | d9f6e09 | Merged-row redesign puts Edit button only on USER sub-row; AI sub-row gets an empty `<td class="col-edit--empty">` — no button, no cursor. |
+| U2 | Locked-row edit form opens | d9f6e09 | Per-day lock model in `tickChips` disables ALL edit buttons when earliest kickoff ≤ 30 min away; `cancelEdit()` is also called on lock transition. |
+| U_REDESIGN | Merged-row table redesign — Today, History, Team | d9f6e09 | Replaced flat per-bet rows with rowspan=2 game-groups across all three pages. 7-col Today, 5-col History/Team. USER always top, AI always bottom, separator row between groups. |
+| U_CHROME | Ping banner + footer wave label removed | d9f6e09 | Deleted `masthead-accent` block and footer wave-label string from all 5 static pages (today, history, team, league, pnl). |
+| U_STATS | Top-row stats redesign — USER/AI split tiles, flow timeline pill | d9f6e09 | Today status strip collapsed to single flow-timeline pill (Pre-Gambling → Gambling → Post-Games \| Last error). Attempt tile removed. History/Team show USER and AI aggregate tiles side-by-side. |
+| F5 | Atlético team-stats 404 on accented/prefixed stored names | d5c7488 | Added `get_normalized_variants()` to team registry; replaced ILIKE pattern query with Python-side accent-folded matching. |
+| U8 | Sortable column headers updated icon but did not re-sort rows | 1d086c3 | Added `_groups = sortGroups(_groups)` before `renderPage()` in `history.html` `onSortClick`. |
+| U9 | League page missed in dashboard redesign — added merged rows, sort, paging, calendar, split stats, evaluated-only filter | d11b3ea | Replaced 9-column flat layout with merged-row game-groups mirroring team.html; onSortClick calls sortGroups(buildGroups(_rawBets)) so sort actually re-orders rows. |
+
+## Open
+
+| ID | Description | Notes |
+|----|-------------|-------|
+| U3 | DSL autocomplete misfires on partial tokens | Out of scope for this pass. |
+| U4 | DSL autocomplete — partial token suggestions | Out of scope for current dispatch. |
+| U5 | Button widths inconsistent across viewport sizes | Out of scope. |
+| U6 | Override/Regenerate actions should merge into single confirm flow | Out of scope. |
+| U7 | P&L tooltip math off by one day | Out of scope. |

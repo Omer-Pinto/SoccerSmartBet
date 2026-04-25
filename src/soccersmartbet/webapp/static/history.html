@@ -8,8 +8,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/shared.css">
+<link rel="stylesheet" href="/static/filter-builder.css">
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to main content</a>
 
 <!-- ═══════════════════════════════════════════
      MASTHEAD
@@ -26,18 +28,13 @@
       </div>
       <div class="masthead-date" id="masthead-date"></div>
     </div>
-    <div class="masthead-accent">
-      <div class="masthead-accent-text">
-        WAVE 12<br>STATS<br>HISTORY
-      </div>
-    </div>
   </div>
 </header>
 
 <!-- ═══════════════════════════════════════════
      NAV
 ═══════════════════════════════════════════ -->
-<nav class="nav-bar">
+<nav class="nav-bar" aria-label="Main navigation">
   <div class="nav-bar-inner">
     <a class="nav-tab" href="/today">Today</a>
     <a class="nav-tab active" href="/history">History</a>
@@ -46,54 +43,80 @@
 </nav>
 
 <!-- ═══════════════════════════════════════════
-     AGGREGATE STRIP
+     USER / AI AGGREGATION TILES
 ═══════════════════════════════════════════ -->
-<div class="status-strip">
+<div class="status-strip" id="agg-strip" style="display:none;">
   <div class="status-strip-inner">
-    <div class="stat-tile">
-      <div class="stat-tile-label">Bets</div>
-      <div class="stat-tile-value" id="agg-count"><span class="sub">&mdash;</span></div>
-    </div>
-    <div class="stat-tile">
-      <div class="stat-tile-label">Win Rate</div>
-      <div class="stat-tile-value" id="agg-win-rate"><span class="sub">&mdash;</span></div>
-    </div>
-    <div class="stat-tile">
-      <div class="stat-tile-label">Total Stake</div>
-      <div class="stat-tile-value" id="agg-stake"><span class="sub">&mdash;</span></div>
-    </div>
-    <div class="stat-tile">
-      <div class="stat-tile-label">Total P&amp;L</div>
-      <div class="stat-tile-value" id="agg-pnl"><span class="sub">&mdash;</span></div>
-    </div>
-    <div class="stat-tile">
-      <div class="stat-tile-label">Row Cap</div>
-      <div class="stat-tile-value" id="agg-cap"><span class="sub">&mdash;</span></div>
-    </div>
+    <!-- filled by JS -->
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════
      PAGE BODY
 ═══════════════════════════════════════════ -->
-<main class="page-body">
+<main class="page-body" id="main" tabindex="-1">
+
+  <!-- USER / AI SIDE-BY-SIDE STATS BLOCK -->
+  <div class="split-stats-block" id="split-stats" style="display:none;">
+    <div class="split-stats-stripe"><span></span><span></span><span></span></div>
+    <div class="split-stats-header">
+      <div class="split-stats-row-label"></div>
+      <div class="split-stats-cell split-stats-col-label user-col">USER</div>
+      <div class="split-stats-cell split-stats-col-label ai-col">AI</div>
+    </div>
+    <div class="split-stats-rows">
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Total Bets</div>
+        <div class="split-stats-cell" id="h-user-bets">&mdash;</div>
+        <div class="split-stats-cell" id="h-ai-bets">&mdash;</div>
+      </div>
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Win Rate</div>
+        <div class="split-stats-cell" id="h-user-wr">&mdash;</div>
+        <div class="split-stats-cell" id="h-ai-wr">&mdash;</div>
+      </div>
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Total Stake</div>
+        <div class="split-stats-cell" id="h-user-stake">&mdash;</div>
+        <div class="split-stats-cell" id="h-ai-stake">&mdash;</div>
+      </div>
+      <div class="split-stats-row">
+        <div class="split-stats-row-label">Total P&amp;L</div>
+        <div class="split-stats-cell" id="h-user-pnl">&mdash;</div>
+        <div class="split-stats-cell" id="h-ai-pnl">&mdash;</div>
+      </div>
+    </div>
+  </div>
 
   <!-- FILTER BAR -->
   <div class="filter-bar">
-    <div class="filter-input-wrap">
-      <div class="filter-label">Filter DSL</div>
-      <input class="filter-input" id="filter-input" type="text"
-             placeholder="league:pl  date:2026-04  bettor:user  result:1 ..."
-             autocomplete="off" spellcheck="false">
-      <div class="filter-hint">
-        Keys: league, team, date, month, stake, odds, outcome, bettor, prediction, result
-        &nbsp;&middot;&nbsp; Ranges: &gt;2.5, 1.5-3.0 &nbsp;&middot;&nbsp; Lists: pl,bundesliga
-        &nbsp;&middot;&nbsp; Negation: !draw
-      </div>
+    <div class="filter-input-wrap" style="flex:1;min-width:0;">
+      <div class="filter-label">Filters</div>
+      <!-- Filter builder mount point — chips rendered here by filter-builder.js -->
+      <div id="fb-container"></div>
+      <!-- Hidden input kept for backwards-compat: downstream JS reads .value -->
+      <input type="hidden" id="filter-input" value="">
+      <!-- Inline DSL error (shown when API rejects the filter) -->
+      <div id="dsl-error" class="dsl-error" role="alert" aria-live="polite"></div>
+      <div id="dsl-hint" class="dsl-hint"></div>
     </div>
-    <button class="btn btn-insight" id="btn-insight" disabled>
+    <button type="button" class="btn btn-insight" id="btn-insight" disabled
+            title="AI analysis of your current filter (10-30 sec)">
       Generate Insight
     </button>
+  </div>
+
+  <!-- INSIGHT PANEL — positioned immediately below filter bar so it feels
+       like a direct response to the Generate Insight button above -->
+  <div class="insight-panel" id="insight-panel" style="display:none;margin-top:-4px;margin-bottom:24px;">
+    <div class="insight-panel-header">
+      <div class="insight-panel-title">AI Insight</div>
+      <div class="insight-panel-actions">
+        <div class="insight-panel-status" id="insight-status"></div>
+        <button type="button" class="insight-panel-close" id="insight-close" aria-label="Close insight panel" title="Close">&times;</button>
+      </div>
+    </div>
+    <div class="insight-panel-body" id="insight-body" tabindex="0">Waiting&hellip;</div>
   </div>
 
   <!-- SECTION LABEL -->
@@ -102,35 +125,52 @@
     <h2>Filtered Results</h2>
   </div>
 
-  <!-- BET TABLE -->
-  <table class="matches-table">
+  <!-- Row cap warning (injected by JS if needed) -->
+  <div id="row-cap-banner" class="row-cap-banner" style="display:none;">
+    Showing partial results — filter matched &gt;2000 bets. Tighten your filter to see the full series.
+  </div>
+
+  <!-- Paging summary -->
+  <div class="paging-summary" id="paging-summary"></div>
+
+  <!-- BET TABLE — 5-column merged-row -->
+  <div class="table-scroll-wrap">
+  <table class="matches-table merged-row-table" id="history-table">
     <thead>
       <tr>
-        <th>Date</th>
-        <th>Kickoff</th>
-        <th>League</th>
-        <th>Match</th>
-        <th class="center">Bettor</th>
-        <th class="center">Pick</th>
-        <th class="center">Odds</th>
-        <th class="center">Stake</th>
-        <th class="center">Result</th>
-        <th class="center">P&amp;L</th>
+        <th class="sortable" data-col="date" aria-sort="descending" tabindex="0">
+          Date <span class="sort-icon" id="sort-icon-date" aria-hidden="true">&#9660;</span>
+        </th>
+        <th class="sortable" data-col="league" aria-sort="none" tabindex="0">
+          League <span class="sort-icon sort-icon--inactive" id="sort-icon-league" aria-hidden="true">&#8597;</span>
+        </th>
+        <th class="sortable" data-col="match" aria-sort="none" tabindex="0">
+          Match + Score <span class="sort-icon sort-icon--inactive" id="sort-icon-match" aria-hidden="true">&#8597;</span>
+        </th>
+        <th>Prediction / Odds / Stake</th>
+        <th>Result / P&amp;L</th>
       </tr>
     </thead>
     <tbody id="tbody-history">
-      <tr><td colspan="10" class="empty-state">Loading&hellip;</td></tr>
+      <tr><td colspan="5" class="empty-state is-loading">Loading<span class="loading-dots"><span></span><span></span><span></span></span></td></tr>
     </tbody>
   </table>
-
-  <!-- INSIGHT PANEL (hidden until triggered) -->
-  <div class="insight-panel" id="insight-panel" style="display:none;">
-    <div class="insight-panel-header">
-      <div class="insight-panel-title">AI Insight</div>
-      <div id="insight-status" style="font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:1px;text-transform:uppercase;"></div>
-    </div>
-    <div class="insight-panel-body" id="insight-body">Waiting&hellip;</div>
   </div>
+
+  <!-- Paging controls -->
+  <div class="paging-controls" id="paging-controls" style="display:none;">
+    <button type="button" class="page-btn" id="h-first" aria-label="First page">&laquo;</button>
+    <button type="button" class="page-btn" id="h-prev" aria-label="Previous page">&lsaquo;</button>
+    <span class="page-info" id="h-page-info"></span>
+    <button type="button" class="page-btn" id="h-next" aria-label="Next page">&rsaquo;</button>
+    <button type="button" class="page-btn" id="h-last" aria-label="Last page">&raquo;</button>
+    <select class="page-size-select" id="h-page-size" aria-label="Rows per page">
+      <option value="25" selected>25 / page</option>
+      <option value="50">50 / page</option>
+      <option value="100">100 / page</option>
+    </select>
+  </div>
+
 
 </main>
 
@@ -139,7 +179,7 @@
 ═══════════════════════════════════════════ -->
 <footer class="page-footer">
   <div class="footer-brand">SoccerSmartBet</div>
-  <div class="footer-info">History &nbsp;&middot;&nbsp; Wave 12 &nbsp;&middot;&nbsp; ISR Timezone</div>
+  <div class="footer-info">History &nbsp;<span class="footer-sep">&middot;</span>&nbsp; ISR Timezone</div>
 </footer>
 
 <script>
@@ -162,51 +202,22 @@
 function getFilterFromUrl() {
   return new URLSearchParams(window.location.search).get("filter") || "";
 }
-
-function pushFilterToUrl(dsl) {
+function pushStateToUrl(dsl) {
   const params = new URLSearchParams(window.location.search);
-  if (dsl) {
-    params.set("filter", dsl);
-  } else {
-    params.delete("filter");
-  }
+  if (dsl) { params.set("filter", dsl); } else { params.delete("filter"); }
+  // Silently drop legacy from/to params if present in bookmarked URLs
+  params.delete("from");
+  params.delete("to");
   const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
   history.replaceState(null, "", newUrl);
 }
+function pushFilterToUrl(dsl) { pushStateToUrl(dsl); }
 
-// ─── DOM refs ────────────────────────────────────────────────────────────────
-const filterInput  = document.getElementById("filter-input");
-const tbody        = document.getElementById("tbody-history");
-const btnInsight   = document.getElementById("btn-insight");
-const insightPanel = document.getElementById("insight-panel");
-const insightBody  = document.getElementById("insight-body");
-const insightStat  = document.getElementById("insight-status");
-
-let _lastDsl = "";
-let _insightPollTimer = null;
-
-// ─── Aggregates display ──────────────────────────────────────────────────────
-function setAgg(agg) {
-  document.getElementById("agg-count").textContent = agg.count.toLocaleString();
-
-  const wr = agg.win_rate;
-  const wrEl = document.getElementById("agg-win-rate");
-  wrEl.innerHTML = wr !== null && wr !== undefined
-    ? `<span class="${wr >= 0.5 ? 'pos' : 'neg'}">${(wr * 100).toFixed(1)}%</span>`
-    : `<span class="sub">&mdash;</span>`;
-
-  document.getElementById("agg-stake").textContent =
-    "NIS " + agg.total_stake.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
-  const pnlEl = document.getElementById("agg-pnl");
-  const pnlSign = agg.total_pnl >= 0 ? "+" : "";
-  pnlEl.innerHTML = `<span class="${agg.total_pnl >= 0 ? 'pos' : 'neg'}">${pnlSign}${agg.total_pnl.toFixed(2)}</span>`;
-
-  const capEl = document.getElementById("agg-cap");
-  // row_cap_hit shown later after fetch
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
-
-// ─── Table rendering ─────────────────────────────────────────────────────────
 function resultClass(pnl) {
   if (pnl === null || pnl === undefined) return "result-open";
   return pnl > 0 ? "result-win" : "result-loss";
@@ -223,54 +234,461 @@ function pnlClass(pnl) {
 }
 function pnlLabel(pnl) {
   if (pnl === null || pnl === undefined) return "&mdash;";
-  const sign = pnl >= 0 ? "+" : "";
-  return sign + pnl.toFixed(2);
+  return (pnl >= 0 ? "+" : "") + pnl.toFixed(2);
 }
 function leagueClass(league) {
   const l = (league || "").toLowerCase().replace(/\s/g, "");
   if (l.includes("premier")) return "premier";
-  if (l.includes("laliga") || l.includes("liga")) return "laliga";
   if (l.includes("bundesliga")) return "bundesliga";
+  if (l.includes("laliga") || l.includes("liga") || l.includes("primeradivision")) return "laliga";
   if (l.includes("seriea") || l.includes("serie")) return "seriea";
   return "";
 }
+function leagueDisplay(league) {
+  // U3: normalise legacy alias → canonical UI label (DB unchanged)
+  if ((league || "").trim().toLowerCase() === "primera division") return "La Liga";
+  return league;
+}
+function todayISR() {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
+}
 
-function renderRows(rows) {
-  if (!rows || rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No bets found for this filter.</td></tr>`;
+// ─── State ───────────────────────────────────────────────────────────────────
+let _allRows    = [];     // raw flat bets from API
+let _groups     = [];     // game-groups after filtering+sorting
+let _pageSize   = 25;
+let _currentPage= 1;
+let _sortCol    = "date"; // "date" | "league" | "match"
+let _sortDir    = "desc"; // "asc" | "desc" | null (null = default: date desc)
+
+// ─── Grouping ─────────────────────────────────────────────────────────────────
+/**
+ * Build game-groups from flat bet rows.
+ * A game = pair of bets sharing (match_date, home_team, away_team).
+ * Each group: { match_date, league, home_team, away_team, home_score, away_score, userBet, aiBet }
+ * Evaluated-only filter: hide entire group if either bet has null result or null pnl.
+ * Anomaly: one resolved / one not → console.warn + hide.
+ */
+function buildGroups(rows) {
+  const todayStr = todayISR();
+  const map = new Map();
+
+  rows.forEach(bet => {
+    const key = `${bet.match_date}|${bet.home_team}|${bet.away_team}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        match_date: bet.match_date,
+        league: bet.league,
+        home_team: bet.home_team,
+        away_team: bet.away_team,
+        home_score: bet.home_score,
+        away_score: bet.away_score,
+        userBet: null,
+        aiBet: null,
+      });
+    }
+    const g = map.get(key);
+    if (bet.bettor === "user") g.userBet = bet;
+    else if (bet.bettor === "ai") g.aiBet = bet;
+    // Carry through score from whichever bet has it
+    if (bet.home_score !== null && bet.home_score !== undefined) {
+      g.home_score = bet.home_score;
+      g.away_score = bet.away_score;
+    }
+  });
+
+  const today = todayStr;
+  let groups = Array.from(map.values()).filter(g => {
+    const u = g.userBet;
+    const a = g.aiBet;
+
+    // Keep the group if at least one bet is present AND every present bet is evaluated
+    // (result non-null AND pnl non-null). Works for both today's and past games,
+    // and for single-bettor filters (bettor:ai or bettor:user).
+    if (!u && !a) return false;
+    const isEvaluated = bet => bet.result !== null && bet.result !== undefined &&
+                                bet.pnl   !== null && bet.pnl   !== undefined;
+    if (u && !isEvaluated(u)) return false;
+    if (a && !isEvaluated(a)) return false;
+    return true;
+  });
+
+  return groups;
+}
+
+// ─── Sort ────────────────────────────────────────────────────────────────────
+function sortGroups(groups) {
+  const sorted = [...groups];
+
+  function dateCmp(a, b) {
+    // Default: date desc, then home_team asc
+    if (a.match_date < b.match_date) return 1;
+    if (a.match_date > b.match_date) return -1;
+    return a.home_team.localeCompare(b.home_team);
+  }
+
+  if (_sortCol === "date") {
+    if (_sortDir === "asc") {
+      sorted.sort((a, b) => {
+        if (a.match_date < b.match_date) return -1;
+        if (a.match_date > b.match_date) return 1;
+        return a.home_team.localeCompare(b.home_team);
+      });
+    } else {
+      sorted.sort(dateCmp);
+    }
+  } else if (_sortCol === "league") {
+    sorted.sort((a, b) => {
+      const c = a.league.localeCompare(b.league);
+      return _sortDir === "asc" ? c : -c;
+    });
+  } else if (_sortCol === "match") {
+    sorted.sort((a, b) => {
+      const c = a.home_team.localeCompare(b.home_team);
+      return _sortDir === "asc" ? c : -c;
+    });
+  }
+
+  return sorted;
+}
+
+// ─── Sort header click ────────────────────────────────────────────────────────
+const SORT_COLS = ["date", "league", "match"];
+
+function onSortClick(col) {
+  if (_sortCol === col) {
+    // Cycle: asc → desc → reset (default date desc)
+    if (_sortDir === "asc") {
+      _sortDir = "desc";
+    } else if (_sortDir === "desc") {
+      // Reset to default
+      _sortCol = "date";
+      _sortDir = "desc";
+    }
+  } else {
+    _sortCol = col;
+    _sortDir = "asc";
+  }
+  _currentPage = 1;
+  updateSortHeaders();
+  _groups = sortGroups(_groups);
+  renderPage();
+}
+
+function updateSortHeaders() {
+  SORT_COLS.forEach(col => {
+    const th = document.querySelector(`th[data-col="${col}"]`);
+    const icon = document.getElementById(`sort-icon-${col}`);
+    if (!th || !icon) return;
+    if (_sortCol === col) {
+      th.setAttribute("aria-sort", _sortDir === "asc" ? "ascending" : "descending");
+      icon.className = "sort-icon";
+      icon.innerHTML = _sortDir === "asc" ? "&#9650;" : "&#9660;";
+    } else {
+      th.setAttribute("aria-sort", "none");
+      icon.className = "sort-icon sort-icon--inactive";
+      icon.innerHTML = "&#8597;";
+    }
+  });
+}
+
+// ─── USER/AI split stats ──────────────────────────────────────────────────────
+function computeSplitStats(groups) {
+  const stats = {
+    user: { bets: 0, wins: 0, stake: 0, pnl: 0 },
+    ai:   { bets: 0, wins: 0, stake: 0, pnl: 0 },
+  };
+
+  groups.forEach(g => {
+    ["userBet", "aiBet"].forEach(field => {
+      const bet = g[field];
+      if (!bet) return;
+      const who = bet.bettor;
+      if (!stats[who]) return;
+      stats[who].bets++;
+      stats[who].stake += parseFloat(bet.stake) || 0;
+      if (bet.pnl !== null && bet.pnl !== undefined) {
+        stats[who].pnl += parseFloat(bet.pnl);
+        if (parseFloat(bet.pnl) > 0) stats[who].wins++;
+      }
+    });
+  });
+
+  return stats;
+}
+
+function renderSplitStats(groups, rowCapHit) {
+  const stats = computeSplitStats(groups);
+  const block = document.getElementById("split-stats");
+  if (!block) return;
+  block.style.display = "block";
+
+  function wrPct(s) {
+    if (s.bets === 0) return "&mdash;";
+    return (s.wins / s.bets * 100).toFixed(1) + "%";
+  }
+  function wrClass(s) {
+    if (s.bets === 0) return "";
+    return (s.wins / s.bets) >= 0.5 ? "pos" : "neg";
+  }
+
+  const setCell = (id, html, cls) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = html;
+    el.className = "split-stats-cell" + (cls ? " " + cls : "");
+  };
+
+  setCell("h-user-bets",  stats.user.bets.toLocaleString(), "");
+  setCell("h-ai-bets",    stats.ai.bets.toLocaleString(),   "");
+  setCell("h-user-wr",    wrPct(stats.user), wrClass(stats.user));
+  setCell("h-ai-wr",      wrPct(stats.ai),   wrClass(stats.ai));
+  setCell("h-user-stake", "NIS " + Math.round(stats.user.stake).toLocaleString(), "");
+  setCell("h-ai-stake",   "NIS " + Math.round(stats.ai.stake).toLocaleString(),   "");
+
+  const uPnl = stats.user.pnl;
+  const aPnl = stats.ai.pnl;
+  setCell("h-user-pnl",
+    (uPnl >= 0 ? "+" : "") + uPnl.toFixed(2),
+    uPnl >= 0 ? "pos" : "neg");
+  setCell("h-ai-pnl",
+    (aPnl >= 0 ? "+" : "") + aPnl.toFixed(2),
+    aPnl >= 0 ? "pos" : "neg");
+}
+
+// ─── Table rendering (merged-row) ─────────────────────────────────────────────
+function renderRows(groups) {
+  const tbody = document.getElementById("tbody-history");
+  if (!tbody) return;
+
+  if (groups.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No evaluated bets match this filter.</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map(bet => {
-    const slug = encodeURIComponent(bet.home_team);
-    const awaySlug = encodeURIComponent(bet.away_team);
-    const leagueSlug = encodeURIComponent(bet.league);
-    const lClass = leagueClass(bet.league);
-    return `<tr>
-      <td class="match-date-cell">${bet.match_date}</td>
-      <td class="kickoff-time">${bet.kickoff_time}</td>
-      <td><a class="league-pill ${lClass}" href="/league/${leagueSlug}" title="${bet.league}">${bet.league}</a></td>
-      <td class="team-name">
-        <a href="/team/${slug}">${bet.home_team}</a>
-        <span class="vs-sep">vs</span>
-        <a href="/team/${awaySlug}">${bet.away_team}</a>
-        ${bet.home_score !== null ? `<span style="font-size:11px;color:var(--text-sub);margin-left:6px;">(${bet.home_score}–${bet.away_score})</span>` : ""}
-      </td>
-      <td class="bet-cell ${bet.bettor === 'user' ? 'bet-user' : 'bet-ai'}">${bet.bettor.toUpperCase()}</td>
-      <td class="bet-cell">${bet.prediction.toUpperCase()}</td>
-      <td class="odds-cell">${parseFloat(bet.odds).toFixed(2)}</td>
-      <td class="bet-cell">${parseFloat(bet.stake).toFixed(0)}</td>
-      <td class="bet-cell"><span class="result-badge ${resultClass(bet.pnl)}">${resultLabel(bet)}</span></td>
-      <td class="bet-cell"><span class="${pnlClass(bet.pnl)}">${pnlLabel(bet.pnl)}</span></td>
-    </tr>`;
-  }).join("");
+
+  tbody.innerHTML = "";
+
+  groups.forEach((group, groupIdx) => {
+    const {
+      match_date, league, home_team, away_team, home_score, away_score,
+      userBet, aiBet,
+    } = group;
+
+    const isEven = groupIdx % 2 === 0;
+    const rowCls = "game-row " + (isEven ? "game-row--even" : "game-row--odd");
+    const leagueCls = leagueClass(league);
+    const leagueSlug = encodeURIComponent(league);
+    const homeSlug  = encodeURIComponent(home_team);
+    const awaySlug  = encodeURIComponent(away_team);
+
+    const scoreHtml = (home_score !== null && home_score !== undefined)
+      ? `<span style="font-size:11px;color:var(--text-sub);margin-left:6px;">(${home_score}&ndash;${away_score})</span>`
+      : "";
+
+    // Determine single-bettor anomaly
+    const bets = [];
+    if (userBet) bets.push({ bet: userBet, label: "USER", labelCls: "bet-user" });
+    if (aiBet)   bets.push({ bet: aiBet,   label: "AI",   labelCls: "bet-ai" });
+
+    if (bets.length === 0) return; // safety
+
+    if (bets.length === 1) {
+      // Single-bettor: plain row, no rowspan
+      const { bet, label, labelCls } = bets[0];
+      const tr = document.createElement("tr");
+      tr.className = rowCls + " game-row--top";
+      tr.innerHTML = `
+        <td class="match-date-cell">${escHtml(match_date)}</td>
+        <td><a class="league-pill ${leagueCls}" href="/league/${leagueSlug}">${escHtml(leagueDisplay(league))}</a></td>
+        <td class="team-name">
+          <a href="/team/${homeSlug}">${escHtml(home_team)}</a>
+          <span class="vs-sep">vs</span>
+          <a href="/team/${awaySlug}">${escHtml(away_team)}</a>
+          ${scoreHtml}
+        </td>
+        <td class="col-bet">
+          <span class="bettor-label ${labelCls}">${label}</span>
+          ${escHtml((bet.prediction || "").toUpperCase())}
+          <span class="sep">/</span>
+          <span class="odds-val">${parseFloat(bet.odds || 0).toFixed(2)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(bet.stake || 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+        </td>
+        <td class="col-result">
+          <span class="result-badge ${resultClass(bet.pnl)}">${resultLabel(bet)}</span>
+          <br><span class="${pnlClass(bet.pnl)}">${pnlLabel(bet.pnl)}</span>
+        </td>`;
+      tbody.appendChild(tr);
+    } else {
+      // Two-bettor: merged-row with rowspan=2 on left cells
+      const [topEntry, botEntry] = bets; // USER first (already sorted above)
+
+      // Ensure USER is always top
+      const topBet = userBet || bets[0].bet;
+      const topLabel = userBet ? "USER" : bets[0].label;
+      const topLabelCls = userBet ? "bet-user" : bets[0].labelCls;
+      const botBet = aiBet || bets[1].bet;
+      const botLabel = aiBet ? "AI" : bets[1].label;
+      const botLabelCls = aiBet ? "bet-ai" : bets[1].labelCls;
+
+      // Top row
+      const trTop = document.createElement("tr");
+      trTop.className = rowCls + " game-row--top";
+      trTop.innerHTML = `
+        <td rowspan="2" class="match-date-cell">${escHtml(match_date)}</td>
+        <td rowspan="2"><a class="league-pill ${leagueCls}" href="/league/${leagueSlug}">${escHtml(leagueDisplay(league))}</a></td>
+        <td rowspan="2" class="team-name">
+          <a href="/team/${homeSlug}">${escHtml(home_team)}</a>
+          <span class="vs-sep">vs</span>
+          <a href="/team/${awaySlug}">${escHtml(away_team)}</a>
+          ${scoreHtml}
+        </td>
+        <td class="col-bet">
+          <span class="bettor-label ${topLabelCls}">${topLabel}</span>
+          ${escHtml((topBet.prediction || "").toUpperCase())}
+          <span class="bet-odds"> @ ${parseFloat(topBet.odds || 0).toFixed(2)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(topBet.stake || 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+        </td>
+        <td class="col-result">
+          <span class="result-badge ${resultClass(topBet.pnl)}">${resultLabel(topBet)}</span>
+          <br><span class="${pnlClass(topBet.pnl)}">${pnlLabel(topBet.pnl)}</span>
+        </td>`;
+      tbody.appendChild(trTop);
+
+      // Bottom row
+      const trBot = document.createElement("tr");
+      trBot.className = rowCls + " game-row--bottom";
+      trBot.innerHTML = `
+        <td class="col-bet">
+          <span class="bettor-label ${botLabelCls}">${botLabel}</span>
+          ${escHtml((botBet.prediction || "").toUpperCase())}
+          <span class="bet-odds"> @ ${parseFloat(botBet.odds || 0).toFixed(2)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(botBet.stake || 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+        </td>
+        <td class="col-result">
+          <span class="result-badge ${resultClass(botBet.pnl)}">${resultLabel(botBet)}</span>
+          <br><span class="${pnlClass(botBet.pnl)}">${pnlLabel(botBet.pnl)}</span>
+        </td>`;
+      tbody.appendChild(trBot);
+    }
+
+    // Separator
+    const sep = document.createElement("tr");
+    sep.className = "game-group-separator";
+    sep.setAttribute("aria-hidden", "true");
+    sep.innerHTML = `<td colspan="5"></td>`;
+    tbody.appendChild(sep);
+  });
+
+  // Hover delegation
+  wireHoverDelegation(tbody);
+}
+
+// Hover delegation — wired once on the stable tbody element, not per render.
+// Called only once after DOM ready; re-renders replace tbody content but the
+// element itself stays, so this listener is never stale.
+function wireHoverDelegationOnce(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody || tbody._hoverWired) return;
+  tbody._hoverWired = true;
+  // Use mouseover/mouseout (which bubble) instead of mouseenter/mouseleave (which don't).
+  tbody.addEventListener("mouseover", e => {
+    const row = e.target.closest("tr.game-row");
+    if (!row) return;
+    const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
+    const bot = top ? top.nextElementSibling : null;
+    if (top && top.classList.contains("game-row")) top.classList.add("row-hover");
+    if (bot && bot.classList.contains("game-row")) bot.classList.add("row-hover");
+  });
+  tbody.addEventListener("mouseout", e => {
+    const row = e.target.closest("tr.game-row");
+    if (!row) return;
+    const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
+    const bot = top ? top.nextElementSibling : null;
+    if (top) top.classList.remove("row-hover");
+    if (bot) bot.classList.remove("row-hover");
+  });
+}
+// Shim so renderRows can call the old name without change
+function wireHoverDelegation(tbody) { /* no-op: handled by wireHoverDelegationOnce */ }
+
+// ─── Paging ───────────────────────────────────────────────────────────────────
+function renderPage() {
+  const total = _groups.length;
+  const totalPages = Math.max(1, Math.ceil(total / _pageSize));
+  _currentPage = Math.max(1, Math.min(_currentPage, totalPages));
+
+  const start = (_currentPage - 1) * _pageSize;
+  const end   = Math.min(start + _pageSize, total);
+  const slice = _groups.slice(start, end);
+
+  const sumEl = document.getElementById("paging-summary");
+  if (sumEl) {
+    sumEl.textContent = total === 0
+      ? "No evaluated games found"
+      : `Showing ${start + 1}–${end} of ${total} games`;
+  }
+
+  const pagingEl = document.getElementById("paging-controls");
+  if (pagingEl) pagingEl.style.display = totalPages > 1 ? "flex" : "none";
+
+  const infoEl = document.getElementById("h-page-info");
+  if (infoEl) infoEl.textContent = `Page ${_currentPage} of ${totalPages}`;
+
+  const updBtn = (id, disabled) => { const el = document.getElementById(id); if (el) el.disabled = disabled; };
+  updBtn("h-first", _currentPage === 1);
+  updBtn("h-prev",  _currentPage === 1);
+  updBtn("h-next",  _currentPage === totalPages);
+  updBtn("h-last",  _currentPage === totalPages);
+
+  renderRows(slice);
 }
 
 // ─── Fetch & render ──────────────────────────────────────────────────────────
 let _debounceTimer = null;
+let _lastDsl = "";
+let _insightPollTimer = null;
+let _insightToken = 0;
+let _fetchGen = 0; // monotonic counter — discards stale fetch responses
+
+function setDslError(msg) {
+  const el = document.getElementById("dsl-error");
+  if (!el) return;
+  if (msg) {
+    el.textContent = msg;
+    el.style.display = "block"; // override .dsl-error default of display:none
+  } else {
+    el.textContent = "";
+    el.style.display = ""; // revert to class default (display:none)
+  }
+}
+
+/** Client-side "did you mean" hint for league values with unquoted spaces */
+function checkDslHint(dsl) {
+  const hintEl = document.getElementById("dsl-hint");
+  if (!hintEl) return;
+  if (!dsl) { hintEl.style.display = "none"; hintEl.textContent = ""; return; }
+
+  // Detect: league:some value with spaces not wrapped in quotes
+  // Pattern: league: followed by text containing a space, not starting with "
+  const m = dsl.match(/\bleague:([^"\s]\S*\s+\S[^\s]*)/i);
+  if (m) {
+    const raw = m[1].trim();
+    const quoted = `league:"${raw}"`;
+    const nospaces = `league:${raw.replace(/\s+/g, "")}`;
+    hintEl.textContent = `Did you mean: ${quoted}  or  ${nospaces}`;
+    hintEl.style.display = "block"; // override .dsl-hint default of display:none
+  } else {
+    hintEl.style.display = ""; // revert to class default
+    hintEl.textContent = "";
+  }
+}
 
 async function fetchAndRender(dsl) {
   _lastDsl = dsl;
-  tbody.innerHTML = `<tr><td colspan="10" class="empty-state">Loading&hellip;</td></tr>`;
+  const myGen = ++_fetchGen; // capture generation for this fetch
+  const tbody = document.getElementById("tbody-history");
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty-state is-loading">Loading<span class="loading-dots"><span></span><span></span><span></span></span></td></tr>`;
+  setDslError(null); // clear previous error
 
   let url = "/api/bets";
   if (dsl) url += "?filter=" + encodeURIComponent(dsl);
@@ -278,156 +696,291 @@ async function fetchAndRender(dsl) {
   let data;
   try {
     const resp = await fetch(url);
+    if (myGen !== _fetchGen) return; // stale response — a newer fetch overtook this one
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      tbody.innerHTML = `<tr><td colspan="10" class="error-state">${err.detail?.detail || err.detail || "Request failed"}</td></tr>`;
-      btnInsight.disabled = true;
+      const errMsg = err.detail?.detail || err.detail || "Request failed";
+      setDslError(errMsg);
+      if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="error-state">Filter error — see hint above.</td></tr>`;
+      document.getElementById("btn-insight").disabled = true;
       return;
     }
     data = await resp.json();
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="10" class="error-state">Network error: ${e.message}</td></tr>`;
-    btnInsight.disabled = true;
+    if (myGen !== _fetchGen) return;
+    setDslError("Network error: " + e.message);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="error-state">Network error — check connection.</td></tr>`;
+    document.getElementById("btn-insight").disabled = true;
     return;
   }
+  if (myGen !== _fetchGen) return; // check again after async work
 
-  setAgg(data.aggregates);
+  _allRows = data.rows || [];
 
-  const capEl = document.getElementById("agg-cap");
-  capEl.innerHTML = data.row_cap_hit
-    ? `<span class="neg">2000 (cap hit)</span>`
-    : `<span class="sub">No cap</span>`;
-
-  // Row cap warning banner above the table
-  const existingBanner = document.getElementById("row-cap-banner");
-  if (existingBanner) existingBanner.remove();
-  if (data.row_cap_hit) {
-    const banner = document.createElement("div");
-    banner.id = "row-cap-banner";
-    banner.style.cssText =
-      "background:#f26130;color:#fdf6e3;padding:10px 18px;border-radius:6px;" +
-      "font-family:var(--font-body,Space Grotesk,sans-serif);font-size:13px;" +
-      "font-weight:600;margin-bottom:16px;letter-spacing:0.2px;";
-    banner.textContent =
-      "Showing partial results — filter matched >2000 bets. Tighten your filter to see the full series.";
-    const table = document.querySelector(".matches-table");
-    table.parentNode.insertBefore(banner, table);
+  // Row cap banner
+  const capBanner = document.getElementById("row-cap-banner");
+  if (capBanner) {
+    capBanner.style.display = data.row_cap_hit ? "block" : "none";
   }
 
-  renderRows(data.rows);
+  // Build groups (evaluated-only + calendar filter + sort)
+  const rawGroups = buildGroups(_allRows);
+  _groups = sortGroups(rawGroups);
 
-  // Disable insight button when result set is empty (422 would happen)
-  btnInsight.disabled = (data.aggregates.count === 0);
+  // Render split stats based on ALL filtered groups (not just current page)
+  renderSplitStats(_groups, data.row_cap_hit);
+
+  _currentPage = 1;
+  renderPage();
+
+  document.getElementById("btn-insight").disabled = (_allRows.length === 0);
 }
 
-function onFilterChange() {
+function _syncDslClear() {
+  // no-op: filter builder handles its own clear state
+}
+
+function onFilterChange(dsl) {
   clearTimeout(_debounceTimer);
-  const dsl = filterInput.value.trim();
+  // dsl may be passed directly from the filter builder onChange callback
+  if (dsl === undefined) {
+    dsl = document.getElementById("filter-input").value.trim();
+  }
   pushFilterToUrl(dsl);
+  setDslError(null);
+  checkDslHint(dsl);
+  // Update tab title to reflect active filter state
+  document.title = dsl
+    ? "History (filtered) · SoccerSmartBet"
+    : "SoccerSmartBet — Bet History";
+  _currentPage = 1;
+  _sortCol = "date";
+  _sortDir = "desc";
+  updateSortHeaders();
   _debounceTimer = setTimeout(() => fetchAndRender(dsl), 350);
 }
 
-filterInput.addEventListener("input", onFilterChange);
-
 // ─── Insight polling ─────────────────────────────────────────────────────────
 function stopInsightPoll() {
-  if (_insightPollTimer) {
-    clearInterval(_insightPollTimer);
-    _insightPollTimer = null;
-  }
+  _insightToken++;
+  if (_insightPollTimer) { clearInterval(_insightPollTimer); _insightPollTimer = null; }
 }
 
-// Very basic markdown→HTML converter (bold, headers, bullet lists only)
+function setInsightBtnState(generating) {
+  const btn = document.getElementById("btn-insight");
+  if (!btn) return;
+  btn.disabled = generating;
+  btn.textContent = generating ? "Generating…" : "Generate Insight";
+}
+
+/**
+ * Minimal Markdown → HTML converter for AI insight output.
+ *
+ * Processing order matters:
+ * 1. Escape raw HTML first (XSS prevention).
+ * 2. Fenced code blocks (``` ... ```) — extracted before inline transforms.
+ * 3. Headings, lists, paragraphs — line-by-line pass.
+ * 4. Inline: bold, italic, inline code.
+ *
+ * Headers map to h3/h4/h5 so they don't outrank the page's h2 section labels.
+ */
 function simpleMarkdown(md) {
   if (!md) return "";
-  return md
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/^[-*] (.+)$/gm, "<li>$1</li>")
-    .replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>")
-    .replace(/\n/g, "<br>");
+
+  // 1. Escape HTML in raw input to prevent XSS from AI-generated content.
+  const esc = s => String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  let text = esc(md);
+
+  // 2. Fenced code blocks: ```...``` — replace before line processing.
+  // Use a placeholder so inline transforms don't corrupt the content.
+  const codeBlocks = [];
+  text = text.replace(/```[^\n]*\n([\s\S]*?)```/g, (_, inner) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push(`<pre><code>${inner}</code></pre>`);
+    return `\x00CODEBLOCK${idx}\x00`;
+  });
+
+  // 3. Inline transform helper — applied per-line BEFORE structure tags are emitted,
+  // so italic regexes never run across already-emitted HTML like <li>...</li>.
+  const inlineTransform = s => {
+    // Inline code first (before bold/italic, so backticks aren't confused)
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    // Bold: **text** or __text__
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
+    // Italic *text*: require non-space immediately after opening * and before closing *.
+    // This prevents matching stray single asterisks or score notations like 3-1 *and 2-1*.
+    s = s.replace(/\*(\S(?:[^*\n]*?\S)?)\*/g, "<em>$1</em>");
+    // Italic _text_: require word boundary + non-space content to avoid DB ids / underscores.
+    s = s.replace(/\b_(\S[^_\n]*?\S)_\b/g, "<em>$1</em>");
+    return s;
+  };
+
+  // Line-by-line pass for headings, lists, paragraphs.
+  const lines = text.split("\n");
+  const out = [];
+  let inUl = false, inOl = false;
+
+  const closeList = () => {
+    if (inUl) { out.push("</ul>"); inUl = false; }
+    if (inOl) { out.push("</ol>"); inOl = false; }
+  };
+
+  lines.forEach(line => {
+    // Headings — # → h3, ## → h4, ### → h5 (don't go higher than h3)
+    const h1 = line.match(/^# (.+)$/);
+    const h2 = line.match(/^## (.+)$/);
+    const h3 = line.match(/^### (.+)$/);
+    if (h3)      { closeList(); out.push(`<h5>${inlineTransform(h3[1])}</h5>`); return; }
+    if (h2)      { closeList(); out.push(`<h4>${inlineTransform(h2[1])}</h4>`); return; }
+    if (h1)      { closeList(); out.push(`<h3>${inlineTransform(h1[1])}</h3>`); return; }
+
+    // Unordered list item
+    const ulItem = line.match(/^[-*] (.+)$/);
+    if (ulItem) {
+      if (inOl) { out.push("</ol>"); inOl = false; }
+      if (!inUl) { out.push("<ul>"); inUl = true; }
+      out.push(`<li>${inlineTransform(ulItem[1])}</li>`);
+      return;
+    }
+
+    // Ordered list item
+    const olItem = line.match(/^\d+\. (.+)$/);
+    if (olItem) {
+      if (inUl) { out.push("</ul>"); inUl = false; }
+      if (!inOl) { out.push("<ol>"); inOl = true; }
+      out.push(`<li>${inlineTransform(olItem[1])}</li>`);
+      return;
+    }
+
+    closeList();
+
+    // Blank line → visual spacer (empty paragraph)
+    if (line.trim() === "") {
+      out.push("<p></p>");
+      return;
+    }
+
+    // Plain paragraph text — wrap in <p> so CSS margin/line-height applies
+    out.push(`<p>${inlineTransform(line)}</p>`);
+  });
+
+  closeList();
+
+  text = out.join("\n");
+
+  // 5. Restore fenced code blocks.
+  text = text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i, 10)]);
+
+  // 6. Strip bare newlines between block elements (no <br> needed — block tags
+  //    already control spacing).
+  text = text.replace(/\n/g, "");
+
+  return text;
 }
 
 async function pollInsightJob(jobId) {
+  const insightBody = document.getElementById("insight-body");
+  const insightStat = document.getElementById("insight-status");
   stopInsightPoll();
-  insightStat.textContent = "Queued";
-  insightBody.className = "insight-panel-body loading";
-  insightBody.textContent = "Waiting for AI analysis...";
+  if (insightStat) insightStat.textContent = "Queued";
+  if (insightBody) { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Waiting for AI analysis..."; }
 
+  const myToken = ++_insightToken;
   _insightPollTimer = setInterval(async () => {
     let resp;
-    try {
-      resp = await fetch(`/api/insights/${jobId}`);
-    } catch (e) {
+    try { resp = await fetch(`/api/insights/${jobId}`); }
+    catch (e) {
+      if (myToken !== _insightToken) return;
       stopInsightPoll();
-      insightStat.textContent = "Error";
-      insightBody.className = "insight-panel-body error";
-      insightBody.textContent = "Network error polling insight.";
+      if (insightStat) insightStat.textContent = "Error";
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = "Network error polling insight."; }
+      setInsightBtnState(false);
       return;
     }
+    if (myToken !== _insightToken) return;
     if (!resp.ok) {
       stopInsightPoll();
-      insightStat.textContent = "Error";
-      insightBody.className = "insight-panel-body error";
-      insightBody.textContent = `Error ${resp.status} polling insight job.`;
+      if (insightStat) insightStat.textContent = "Error";
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = `Error ${resp.status} polling insight job.`; }
+      setInsightBtnState(false);
       return;
     }
     const job = await resp.json();
-    insightStat.textContent = job.state.toUpperCase();
-
+    if (myToken !== _insightToken) return;
+    if (insightStat) insightStat.textContent = job.state.toUpperCase();
     if (job.state === "done") {
       stopInsightPoll();
-      insightBody.className = "insight-panel-body";
-      insightBody.innerHTML = simpleMarkdown(job.markdown || "");
-      btnInsight.disabled = false;
+      const md = (job.markdown || "").trim();
+      if (insightBody) {
+        insightBody.className = "insight-panel-body";
+        insightBody.innerHTML = md ? simpleMarkdown(md) : "<em>No insight returned.</em>";
+      }
+      setInsightBtnState(false);
     } else if (job.state === "failed") {
       stopInsightPoll();
-      insightBody.className = "insight-panel-body error";
-      insightBody.textContent = job.error || "Insight generation failed.";
-      btnInsight.disabled = false;
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = job.error || "Insight generation failed."; }
+      setInsightBtnState(false);
     }
-    // queued/running: keep polling
   }, 2500);
 }
 
-btnInsight.addEventListener("click", async () => {
-  const dsl = filterInput.value.trim();
+document.getElementById("btn-insight").addEventListener("click", async () => {
+  const typedDsl = (document.getElementById("filter-input").value || "").trim();
 
+  // Evaluated-only guard: clamp upper bound to yesterday-ISR when no explicit
+  // date:<= clause is present, to avoid including pending/unresolved bets from today.
+  let effectiveDsl = typedDsl;
+  const _dslHasDate = /(?:^|\s)date:/i.test(typedDsl);
+  const _todayISR = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
+  const [_gy, _gm, _gd] = _todayISR.split("-").map(Number);
+  const _guardYesterday = new Date(_gy, _gm - 1, _gd - 1);
+  const _yStr = `${_guardYesterday.getFullYear()}-${String(_guardYesterday.getMonth()+1).padStart(2,"0")}-${String(_guardYesterday.getDate()).padStart(2,"0")}`;
+  if (!_dslHasDate) {
+    const _hasUpper = /\bdate:<=/.test(effectiveDsl);
+    if (!_hasUpper) {
+      console.warn("Insight: appending evaluated-only guard date:<=", _yStr);
+      effectiveDsl = effectiveDsl ? `${effectiveDsl} date:<=${_yStr}` : `date:<=${_yStr}`;
+    }
+  }
+
+  const insightPanel = document.getElementById("insight-panel");
+  const insightBody  = document.getElementById("insight-body");
+  const insightStat  = document.getElementById("insight-status");
+  // Capture focus owner so we can restore it on close (avoids scroll-jump to #btn-insight)
+  if (insightPanel) insightPanel.dataset.prevFocus = document.activeElement?.id || "";
+  // Stop any in-flight poll before starting a new one
   stopInsightPoll();
-  insightPanel.style.display = "block";
-  insightStat.textContent = "Starting";
-  insightBody.className = "insight-panel-body loading";
-  insightBody.textContent = "Submitting insight request...";
-  btnInsight.disabled = true;
+  if (insightPanel) insightPanel.style.display = "block";
+  if (insightStat)  insightStat.textContent = "Starting";
+  if (insightBody)  { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Submitting insight request..."; }
+  setInsightBtnState(true);
 
   let resp;
   try {
     resp = await fetch("/api/insights", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filter_dsl: dsl }),
+      body: JSON.stringify({ filter_dsl: effectiveDsl }),
     });
   } catch (e) {
-    insightBody.className = "insight-panel-body error";
-    insightBody.textContent = "Network error submitting insight request.";
-    btnInsight.disabled = false;
+    if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = "Network error submitting insight request."; }
+    setInsightBtnState(false);
     return;
   }
 
   if (resp.status === 422) {
-    // Empty result set
-    insightPanel.style.display = "none";
-    btnInsight.disabled = true;
+    if (insightPanel) insightPanel.style.display = "none";
+    setInsightBtnState(false);
     return;
   }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    insightBody.className = "insight-panel-body error";
-    insightBody.textContent = err.detail || `Error ${resp.status}`;
-    btnInsight.disabled = false;
+    if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = err.detail || `Error ${resp.status}`; }
+    setInsightBtnState(false);
     return;
   }
 
@@ -435,10 +988,140 @@ btnInsight.addEventListener("click", async () => {
   pollInsightJob(job_id);
 });
 
+// Restore focus after closing the insight panel without causing a scroll jump.
+// Prefers the element that was focused when the panel opened; falls back to
+// #btn-insight only when that element is gone or lives inside the panel itself.
+function restoreInsightFocus() {
+  const panel    = document.getElementById("insight-panel");
+  const prevId   = panel?.dataset.prevFocus || "";
+  const prevEl   = prevId ? document.getElementById(prevId) : null;
+  const fallback = document.getElementById("btn-insight");
+  const target   = (prevEl && !panel?.contains(prevEl)) ? prevEl : fallback;
+  target?.focus({ preventScroll: true });
+}
+
+// Wire insight panel close button
+(function () {
+  const closeBtn = document.getElementById("insight-close");
+  const panel    = document.getElementById("insight-panel");
+  if (closeBtn && panel) {
+    closeBtn.addEventListener("click", () => {
+      stopInsightPoll();
+      panel.style.display = "none";
+      setInsightBtnState(false);
+      restoreInsightFocus();
+    });
+  }
+})();
+
+// Escape closes the insight panel (document-level; skips when focus is in a text input)
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  const tag = (e.target.tagName || "").toUpperCase();
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  const panel = document.getElementById("insight-panel");
+  if (panel && panel.style.display !== "none") {
+    stopInsightPoll();
+    panel.style.display = "none";
+    setInsightBtnState(false);
+    restoreInsightFocus();
+  }
+});
+
+// ─── Wire sort headers ───────────────────────────────────────────────────────
+document.querySelectorAll("th.sortable").forEach(th => {
+  th.addEventListener("click", () => onSortClick(th.dataset.col));
+  th.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSortClick(th.dataset.col); }
+  });
+});
+
+// ─── Wire paging ─────────────────────────────────────────────────────────────
+document.getElementById("h-first").addEventListener("click", () => { _currentPage = 1; renderPage(); });
+document.getElementById("h-prev" ).addEventListener("click", () => { _currentPage--; renderPage(); });
+document.getElementById("h-next" ).addEventListener("click", () => { _currentPage++; renderPage(); });
+document.getElementById("h-last" ).addEventListener("click", () => {
+  _currentPage = Math.ceil(_groups.length / _pageSize) || 1; renderPage();
+});
+document.getElementById("h-page-size").addEventListener("change", function () {
+  _pageSize = parseInt(this.value, 10); _currentPage = 1; renderPage();
+});
+
+// ─── Keyboard pagination ──────────────────────────────────────────────────────
+// Arrow keys navigate pages when focus is inside the table, paging controls,
+// or the page-size selector. Text inputs are excluded.
+(function wireKeyboardPaging() {
+  document.addEventListener("keydown", e => {
+    // Never intercept when typing in an input field
+    const tag = (e.target.tagName || "").toUpperCase();
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+    // Check focus is inside the data table region or paging controls
+    const tableRegion = document.getElementById("history-table");
+    const pagingRegion = document.getElementById("paging-controls");
+    const active = document.activeElement;
+    const inRegion = (tableRegion && tableRegion.contains(active)) ||
+                     (pagingRegion && pagingRegion.contains(active)) ||
+                     active === document.body || active === document.documentElement;
+    if (!inRegion) return;
+
+    const totalPages = Math.max(1, Math.ceil(_groups.length / _pageSize));
+
+    if (e.key === "ArrowLeft" || e.key === "PageUp") {
+      if (_currentPage <= 1) return;
+      e.preventDefault();
+      _currentPage--;
+      renderPage();
+    } else if (e.key === "ArrowRight" || e.key === "PageDown") {
+      if (_currentPage >= totalPages) return;
+      e.preventDefault();
+      _currentPage++;
+      renderPage();
+    } else if (e.key === "Home") {
+      if (_currentPage === 1) return;
+      e.preventDefault();
+      _currentPage = 1;
+      renderPage();
+    } else if (e.key === "End") {
+      if (_currentPage === totalPages) return;
+      e.preventDefault();
+      _currentPage = totalPages;
+      renderPage();
+    }
+  });
+})();
+
 // ─── Init ────────────────────────────────────────────────────────────────────
+// Filter builder is initialised via ES module script below; plain init wires
+// hover delegation.
 (function init() {
-  const initialDsl = getFilterFromUrl();
-  filterInput.value = initialDsl;
+  wireHoverDelegationOnce("tbody-history");
+  updateSortHeaders();
+  // fetchAndRender called after filter builder initialises (below)
+})();
+</script>
+
+<script type="module">
+import { createFilterBuilder } from "/static/filter-builder.js";
+
+(function initFilterBuilder() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialDsl = urlParams.get("filter") || "";
+
+  // Reflect initial filter state in tab title
+  if (initialDsl) document.title = "History (filtered) · SoccerSmartBet";
+
+  window._fb = createFilterBuilder({
+    container:   document.getElementById("fb-container"),
+    enabledKeys: ["league","team","date","month","stake","odds","outcome","bettor","prediction","result"],
+    initialDsl,
+    hiddenInput: document.getElementById("filter-input"),
+    onChange: (dsl) => {
+      onFilterChange(dsl);
+    },
+  });
+
+  // Initial fetch using the DSL from URL (filter builder has already populated the hidden input)
   fetchAndRender(initialDsl);
 })();
 </script>
