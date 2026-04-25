@@ -39,11 +39,16 @@
   stroke: rgba(255,255,255,0.07);
   stroke-width: 1;
 }
+/* Focus rings */
+.filter-input:focus-visible {
+  outline: 2.5px solid var(--cobalt);
+  outline-offset: 2px;
+}
 /* Tooltip */
 .chart-tooltip {
   position: absolute;
-  background: rgba(20,18,93,0.95);
-  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(20,18,93,0.97);
+  border: 1px solid rgba(255,255,255,0.18);
   border-radius: 6px;
   padding: 10px 14px;
   pointer-events: none;
@@ -53,14 +58,15 @@
   font-weight: 600;
   min-width: 140px;
   display: none;
-  z-index: 10;
+  z-index: 1000;
 }
 .chart-tooltip .tt-date { font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 6px; letter-spacing: 0.5px; }
-.chart-tooltip .tt-user { color: #00a85a; }
-.chart-tooltip .tt-ai   { color: #f26130; }
+.chart-tooltip .tt-user { color: var(--emerald); }
+.chart-tooltip .tt-ai   { color: var(--vermilion); }
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to main content</a>
 
 <!-- ═══════════════════════════════════════════
      MASTHEAD
@@ -81,7 +87,7 @@
 </header>
 
 <!-- NAV -->
-<nav class="nav-bar">
+<nav class="nav-bar" aria-label="Main navigation">
   <div class="nav-bar-inner">
     <a class="nav-tab" href="/today">Today</a>
     <a class="nav-tab" href="/history">History</a>
@@ -112,19 +118,56 @@
 </div>
 
 <!-- PAGE BODY -->
-<main class="pnl-page-body">
+<main class="pnl-page-body" id="main" tabindex="-1">
 
   <!-- FILTER BAR -->
   <div class="filter-bar">
     <div class="filter-input-wrap">
       <div class="filter-label">Filter DSL</div>
+      <!-- datalist provides key autocomplete — browsers filter as user types -->
+      <datalist id="dsl-suggestions">
+        <option value="bettor:">
+        <option value="outcome:">
+        <option value="result:">
+        <option value="prediction:">
+        <option value="date:">
+        <option value="month:">
+        <option value="stake:">
+        <option value="odds:">
+        <option value="league:">
+        <option value="team:">
+      </datalist>
       <input class="filter-input" id="filter-input" type="text"
+             list="dsl-suggestions"
              placeholder="league:pl  date:2026-04  bettor:user ..."
              autocomplete="off" spellcheck="false">
       <div class="filter-hint">
         Keys: league, team, date, month, stake, odds, outcome, bettor, prediction, result
       </div>
     </div>
+    <div class="filter-dates">
+      <label class="filter-label" for="cal-from">From</label>
+      <input type="date" id="cal-from" class="cal-input">
+      <label class="filter-label" for="cal-to">To</label>
+      <input type="date" id="cal-to" class="cal-input">
+    </div>
+    <button type="button" class="btn btn-insight" id="btn-insight" disabled
+            title="AI analysis of your current filter (10-30 sec)">
+      Generate Insight
+    </button>
+  </div>
+
+  <!-- INSIGHT PANEL — positioned immediately below filter bar so it feels
+       like a direct response to the Generate Insight button above -->
+  <div class="insight-panel" id="insight-panel" style="display:none;margin-top:-4px;margin-bottom:24px;">
+    <div class="insight-panel-header">
+      <div class="insight-panel-title">AI Insight</div>
+      <div class="insight-panel-actions">
+        <div class="insight-panel-status" id="insight-status"></div>
+        <button type="button" class="insight-panel-close" id="insight-close" aria-label="Close insight panel" title="Close">&times;</button>
+      </div>
+    </div>
+    <div class="insight-panel-body" id="insight-body" tabindex="0">Waiting&hellip;</div>
   </div>
 
   <!-- CHART -->
@@ -147,8 +190,9 @@
         </div>
       </div>
 
+      <!-- Tooltip lives OUTSIDE svg-container so innerHTML rewrites don't destroy it -->
+      <div id="chart-tooltip" class="chart-tooltip"></div>
       <div class="chart-svg-wrap" id="svg-container">
-        <div id="chart-tooltip" class="chart-tooltip"></div>
         <!-- SVG injected here by JS -->
       </div>
 
@@ -161,7 +205,7 @@
 <!-- FOOTER -->
 <footer class="page-footer">
   <div class="footer-brand">SoccerSmartBet</div>
-  <div class="footer-info">P&amp;L &nbsp;&middot;&nbsp; ISR Timezone</div>
+  <div class="footer-info">P&amp;L &nbsp;<span class="footer-sep">&middot;</span>&nbsp; ISR Timezone</div>
 </footer>
 
 <script>
@@ -179,15 +223,23 @@
     now.toLocaleTimeString("en-US", timeOpts) + " ISR";
 })();
 
-// ─── URL filter-sync ─────────────────────────────────────────────────────────
-function getFilterFromUrl() {
-  return new URLSearchParams(window.location.search).get("filter") || "";
+// ─── XSS helper ──────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
-function pushFilterToUrl(dsl) {
+
+// ─── URL filter/calendar sync ─────────────────────────────────────────────────
+function pushStateToUrl(dsl, calFrom, calTo) {
   const params = new URLSearchParams(window.location.search);
-  dsl ? params.set("filter", dsl) : params.delete("filter");
-  history.replaceState(null, "", window.location.pathname + (params.toString() ? "?" + params : ""));
+  if (dsl)     { params.set("filter", dsl); } else { params.delete("filter"); }
+  if (calFrom) { params.set("from", calFrom); } else { params.delete("from"); }
+  if (calTo)   { params.set("to",   calTo);   } else { params.delete("to"); }
+  const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+  history.replaceState(null, "", newUrl);
 }
+// Convenience alias used by filter-only changes
+function pushFilterToUrl(dsl) { pushStateToUrl(dsl, _calFrom, _calTo); }
 
 // ─── SVG chart renderer ──────────────────────────────────────────────────────
 // Design decision: zero baseline always included (see docstring in stats.py).
@@ -263,11 +315,15 @@ function buildSvg(points) {
   // Invisible hover targets (vertical bars per point)
   // Attach data-index so JS tooltip can read
   const barW = Math.max(6, PLOT_W / n);
-  const hitBars = points.map((_, i) => {
+  const hitBars = points.map((p, i) => {
     const cx = xOf(i);
+    const uVal = p.cumulative_user.toFixed(2);
+    const aVal = p.cumulative_ai.toFixed(2);
     return `<rect class="chart-hit" x="${(cx - barW/2).toFixed(1)}" y="${PAD_T}"
                   width="${barW.toFixed(1)}" height="${PLOT_H}"
                   fill="transparent" data-index="${i}"
+                  tabindex="0" role="img"
+                  aria-label="${p.date}: User ${uVal}, AI ${aVal}"
                   style="cursor:crosshair;"/>`;
   }).join("");
 
@@ -302,63 +358,167 @@ function buildXLabels(points) {
 // ─── Tooltip ─────────────────────────────────────────────────────────────────
 let _tooltipPoints = [];
 
+function showTooltipForIndex(idx, anchorEl) {
+  const tooltip = document.getElementById("chart-tooltip");
+  const p = _tooltipPoints[idx];
+  if (!p || !tooltip) return;
+  tooltip.innerHTML =
+    `<div class="tt-date">${escHtml(p.date)}</div>` +
+    `<div class="tt-user">User: ${pnlSign(p.cumulative_user)}${p.cumulative_user.toFixed(2)}</div>` +
+    `<div class="tt-ai">AI: ${pnlSign(p.cumulative_ai)}${p.cumulative_ai.toFixed(2)}</div>`;
+  tooltip.style.display = "block";
+
+  // Position near the anchor element when keyboard-triggered (anchorEl provided)
+  if (anchorEl) {
+    const wrap = document.getElementById("chart-wrap");
+    const wrapRect = wrap.getBoundingClientRect();
+    const barRect  = anchorEl.getBoundingClientRect();
+    const ttW = tooltip.offsetWidth  || 160;
+    let left = barRect.left - wrapRect.left + barRect.width / 2 - ttW / 2;
+    let top  = barRect.top  - wrapRect.top  - (tooltip.offsetHeight || 70) - 8;
+    left = Math.max(0, Math.min(left, wrapRect.width - ttW));
+    if (top < 0) top = barRect.bottom - wrapRect.top + 4;
+    tooltip.style.left = left + "px";
+    tooltip.style.top  = top  + "px";
+  }
+}
+
+function hideTooltip() {
+  const tooltip = document.getElementById("chart-tooltip");
+  if (tooltip) tooltip.style.display = "none";
+}
+
 function attachTooltip() {
   const svgEl = document.getElementById("pnl-svg");
   const tooltip = document.getElementById("chart-tooltip");
   if (!svgEl || !tooltip) return;
 
-  svgEl.querySelectorAll(".chart-hit").forEach(bar => {
-    bar.addEventListener("mouseenter", evt => {
-      const idx = parseInt(bar.dataset.index, 10);
-      const p = _tooltipPoints[idx];
-      if (!p) return;
-      tooltip.innerHTML =
-        `<div class="tt-date">${p.date}</div>` +
-        `<div class="tt-user">User: ${pnlSign(p.cumulative_user)}${p.cumulative_user.toFixed(2)}</div>` +
-        `<div class="tt-ai">AI: ${pnlSign(p.cumulative_ai)}${p.cumulative_ai.toFixed(2)}</div>`;
-      tooltip.style.display = "block";
+  // Build a stable ordered array of all hit-rects so keyboard nav can jump by
+  // index rather than relying on DOM siblings (which include polylines, etc.).
+  const hitRects = Array.from(svgEl.querySelectorAll(".chart-hit"));
+
+  hitRects.forEach(bar => {
+    // Mouse
+    bar.addEventListener("mouseenter", () => {
+      showTooltipForIndex(parseInt(bar.dataset.index, 10), null);
     });
     bar.addEventListener("mousemove", evt => {
       const wrap = document.getElementById("chart-wrap");
       const rect = wrap.getBoundingClientRect();
-      tooltip.style.left = (evt.clientX - rect.left + 12) + "px";
-      tooltip.style.top  = (evt.clientY - rect.top  - 20) + "px";
+      const ttW = tooltip.offsetWidth  || 160;
+      const ttH = tooltip.offsetHeight || 70;
+
+      let left = evt.clientX - rect.left + 12;
+      let top  = evt.clientY - rect.top  - 20;
+
+      if (left + ttW > rect.width)  left = evt.clientX - rect.left - ttW - 12;
+      if (top  + ttH > rect.height) top  = evt.clientY - rect.top  - ttH - 4;
+      if (top < 0) top = 4;
+
+      tooltip.style.left = left + "px";
+      tooltip.style.top  = top  + "px";
     });
-    bar.addEventListener("mouseleave", () => {
-      tooltip.style.display = "none";
+    bar.addEventListener("mouseleave", hideTooltip);
+
+    // Keyboard: use index-based navigation on the cached hitRects array so that
+    // ArrowLeft/Right always land on another focusable rect, never on a polyline.
+    bar.addEventListener("focus", () => {
+      showTooltipForIndex(parseInt(bar.dataset.index, 10), bar);
+    });
+    bar.addEventListener("blur", hideTooltip);
+    bar.addEventListener("keydown", e => {
+      const idx = parseInt(bar.dataset.index, 10);
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        const target = hitRects[Math.max(0, idx - 1)];
+        if (target) target.focus();
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        const target = hitRects[Math.min(hitRects.length - 1, idx + 1)];
+        if (target) target.focus();
+      }
     });
   });
 }
 
 // ─── Fetch & render ──────────────────────────────────────────────────────────
-async function fetchAndRender(dsl) {
-  const container = document.getElementById("svg-container");
-  container.innerHTML = `<div id="chart-tooltip" class="chart-tooltip"></div>
-    <div style="text-align:center;padding:60px;color:rgba(255,255,255,0.35);font-family:var(--font-body);">Loading&hellip;</div>`;
+let _pnlReqGen = 0; // monotonic counter — stale responses are discarded
 
+async function fetchAndRender(dsl) {
+  const myGen = ++_pnlReqGen;
+  const container = document.getElementById("svg-container");
+
+  // Reset aggregates immediately so previous values don't linger on error
+  document.getElementById("agg-points"   ).innerHTML = `<span class="sub">&mdash;</span>`;
+  document.getElementById("agg-user-final").innerHTML = `<span class="sub">&mdash;</span>`;
+  document.getElementById("agg-ai-final"  ).innerHTML = `<span class="sub">&mdash;</span>`;
+  document.getElementById("agg-range"     ).innerHTML = `<span class="sub">&mdash;</span>`;
+
+  // Tooltip is outside svg-container — never touch it here
+  container.innerHTML = `<div style="text-align:center;padding:60px;color:rgba(255,255,255,0.35);font-family:var(--font-body);">Loading&hellip;</div>`;
   document.getElementById("x-labels").innerHTML = "";
 
+  // Tab title reflects active filter state
+  document.title = dsl ? "P&L (filtered) · SoccerSmartBet" : "SoccerSmartBet — P&L Chart";
+
+  // Build URL with DSL + calendar date range merged.
+  // If the typed DSL already contains a date: token, calendar clauses are skipped
+  // to prevent duplicate date: keys reaching the server (undefined behaviour).
+  let effectiveDsl = dsl;
+  const _dslHasDate = /(?:^|\s)date:/i.test(dsl);
+  if ((_calFrom || _calTo) && !_dslHasDate) {
+    let dateClause = "";
+    if (_calFrom && _calTo) {
+      dateClause = `date:>=${_calFrom},<=${_calTo}`;
+    } else if (_calFrom) {
+      dateClause = `date:>=${_calFrom}`;
+    } else {
+      dateClause = `date:<=${_calTo}`;
+    }
+    effectiveDsl = dsl ? `${dsl} ${dateClause}` : dateClause;
+  } else if ((_calFrom || _calTo) && _dslHasDate) {
+    console.warn("pnl: typed DSL contains date: — calendar range ignored to avoid duplicate date: clauses");
+  }
   let url = "/api/pnl";
-  if (dsl) url += "?filter=" + encodeURIComponent(dsl);
+  if (effectiveDsl) url += "?filter=" + encodeURIComponent(effectiveDsl);
 
   let data;
   try {
     const resp = await fetch(url);
+    if (myGen !== _pnlReqGen) return; // stale — a newer request overtook this one
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      container.innerHTML = `<div id="chart-tooltip" class="chart-tooltip"></div>
-        <div class="error-state">${err.detail?.detail || err.detail || "Request failed"}</div>`;
+      const msg = err.detail?.detail || err.detail || "Request failed";
+      const errDiv = document.createElement("div");
+      errDiv.className = "error-state";
+      errDiv.textContent = msg; // textContent — safe, no XSS
+      container.innerHTML = "";
+      container.appendChild(errDiv);
+      const _ibErr = document.getElementById("btn-insight");
+      if (_ibErr) _ibErr.disabled = true;
       return;
     }
     data = await resp.json();
   } catch (e) {
-    container.innerHTML = `<div id="chart-tooltip" class="chart-tooltip"></div>
-      <div class="error-state">Network error: ${e.message}</div>`;
+    if (myGen !== _pnlReqGen) return;
+    const errDiv = document.createElement("div");
+    errDiv.className = "error-state";
+    errDiv.textContent = "Network error: " + e.message;
+    container.innerHTML = "";
+    container.appendChild(errDiv);
+    const _ibNet = document.getElementById("btn-insight");
+    if (_ibNet) _ibNet.disabled = true;
     return;
   }
+  if (myGen !== _pnlReqGen) return; // check again after async work
 
   const points = data.points || [];
   _tooltipPoints = points;
+
+  // Enable insight button whenever there is data to analyse (mirrors history/team/league pages)
+  const _insightBtn = document.getElementById("btn-insight");
+  if (_insightBtn) _insightBtn.disabled = (points.length === 0);
 
   // Aggregates strip
   document.getElementById("agg-points").textContent = points.length;
@@ -372,15 +532,15 @@ async function fetchAndRender(dsl) {
     uEl.innerHTML = `<span class="${userFin >= 0 ? 'pos' : 'neg'}">${pnlSign(userFin)}${userFin.toFixed(2)}</span>`;
     aEl.innerHTML = `<span class="${aiFin   >= 0 ? 'pos' : 'neg'}">${pnlSign(aiFin  )}${aiFin.toFixed(2)}</span>`;
     document.getElementById("agg-range").innerHTML =
-      `<span class="sub">${points[0].date.slice(5)} &rarr; ${last.date.slice(5)}</span>`;
+      `<span class="sub">${escHtml(points[0].date.slice(5))} &rarr; ${escHtml(last.date.slice(5))}</span>`;
   } else {
     document.getElementById("agg-user-final").innerHTML = `<span class="sub">&mdash;</span>`;
     document.getElementById("agg-ai-final"  ).innerHTML = `<span class="sub">&mdash;</span>`;
     document.getElementById("agg-range"     ).innerHTML = `<span class="sub">&mdash;</span>`;
   }
 
-  // Build SVG (keep tooltip div from being clobbered)
-  container.innerHTML = `<div id="chart-tooltip" class="chart-tooltip"></div>` + buildSvg(points);
+  // Build SVG — tooltip div is outside the container, so no recreation needed
+  container.innerHTML = buildSvg(points);
   document.getElementById("x-labels").innerHTML = buildXLabels(points);
   attachTooltip();
 
@@ -390,10 +550,7 @@ async function fetchAndRender(dsl) {
   if (data.row_cap_hit) {
     const banner = document.createElement("div");
     banner.id = "row-cap-banner";
-    banner.style.cssText =
-      "background:#f26130;color:#fdf6e3;padding:10px 18px;border-radius:6px;" +
-      "font-family:var(--font-body,Space Grotesk,sans-serif);font-size:13px;" +
-      "font-weight:600;margin-bottom:16px;letter-spacing:0.2px;";
+    banner.className = "row-cap-banner";
     banner.textContent =
       "Showing partial results — filter matched >2000 bets. Tighten your filter to see the full series.";
     const chartSection = document.querySelector(".chart-full");
@@ -402,19 +559,308 @@ async function fetchAndRender(dsl) {
 }
 
 let _debounceTimer = null;
+let _calFrom = "";
+let _calTo   = "";
+let _insightPollTimer = null;
+let _insightToken = 0;
 const filterInput = document.getElementById("filter-input");
 
-filterInput.addEventListener("input", () => {
+function onFilterChange() {
   clearTimeout(_debounceTimer);
   const dsl = filterInput.value.trim();
-  pushFilterToUrl(dsl);
+  pushStateToUrl(dsl, _calFrom, _calTo);
   _debounceTimer = setTimeout(() => fetchAndRender(dsl), 350);
+}
+
+function onCalendarChange() {
+  clearTimeout(_debounceTimer);
+  _calFrom = (document.getElementById("cal-from") || {}).value || "";
+  _calTo   = (document.getElementById("cal-to")   || {}).value || "";
+  const dsl = filterInput.value.trim();
+  pushStateToUrl(dsl, _calFrom, _calTo);
+  _debounceTimer = setTimeout(() => fetchAndRender(dsl), 350);
+}
+
+filterInput.addEventListener("input", onFilterChange);
+document.getElementById("cal-from").addEventListener("change", onCalendarChange);
+document.getElementById("cal-to"  ).addEventListener("change", onCalendarChange);
+
+// ─── Insight helpers ─────────────────────────────────────────────────────────
+function stopInsightPoll() {
+  _insightToken++;
+  if (_insightPollTimer) { clearInterval(_insightPollTimer); _insightPollTimer = null; }
+}
+
+function setInsightBtnState(generating) {
+  const btn = document.getElementById("btn-insight");
+  if (!btn) return;
+  btn.disabled = generating;
+  btn.textContent = generating ? "Generating…" : "Generate Insight";
+}
+
+/**
+ * Minimal Markdown → HTML converter for AI insight output.
+ * Processing order: escape HTML → fenced code blocks → headings/lists → inline.
+ * Headers map to h3/h4/h5 so they don't outrank the page's section labels.
+ */
+function simpleMarkdown(md) {
+  if (!md) return "";
+
+  const esc = s => String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  let text = esc(md);
+
+  const codeBlocks = [];
+  text = text.replace(/```[^\n]*\n([\s\S]*?)```/g, (_, inner) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push(`<pre><code>${inner}</code></pre>`);
+    return `\x00CODEBLOCK${idx}\x00`;
+  });
+
+  const inlineTransform = s => {
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
+    s = s.replace(/\*(\S(?:[^*\n]*?\S)?)\*/g, "<em>$1</em>");
+    s = s.replace(/\b_(\S[^_\n]*?\S)_\b/g, "<em>$1</em>");
+    return s;
+  };
+
+  const lines = text.split("\n");
+  const out = [];
+  let inUl = false, inOl = false;
+
+  const closeList = () => {
+    if (inUl) { out.push("</ul>"); inUl = false; }
+    if (inOl) { out.push("</ol>"); inOl = false; }
+  };
+
+  lines.forEach(line => {
+    const h1 = line.match(/^# (.+)$/);
+    const h2 = line.match(/^## (.+)$/);
+    const h3 = line.match(/^### (.+)$/);
+    if (h3)      { closeList(); out.push(`<h5>${inlineTransform(h3[1])}</h5>`); return; }
+    if (h2)      { closeList(); out.push(`<h4>${inlineTransform(h2[1])}</h4>`); return; }
+    if (h1)      { closeList(); out.push(`<h3>${inlineTransform(h1[1])}</h3>`); return; }
+
+    const ulItem = line.match(/^[-*] (.+)$/);
+    if (ulItem) {
+      if (inOl) { out.push("</ol>"); inOl = false; }
+      if (!inUl) { out.push("<ul>"); inUl = true; }
+      out.push(`<li>${inlineTransform(ulItem[1])}</li>`);
+      return;
+    }
+
+    const olItem = line.match(/^\d+\. (.+)$/);
+    if (olItem) {
+      if (inUl) { out.push("</ul>"); inUl = false; }
+      if (!inOl) { out.push("<ol>"); inOl = true; }
+      out.push(`<li>${inlineTransform(olItem[1])}</li>`);
+      return;
+    }
+
+    closeList();
+
+    if (line.trim() === "") { out.push("<p></p>"); return; }
+    out.push(inlineTransform(line));
+  });
+
+  closeList();
+
+  text = out.join("\n");
+  text = text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i, 10)]);
+  text = text.replace(/\n/g, "<br>");
+  return text;
+}
+
+async function pollInsightJob(jobId) {
+  const insightBody = document.getElementById("insight-body");
+  const insightStat = document.getElementById("insight-status");
+  stopInsightPoll();
+  if (insightStat) insightStat.textContent = "Queued";
+  if (insightBody) { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Waiting for AI analysis..."; }
+
+  const myToken = ++_insightToken;
+  _insightPollTimer = setInterval(async () => {
+    let resp;
+    try { resp = await fetch(`/api/insights/${jobId}`); }
+    catch (e) {
+      if (myToken !== _insightToken) return;
+      stopInsightPoll();
+      if (insightStat) insightStat.textContent = "Error";
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = "Network error polling insight."; }
+      setInsightBtnState(false);
+      return;
+    }
+    if (myToken !== _insightToken) return;
+    if (!resp.ok) {
+      stopInsightPoll();
+      if (insightStat) insightStat.textContent = "Error";
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = `Error ${resp.status} polling insight job.`; }
+      setInsightBtnState(false);
+      return;
+    }
+    const job = await resp.json();
+    if (myToken !== _insightToken) return;
+    if (insightStat) insightStat.textContent = job.state.toUpperCase();
+    if (job.state === "done") {
+      stopInsightPoll();
+      const md = (job.markdown || "").trim();
+      if (insightBody) {
+        insightBody.className = "insight-panel-body";
+        insightBody.innerHTML = md ? simpleMarkdown(md) : "<em>No insight returned.</em>";
+      }
+      setInsightBtnState(false);
+    } else if (job.state === "failed") {
+      stopInsightPoll();
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = job.error || "Insight generation failed."; }
+      setInsightBtnState(false);
+    }
+  }, 2500);
+}
+
+// Restore focus after closing the insight panel without causing a scroll jump.
+function restoreInsightFocus() {
+  const panel    = document.getElementById("insight-panel");
+  const prevId   = panel?.dataset.prevFocus || "";
+  const prevEl   = prevId ? document.getElementById(prevId) : null;
+  const fallback = document.getElementById("btn-insight");
+  const target   = (prevEl && !panel?.contains(prevEl)) ? prevEl : fallback;
+  target?.focus({ preventScroll: true });
+}
+
+// ─── Insight click handler ───────────────────────────────────────────────────
+document.getElementById("btn-insight").addEventListener("click", async () => {
+  const typedDsl = filterInput.value.trim();
+
+  // Merge calendar date range into the DSL so the AI only analyses
+  // what the user is looking at, not the whole DB.
+  // Guard: if the typed DSL already contains a date: clause, skip calendar
+  // date injection to avoid duplicate/conflicting date: clauses.
+  let effectiveDsl = typedDsl;
+  const calFromVal = (_calFrom || "").trim();
+  const calToVal   = (_calTo   || "").trim();
+  const _dslHasDate = /(?:^|\s)date:/i.test(typedDsl);
+  if ((calFromVal || calToVal) && !_dslHasDate) {
+    let dateClause = "";
+    if (calFromVal && calToVal) {
+      dateClause = `date:>=${calFromVal},<=${calToVal}`;
+    } else if (calFromVal) {
+      dateClause = `date:>=${calFromVal}`;
+    } else {
+      dateClause = `date:<=${calToVal}`;
+    }
+    effectiveDsl = typedDsl ? `${typedDsl} ${dateClause}` : dateClause;
+  } else if ((calFromVal || calToVal) && _dslHasDate) {
+    console.warn("pnl insight: typed DSL contains date: — calendar range ignored to avoid duplicate date: clauses");
+  }
+
+  // Evaluated-only guard: clamp upper bound to yesterday-ISR when no explicit
+  // date:<= is present, to avoid including pending/unresolved bets from today.
+  const _todayISR = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
+  const [_gy, _gm, _gd] = _todayISR.split("-").map(Number);
+  const _guardYesterday = new Date(_gy, _gm - 1, _gd - 1);
+  const _yStr = `${_guardYesterday.getFullYear()}-${String(_guardYesterday.getMonth()+1).padStart(2,"0")}-${String(_guardYesterday.getDate()).padStart(2,"0")}`;
+  if (!_dslHasDate) {
+    const _hasUpper = /\bdate:<=/.test(effectiveDsl);
+    const _calToFuture = calToVal && calToVal > _yStr;
+    if (!_hasUpper || _calToFuture) {
+      console.warn("Insight: appending evaluated-only guard date:<=", _yStr);
+      effectiveDsl = effectiveDsl.replace(/\bdate:<=\S+/g, "").trim();
+      effectiveDsl = effectiveDsl ? `${effectiveDsl} date:<=${_yStr}` : `date:<=${_yStr}`;
+    }
+  }
+
+  const insightPanel = document.getElementById("insight-panel");
+  const insightBody  = document.getElementById("insight-body");
+  const insightStat  = document.getElementById("insight-status");
+  if (insightPanel) insightPanel.dataset.prevFocus = document.activeElement?.id || "";
+  stopInsightPoll();
+  if (insightPanel) insightPanel.style.display = "block";
+  if (insightStat)  insightStat.textContent = "Starting";
+  if (insightBody)  { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Submitting insight request..."; }
+  setInsightBtnState(true);
+
+  let resp;
+  try {
+    resp = await fetch("/api/insights", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filter_dsl: effectiveDsl }),
+    });
+  } catch (e) {
+    if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = "Network error submitting insight request."; }
+    setInsightBtnState(false);
+    return;
+  }
+
+  if (resp.status === 422) {
+    if (insightPanel) insightPanel.style.display = "none";
+    setInsightBtnState(false);
+    return;
+  }
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = err.detail || `Error ${resp.status}`; }
+    setInsightBtnState(false);
+    return;
+  }
+
+  const { job_id } = await resp.json();
+  pollInsightJob(job_id);
 });
 
-// Init
+// Wire insight panel close button
+(function () {
+  const closeBtn = document.getElementById("insight-close");
+  const panel    = document.getElementById("insight-panel");
+  if (closeBtn && panel) {
+    closeBtn.addEventListener("click", () => {
+      stopInsightPoll();
+      panel.style.display = "none";
+      setInsightBtnState(false);
+      restoreInsightFocus();
+    });
+  }
+})();
+
+// Escape closes the insight panel (document-level; skips when focus is in a text input)
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  const tag = (e.target.tagName || "").toUpperCase();
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  const panel = document.getElementById("insight-panel");
+  if (panel && panel.style.display !== "none") {
+    stopInsightPoll();
+    panel.style.display = "none";
+    setInsightBtnState(false);
+    restoreInsightFocus();
+  }
+});
+
+// Init — restore DSL + calendar from URL before first fetch
 (function init() {
-  const initialDsl = getFilterFromUrl();
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialDsl  = urlParams.get("filter") || "";
+  const initialFrom = urlParams.get("from")   || "";
+  const initialTo   = urlParams.get("to")     || "";
+
   filterInput.value = initialDsl;
+
+  const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+  if (initialFrom && ISO_DATE.test(initialFrom)) {
+    _calFrom = initialFrom;
+    const el = document.getElementById("cal-from");
+    if (el) el.value = initialFrom;
+  }
+  if (initialTo && ISO_DATE.test(initialTo)) {
+    _calTo = initialTo;
+    const el = document.getElementById("cal-to");
+    if (el) el.value = initialTo;
+  }
+
   fetchAndRender(initialDsl);
 })();
 </script>

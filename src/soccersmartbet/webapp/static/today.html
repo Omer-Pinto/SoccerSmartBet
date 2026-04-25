@@ -11,12 +11,10 @@
 <link rel="stylesheet" href="/static/today.css">
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to main content</a>
 
-<!-- Hidden: today's ISO date for JS to read -->
+<!-- Hidden: today's ISO date for JS to read (set by masthead script below) -->
 <input type="hidden" id="today-date-iso" value="">
-<script>
-  document.getElementById("today-date-iso").value = new Date().toLocaleDateString("sv-SE");
-</script>
 
 <!-- ═══════════════════════════════════════════
      MASTHEAD
@@ -37,7 +35,7 @@
 </header>
 
 <!-- NAV -->
-<nav class="nav-bar">
+<nav class="nav-bar" aria-label="Main navigation">
   <div class="nav-bar-inner">
     <a class="nav-tab active" href="/today">Today</a>
     <a class="nav-tab" href="/history">History</a>
@@ -66,7 +64,7 @@
 <!-- ═══════════════════════════════════════════
      PAGE BODY GRID
 ═══════════════════════════════════════════ -->
-<main class="page-body">
+<main class="page-body" id="main" tabindex="-1">
 
   <!-- ── CONTROLS ── -->
   <section class="controls-section full-row">
@@ -75,17 +73,14 @@
       <h2>Operations</h2>
     </div>
     <div class="controls-row">
-      <button class="btn btn-action" id="btn-pre-gambling" disabled>
+      <button type="button" class="btn btn-action" id="btn-pre-gambling" disabled title="Waiting for flow status&hellip;">
         Run Pre-Gambling
       </button>
-      <button class="btn btn-action" id="btn-post-games" disabled>
+      <button type="button" class="btn btn-action" id="btn-post-games" disabled title="Waiting for flow status&hellip;">
         Run Post-Games
       </button>
-      <button class="btn btn-secondary" id="btn-regen" disabled>
-        Regenerate Report&hellip;
-      </button>
-      <button class="btn btn-override" id="btn-override" disabled>
-        Force Override
+      <button type="button" class="btn btn-override" id="btn-override" disabled title="Waiting for flow status&hellip;">
+        Override Pre-Gambling
       </button>
     </div>
   </section>
@@ -101,19 +96,12 @@
       Loading bets&hellip;
     </div>
 
-    <!-- Filter bar with calendar -->
-    <div class="today-filter-bar" id="today-filter-bar">
-      <div class="today-filter-dates">
-        <label class="filter-label" for="cal-from">From</label>
-        <input type="date" id="cal-from" class="cal-input">
-        <label class="filter-label" for="cal-to">To</label>
-        <input type="date" id="cal-to" class="cal-input">
-      </div>
-    </div>
+    <!-- Calendar filter removed: Today only ever shows today's bets -->
+    <!-- Hidden inputs retained so today.js DOM refs don't break -->
+    <input type="hidden" id="cal-from">
+    <input type="hidden" id="cal-to">
 
-    <!-- Summary line -->
-    <div class="paging-summary" id="paging-summary-today"></div>
-
+    <div class="table-scroll-wrap">
     <table class="matches-table merged-row-table" id="table-today">
       <thead>
         <tr>
@@ -128,18 +116,19 @@
       </thead>
       <tbody id="tbody-matches">
         <tr>
-          <td colspan="7" class="empty-state">Loading&hellip;</td>
+          <td colspan="7" class="empty-state is-loading">Loading<span class="loading-dots"><span></span><span></span><span></span></span></td>
         </tr>
       </tbody>
     </table>
+    </div>
 
     <!-- Paging controls -->
     <div class="paging-controls" id="paging-today" style="display:none;">
-      <button class="page-btn" id="today-first">&laquo;</button>
-      <button class="page-btn" id="today-prev">&lsaquo;</button>
+      <button type="button" class="page-btn" id="today-first">&laquo;</button>
+      <button type="button" class="page-btn" id="today-prev">&lsaquo;</button>
       <span class="page-info" id="today-page-info"></span>
-      <button class="page-btn" id="today-next">&rsaquo;</button>
-      <button class="page-btn" id="today-last">&raquo;</button>
+      <button type="button" class="page-btn" id="today-next">&rsaquo;</button>
+      <button type="button" class="page-btn" id="today-last">&raquo;</button>
       <select class="page-size-select" id="today-page-size">
         <option value="25" selected>25 / page</option>
         <option value="50">50 / page</option>
@@ -149,7 +138,7 @@
   </section>
 
   <!-- ── SIDEBAR ── -->
-  <aside class="sidebar-column">
+  <aside class="sidebar-column" aria-label="Bankroll summary and sparkline">
 
     <!-- BANKROLL BLOCK -->
     <div class="bankroll-block">
@@ -160,27 +149,27 @@
 
       <div class="bankroll-row">
         <div class="bankroll-row-label">User</div>
-        <div class="bankroll-amount neutral" id="bankroll-user">
-          <span class="bankroll-currency">NIS</span>&mdash;
+        <div class="bankroll-amount neutral" id="bankroll-user" aria-live="polite">
+          <span class="bankroll-currency">NIS</span><span class="loading-dots"><span></span><span></span><span></span></span>
         </div>
         <div class="bankroll-delta neutral" id="bankroll-user-delta">
-          <span>Since 10,000</span>&mdash;
+          <span>vs baseline</span><span class="loading-dots"><span></span><span></span><span></span></span>
         </div>
       </div>
 
       <div class="bankroll-row">
         <div class="bankroll-row-label">AI</div>
-        <div class="bankroll-amount neutral" id="bankroll-ai">
-          <span class="bankroll-currency">NIS</span>&mdash;
+        <div class="bankroll-amount neutral" id="bankroll-ai" aria-live="polite">
+          <span class="bankroll-currency">NIS</span><span class="loading-dots"><span></span><span></span><span></span></span>
         </div>
         <div class="bankroll-delta neutral" id="bankroll-ai-delta">
-          <span>Since 10,000</span>&mdash;
+          <span>vs baseline</span><span class="loading-dots"><span></span><span></span><span></span></span>
         </div>
       </div>
 
       <div class="bankroll-today">
-        <div id="today-pnl-user">Today P&L (User): &mdash;</div>
-        <div id="today-pnl-ai"  style="margin-top:4px;">Today P&L (AI): &mdash;</div>
+        <div id="today-pnl-user">Today P&L (User): <span class="loading-dots"><span></span><span></span><span></span></span></div>
+        <div id="today-pnl-ai"  style="margin-top:4px;">Today P&L (AI): <span class="loading-dots"><span></span><span></span><span></span></span></div>
       </div>
     </div>
 
@@ -207,8 +196,9 @@
         </div>
       </div>
 
-      <div class="chart-svg-wrap">
+      <div class="chart-svg-wrap" role="img" aria-label="30-day P&amp;L sparkline">
         <div id="sparkline-svg"></div>
+        <div id="sparkline-tooltip" role="tooltip" style="display:none;"></div>
       </div>
 
       <div class="chart-x-labels" id="x-labels">
@@ -226,7 +216,7 @@
 ═══════════════════════════════════════════ -->
 <footer class="page-footer">
   <div class="footer-brand">SoccerSmartBet</div>
-  <div class="footer-info">Operator Console &nbsp;&middot;&nbsp; ISR Timezone</div>
+  <div class="footer-info">Operator Console &nbsp;<span class="footer-sep">&middot;</span>&nbsp; ISR Timezone</div>
 </footer>
 
 <!-- ═══════════════════════════════════════════
@@ -234,7 +224,7 @@
 ═══════════════════════════════════════════ -->
 <div class="modal-backdrop" id="modal-backdrop">
   <div class="modal">
-    <h3>Confirm Force Override</h3>
+    <h3>Override Pre-Gambling</h3>
     <p>
       This will <strong>delete all today's games, reports, and bets</strong> and re-run
       the pre-gambling pipeline from scratch.<br><br>
@@ -242,8 +232,8 @@
     </p>
     <input type="text" id="modal-date-input" placeholder="YYYY-MM-DD" autocomplete="off">
     <div class="modal-actions">
-      <button class="btn btn-secondary btn-cancel-edit" id="modal-cancel">Cancel</button>
-      <button class="btn btn-override" id="modal-confirm">Force Override</button>
+      <button type="button" class="btn btn-override" id="modal-confirm" disabled>Confirm Override</button>
+      <button type="button" class="btn btn-secondary btn-cancel-edit" id="modal-cancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -252,16 +242,16 @@
   // Set masthead date and modal hint
   (function () {
     const now = new Date();
-    const dateStr = now.toLocaleDateString("sv-SE"); // "YYYY-MM-DD"
+    const dateStr = now.toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" }); // "YYYY-MM-DD"
     document.getElementById("today-date-iso").value = dateStr;
     const hint = document.getElementById("modal-date-hint");
     if (hint) hint.textContent = dateStr;
     const mh = document.getElementById("masthead-date");
     if (mh) {
-      const opts = { weekday: "long", year: "numeric", month: "long", day: "numeric" };
+      const opts = { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "Asia/Jerusalem" };
       mh.textContent =
         now.toLocaleDateString("en-US", opts) + " · " +
-        now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) + " ISR";
+        now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jerusalem" }) + " ISR";
     }
   })();
 </script>

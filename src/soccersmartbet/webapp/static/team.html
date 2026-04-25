@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="/static/shared.css">
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to main content</a>
 
 <!-- MASTHEAD -->
 <header class="masthead">
@@ -28,7 +29,7 @@
 </header>
 
 <!-- NAV -->
-<nav class="nav-bar">
+<nav class="nav-bar" aria-label="Main navigation">
   <div class="nav-bar-inner">
     <a class="nav-tab" href="/today">Today</a>
     <a class="nav-tab" href="/history">History</a>
@@ -36,8 +37,17 @@
   </div>
 </nav>
 
+<!-- BREADCRUMB -->
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <div class="breadcrumb-inner">
+    <a class="breadcrumb-link" href="/history">History</a>
+    <span class="breadcrumb-sep">&rsaquo;</span>
+    <span class="breadcrumb-current" id="breadcrumb-current">Team</span>
+  </div>
+</nav>
+
 <!-- PAGE BODY -->
-<main class="page-body">
+<main class="page-body" id="main" tabindex="-1">
 
   <!-- USER / AI SIDE-BY-SIDE STATS BLOCK -->
   <div class="split-stats-block" id="split-stats" style="display:none;">
@@ -83,6 +93,7 @@
     <!-- Paging summary (usually empty for notable — ≤5 rows) -->
     <div class="paging-summary" id="notable-summary"></div>
 
+    <div class="table-scroll-wrap">
     <table class="matches-table merged-row-table" style="margin-bottom:32px;">
       <thead>
         <tr>
@@ -95,15 +106,16 @@
       </thead>
       <tbody id="tbody-notable"></tbody>
     </table>
+    </div>
 
     <!-- Paging controls for notable (structurally present; hidden when ≤1 page) -->
     <div class="paging-controls" id="paging-notable" style="display:none;">
-      <button class="page-btn" id="n-first">&laquo;</button>
-      <button class="page-btn" id="n-prev">&lsaquo;</button>
+      <button type="button" class="page-btn" id="n-first" aria-label="First page">&laquo;</button>
+      <button type="button" class="page-btn" id="n-prev" aria-label="Previous page">&lsaquo;</button>
       <span class="page-info" id="n-page-info"></span>
-      <button class="page-btn" id="n-next">&rsaquo;</button>
-      <button class="page-btn" id="n-last">&raquo;</button>
-      <select class="page-size-select" id="n-page-size">
+      <button type="button" class="page-btn" id="n-next" aria-label="Next page">&rsaquo;</button>
+      <button type="button" class="page-btn" id="n-last" aria-label="Last page">&raquo;</button>
+      <select class="page-size-select" id="n-page-size" aria-label="Rows per page">
         <option value="25" selected>25 / page</option>
         <option value="50">50 / page</option>
         <option value="100">100 / page</option>
@@ -118,48 +130,89 @@
       <h2>All Bets</h2>
     </div>
 
-    <!-- Filter bar with calendar -->
+    <!-- Filter bar with DSL input + calendar + Generate Insight -->
     <div class="filter-bar" style="margin-bottom:16px;">
+      <div class="filter-input-wrap">
+        <div class="filter-label">Filter DSL</div>
+        <!-- datalist: key-only entries for the 4 client-side supported keys -->
+        <datalist id="dsl-keys">
+          <option value="bettor:">
+          <option value="outcome:">
+          <option value="result:">
+          <option value="prediction:">
+        </datalist>
+        <div class="filter-input-inner" id="filter-input-inner">
+          <input class="filter-input" id="filter-input" type="text"
+                 list="dsl-keys"
+                 placeholder="bettor:user  outcome:win  result:1 ..."
+                 autocomplete="off" spellcheck="false">
+          <button type="button" class="dsl-clear-btn" id="dsl-clear" aria-label="Clear filter">&times;</button>
+        </div>
+        <div id="dsl-error" class="dsl-error" role="alert" aria-live="polite"></div>
+        <div class="filter-hint">
+          Supported: bettor:user/ai &nbsp;&middot;&nbsp; outcome:win/loss &nbsp;&middot;&nbsp; result:1/2/X &nbsp;&middot;&nbsp; prediction:1/2/X
+          &nbsp;&middot;&nbsp; Client-side only &mdash; other DSL keys are not applied here.
+          &nbsp;&middot;&nbsp; Negation not supported here.
+        </div>
+      </div>
       <div class="filter-dates">
-        <div class="filter-label">From</div>
+        <label class="filter-label" for="cal-from">From</label>
         <input type="date" id="cal-from" class="cal-input">
-        <div class="filter-label">To</div>
+        <label class="filter-label" for="cal-to">To</label>
         <input type="date" id="cal-to" class="cal-input">
       </div>
+      <button type="button" class="btn btn-insight" id="btn-insight" disabled
+              title="AI analysis of your current filter (10-30 sec)">
+        Generate Insight
+      </button>
+    </div>
+
+    <!-- INSIGHT PANEL — inline directly below filter bar -->
+    <div class="insight-panel" id="insight-panel" style="display:none;margin-top:-4px;margin-bottom:24px;">
+      <div class="insight-panel-header">
+        <div class="insight-panel-title">AI Insight</div>
+        <div class="insight-panel-actions">
+          <div class="insight-panel-status" id="insight-status"></div>
+          <button type="button" class="insight-panel-close" id="insight-close" aria-label="Close insight panel" title="Close">&times;</button>
+        </div>
+      </div>
+      <div class="insight-panel-body" id="insight-body" tabindex="0">Waiting&hellip;</div>
     </div>
 
     <!-- Paging summary -->
     <div class="paging-summary" id="bets-summary"></div>
 
+    <div class="table-scroll-wrap">
     <table class="matches-table merged-row-table" id="bets-table">
       <thead>
         <tr>
-          <th class="sortable" data-col="date" aria-sort="descending">
-            Date <span class="sort-icon" id="sort-icon-date">&#9660;</span>
+          <th class="sortable" data-col="date" aria-sort="descending" tabindex="0">
+            Date <span class="sort-icon" id="sort-icon-date" aria-hidden="true">&#9660;</span>
           </th>
-          <th class="sortable" data-col="league" aria-sort="none">
-            League <span class="sort-icon" id="sort-icon-league" style="display:none;">&#9650;</span>
+          <th class="sortable" data-col="league" aria-sort="none" tabindex="0">
+            League <span class="sort-icon sort-icon--inactive" id="sort-icon-league" aria-hidden="true">&#8597;</span>
           </th>
-          <th class="sortable" data-col="match" aria-sort="none">
-            Match + Score <span class="sort-icon" id="sort-icon-match" style="display:none;">&#9650;</span>
+          <th class="sortable" data-col="match" aria-sort="none" tabindex="0">
+            Match + Score <span class="sort-icon sort-icon--inactive" id="sort-icon-match" aria-hidden="true">&#8597;</span>
           </th>
           <th>Prediction / Odds / Stake</th>
           <th>Result / P&amp;L</th>
         </tr>
       </thead>
       <tbody id="tbody-bets">
-        <tr><td colspan="5" class="empty-state">Loading&hellip;</td></tr>
+        <tr><td colspan="5" class="empty-state is-loading">Loading<span class="loading-dots"><span></span><span></span><span></span></span></td></tr>
       </tbody>
     </table>
+    </div>
 
     <!-- Paging controls -->
     <div class="paging-controls" id="paging-bets" style="display:none;">
-      <button class="page-btn" id="b-first">&laquo;</button>
-      <button class="page-btn" id="b-prev">&lsaquo;</button>
+      <button type="button" class="page-btn" id="b-first" aria-label="First page">&laquo;</button>
+      <button type="button" class="page-btn" id="b-prev" aria-label="Previous page">&lsaquo;</button>
       <span class="page-info" id="b-page-info"></span>
-      <button class="page-btn" id="b-next">&rsaquo;</button>
-      <button class="page-btn" id="b-last">&raquo;</button>
-      <select class="page-size-select" id="b-page-size">
+      <button type="button" class="page-btn" id="b-next" aria-label="Next page">&rsaquo;</button>
+      <button type="button" class="page-btn" id="b-last" aria-label="Last page">&raquo;</button>
+      <select class="page-size-select" id="b-page-size" aria-label="Rows per page">
         <option value="25" selected>25 / page</option>
         <option value="50">50 / page</option>
         <option value="100">100 / page</option>
@@ -172,7 +225,7 @@
 <!-- FOOTER -->
 <footer class="page-footer">
   <div class="footer-brand">SoccerSmartBet</div>
-  <div class="footer-info">Team &nbsp;&middot;&nbsp; ISR Timezone</div>
+  <div class="footer-info">Team &nbsp;<span class="footer-sep">&middot;</span>&nbsp; ISR Timezone</div>
 </footer>
 
 <script>
@@ -206,18 +259,23 @@ function resultClass(pnl) {
   return pnl > 0 ? "result-win" : "result-loss";
 }
 function resultLabel(bet) {
-  if (!bet.result) return "Open";
+  if (bet.result === null || bet.result === undefined) return "Open";
   if (bet.pnl !== null && bet.pnl > 0) return "Win";
   if (bet.pnl !== null && bet.pnl < 0) return "Loss";
-  return bet.result;
+  return bet.result ?? "Open";
 }
 function leagueClass(league) {
   const l = (league || "").toLowerCase().replace(/\s/g,"");
   if (l.includes("premier")) return "premier";
-  if (l.includes("laliga") || l.includes("liga")) return "laliga";
   if (l.includes("bundesliga")) return "bundesliga";
+  if (l.includes("laliga") || l.includes("liga") || l.includes("primeradivision")) return "laliga";
   if (l.includes("seriea") || l.includes("serie")) return "seriea";
   return "";
+}
+function leagueDisplay(league) {
+  // U3: normalise legacy alias → canonical UI label (DB unchanged)
+  if ((league || "").trim().toLowerCase() === "primera division") return "La Liga";
+  return league;
 }
 function todayISR() {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
@@ -233,6 +291,77 @@ let _sortCol    = "date";
 let _sortDir    = "desc";
 let _calFrom    = "";
 let _calTo      = "";
+let _dslFilter  = "";   // client-side DSL (bettor/outcome/result/prediction only)
+
+// ─── Client-side DSL parser ───────────────────────────────────────────────────
+// Supports: bettor:user|ai, outcome:win|loss, result:1|2|X, prediction:1|2|X
+// All keys are case-insensitive. Tokens are AND-combined.
+// Unknown keys trigger a visible error via setDslError.
+const _DSL_SUPPORTED_KEYS = new Set(["bettor", "outcome", "result", "prediction"]);
+const _DSL_ALLOWLISTS = {
+  bettor:     new Set(["user", "ai"]),
+  outcome:    new Set(["win", "loss"]),
+  result:     new Set(["1", "x", "2"]),
+  prediction: new Set(["1", "x", "2"]),
+};
+function parseDslTokens(dsl) {
+  if (!dsl) return { tokens: [], unknowns: [], invalid: [] };
+  const tokens = [];
+  const unknowns = [];
+  const invalid = [];
+  // MED-1: detect leading "!" before key and surface a clear error token
+  const re = /(!?)(\w+):(\S+)/g;
+  let m;
+  while ((m = re.exec(dsl)) !== null) {
+    const negated = m[1] === "!";
+    const key = m[2].toLowerCase();
+    const val = m[3].toLowerCase();
+    if (negated) {
+      // Surface negation as an error — do not silently drop it
+      invalid.push({ key: "!" + key, val, reason: "negation" });
+      continue;
+    }
+    if (!_DSL_SUPPORTED_KEYS.has(key)) {
+      unknowns.push(key);
+      continue;
+    }
+    // MED-2: validate value against per-key allowlist
+    const allowed = _DSL_ALLOWLISTS[key];
+    if (allowed && !allowed.has(val)) {
+      invalid.push({ key, val, reason: "value" });
+      continue;
+    }
+    tokens.push({ key, val });
+  }
+  return { tokens, unknowns, invalid };
+}
+
+function groupMatchesDsl(group, tokens) {
+  if (!tokens || tokens.length === 0) return true;
+  return tokens.every(({ key, val }) => {
+    if (key === "bettor") {
+      // Group must contain a bet for the specified bettor
+      if (val === "user") return !!group.userBet;
+      if (val === "ai")   return !!group.aiBet;
+    }
+    if (key === "outcome") {
+      // outcome:win — at least one bet with pnl > 0; outcome:loss — at least one with pnl < 0
+      const bets = [group.userBet, group.aiBet].filter(Boolean);
+      if (val === "win")  return bets.some(b => b.pnl !== null && parseFloat(b.pnl) > 0);
+      if (val === "loss") return bets.some(b => b.pnl !== null && parseFloat(b.pnl) < 0);
+    }
+    if (key === "result") {
+      const bets = [group.userBet, group.aiBet].filter(Boolean);
+      return bets.some(b => b.result !== null && String(b.result).toLowerCase() === val);
+    }
+    if (key === "prediction") {
+      const bets = [group.userBet, group.aiBet].filter(Boolean);
+      return bets.some(b => b.prediction !== null && String(b.prediction).toLowerCase() === val);
+    }
+    // Unknown key — pass through (don't exclude)
+    return true;
+  });
+}
 
 // ─── Group bets into games ────────────────────────────────────────────────────
 function buildGroups(bets) {
@@ -291,6 +420,12 @@ function buildGroups(bets) {
     });
   }
 
+  // Client-side DSL filter
+  if (_dslFilter) {
+    const { tokens } = parseDslTokens(_dslFilter);
+    groups = groups.filter(g => groupMatchesDsl(g, tokens));
+  }
+
   return groups;
 }
 
@@ -343,11 +478,12 @@ function updateSortHeaders() {
     if (!th || !icon) return;
     if (_sortCol === col) {
       th.setAttribute("aria-sort", _sortDir === "asc" ? "ascending" : "descending");
-      icon.style.display = "inline";
+      icon.className = "sort-icon";
       icon.innerHTML = _sortDir === "asc" ? "&#9650;" : "&#9660;";
     } else {
       th.setAttribute("aria-sort", "none");
-      icon.style.display = "none";
+      icon.className = "sort-icon sort-icon--inactive";
+      icon.innerHTML = "&#8597;";
     }
   });
 }
@@ -400,7 +536,7 @@ function renderMergedGroups(groups, tbodyId, colspan) {
   if (!tbody) return;
 
   if (groups.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">No evaluated bets found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">No evaluated bets match this filter.</td></tr>`;
     wireHoverDelegation(tbody);
     return;
   }
@@ -430,7 +566,7 @@ function renderMergedGroups(groups, tbodyId, colspan) {
       tr.className = rowCls + " game-row--top";
       tr.innerHTML = `
         <td class="match-date-cell">${escHtml(match_date)}</td>
-        <td><a class="league-pill ${leagueCls}" href="/league/${leagueSlug}">${escHtml(league)}</a></td>
+        <td><a class="league-pill ${leagueCls}" href="/league/${leagueSlug}">${escHtml(leagueDisplay(league))}</a></td>
         <td class="team-name">
           <a href="/team/${homeSlug}">${escHtml(home_team)}</a>
           <span class="vs-sep">vs</span>
@@ -441,7 +577,7 @@ function renderMergedGroups(groups, tbodyId, colspan) {
           <span class="bettor-label ${labelCls}">${label}</span>
           ${escHtml((bet.prediction || "").toUpperCase())}
           <span class="bet-odds"> @ ${parseFloat(bet.odds || 0).toFixed(2)}</span>
-          <br><span class="bet-amount">NIS ${parseFloat(bet.stake || 0).toFixed(0)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(bet.stake || 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
         </td>
         <td class="col-result">
           ${bet.result !== null && bet.result !== undefined
@@ -456,7 +592,7 @@ function renderMergedGroups(groups, tbodyId, colspan) {
       trTop.className = rowCls + " game-row--top";
       trTop.innerHTML = `
         <td rowspan="2" class="match-date-cell">${escHtml(match_date)}</td>
-        <td rowspan="2"><a class="league-pill ${leagueCls}" href="/league/${leagueSlug}">${escHtml(league)}</a></td>
+        <td rowspan="2"><a class="league-pill ${leagueCls}" href="/league/${leagueSlug}">${escHtml(leagueDisplay(league))}</a></td>
         <td rowspan="2" class="team-name">
           <a href="/team/${homeSlug}">${escHtml(home_team)}</a>
           <span class="vs-sep">vs</span>
@@ -467,7 +603,7 @@ function renderMergedGroups(groups, tbodyId, colspan) {
           <span class="bettor-label bet-user">USER</span>
           ${escHtml((userBet.prediction || "").toUpperCase())}
           <span class="bet-odds"> @ ${parseFloat(userBet.odds || 0).toFixed(2)}</span>
-          <br><span class="bet-amount">NIS ${parseFloat(userBet.stake || 0).toFixed(0)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(userBet.stake || 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
         </td>
         <td class="col-result">
           <span class="result-badge ${resultClass(userBet.pnl)}">${resultLabel(userBet)}</span>
@@ -482,7 +618,7 @@ function renderMergedGroups(groups, tbodyId, colspan) {
           <span class="bettor-label bet-ai">AI</span>
           ${escHtml((aiBet.prediction || "").toUpperCase())}
           <span class="bet-odds"> @ ${parseFloat(aiBet.odds || 0).toFixed(2)}</span>
-          <br><span class="bet-amount">NIS ${parseFloat(aiBet.stake || 0).toFixed(0)}</span>
+          <br><span class="bet-amount">NIS ${parseFloat(aiBet.stake || 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
         </td>
         <td class="col-result">
           <span class="result-badge ${resultClass(aiBet.pnl)}">${resultLabel(aiBet)}</span>
@@ -502,23 +638,28 @@ function renderMergedGroups(groups, tbodyId, colspan) {
   wireHoverDelegation(tbody);
 }
 
+// Hover delegation — wired once per tbody (not per render) to prevent listener
+// accumulation. renderMergedGroups passes tbody in but we guard with _hoverWired.
 function wireHoverDelegation(tbody) {
-  tbody.addEventListener("mouseenter", e => {
+  if (!tbody || tbody._hoverWired) return;
+  tbody._hoverWired = true;
+  // Use mouseover/mouseout (which bubble) instead of mouseenter/mouseleave (which don't).
+  tbody.addEventListener("mouseover", e => {
     const row = e.target.closest("tr.game-row");
     if (!row) return;
     const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
     const bot = top ? top.nextElementSibling : null;
     if (top && top.classList.contains("game-row")) top.classList.add("row-hover");
     if (bot && bot.classList.contains("game-row")) bot.classList.add("row-hover");
-  }, true);
-  tbody.addEventListener("mouseleave", e => {
+  });
+  tbody.addEventListener("mouseout", e => {
     const row = e.target.closest("tr.game-row");
     if (!row) return;
     const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
     const bot = top ? top.nextElementSibling : null;
     if (top) top.classList.remove("row-hover");
     if (bot) bot.classList.remove("row-hover");
-  }, true);
+  });
 }
 
 // ─── Paging for All Bets ──────────────────────────────────────────────────────
@@ -533,7 +674,7 @@ function renderBetsPage() {
 
   const sumEl = document.getElementById("bets-summary");
   if (sumEl) sumEl.textContent = total === 0
-    ? "No evaluated bets found"
+    ? "No evaluated bets match this filter"
     : `Showing ${start + 1}–${end} of ${total} games`;
 
   const pagingEl = document.getElementById("paging-bets");
@@ -582,12 +723,85 @@ function renderNotablePage() {
   renderMergedGroups(slice, "tbody-notable", 5);
 }
 
+// ─── URL sync helper ──────────────────────────────────────────────────────────
+function pushStateToUrl(dsl, calFrom, calTo) {
+  const params = new URLSearchParams(window.location.search);
+  if (dsl)     { params.set("filter", dsl); } else { params.delete("filter"); }
+  if (calFrom) { params.set("from", calFrom); } else { params.delete("from"); }
+  if (calTo)   { params.set("to",   calTo);   } else { params.delete("to"); }
+  const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+  history.replaceState(null, "", newUrl);
+}
+// Back-compat alias used by calendar-only changes
+function pushCalendarToUrl(calFrom, calTo) { pushStateToUrl(_dslFilter, calFrom, calTo); }
+
+// ─── DSL error display ────────────────────────────────────────────────────────
+function setDslError(msg) {
+  const el = document.getElementById("dsl-error");
+  if (!el) return;
+  if (!msg) {
+    el.textContent = "";
+    el.style.display = "none";
+  } else {
+    el.textContent = msg;
+    el.style.display = "block";
+  }
+}
+
+// ─── DSL clear button sync ────────────────────────────────────────────────────
+function _syncDslClear() {
+  const inp = document.getElementById("filter-input");
+  const inner = document.getElementById("filter-input-inner");
+  if (!inp || !inner) return;
+  if (inp.value.trim()) {
+    inner.classList.add("has-value");
+  } else {
+    inner.classList.remove("has-value");
+  }
+}
+
+// ─── DSL filter change (client-side only) ────────────────────────────────────
+let _dslDebounce = null;
+function onDslChange() {
+  clearTimeout(_dslDebounce);
+  _dslFilter = (document.getElementById("filter-input") || {}).value || "";
+  _syncDslClear();
+  _currentPage = 1;
+  _dslDebounce = setTimeout(() => {
+    const { unknowns, invalid } = parseDslTokens(_dslFilter);
+    if (unknowns.length > 0) {
+      setDslError("Unknown key(s): " + unknowns.join(", ") + ". Supported: bettor, outcome, result, prediction");
+    } else if (invalid.length > 0) {
+      const negations = invalid.filter(t => t.reason === "negation");
+      const badVals   = invalid.filter(t => t.reason === "value");
+      if (negations.length > 0) {
+        setDslError("Negation (!) not supported in client-side filter on this page");
+      } else {
+        const hints = badVals.map(t => {
+          const allowed = _DSL_ALLOWLISTS[t.key] ? Array.from(_DSL_ALLOWLISTS[t.key]).join("|") : "?";
+          return `${t.key}:${t.val} (try ${t.key}:${allowed})`;
+        });
+        setDslError("Invalid value(s): " + hints.join(", "));
+      }
+    } else {
+      setDslError(null);
+    }
+    pushStateToUrl(_dslFilter, _calFrom, _calTo);
+    _groups = sortGroups(buildGroups(_rawBets));
+    renderSplitStats(_groups);
+    renderBetsPage();
+    const btnInsight = document.getElementById("btn-insight");
+    if (btnInsight) btnInsight.disabled = (_groups.length === 0);
+  }, 350);
+}
+
 // ─── Calendar change ──────────────────────────────────────────────────────────
 let _calDebounce = null;
 function onCalendarChange() {
   clearTimeout(_calDebounce);
   _calFrom = (document.getElementById("cal-from") || {}).value || "";
   _calTo   = (document.getElementById("cal-to")   || {}).value || "";
+  pushCalendarToUrl(_calFrom, _calTo);
   _currentPage = 1;
   _sortCol = "date"; _sortDir = "desc";
   updateSortHeaders();
@@ -595,20 +809,336 @@ function onCalendarChange() {
     _groups = sortGroups(buildGroups(_rawBets));
     renderSplitStats(_groups);
     renderBetsPage();
+    // Update insight button state when calendar changes
+    const btnInsight = document.getElementById("btn-insight");
+    if (btnInsight) btnInsight.disabled = (_groups.length === 0);
   }, 350);
 }
+
+// ─── Insight polling ─────────────────────────────────────────────────────────
+let _insightPollTimer = null;
+let _insightToken = 0;
+function stopInsightPoll() {
+  _insightToken++;
+  if (_insightPollTimer) { clearInterval(_insightPollTimer); _insightPollTimer = null; }
+}
+
+function setInsightBtnState(generating) {
+  const btn = document.getElementById("btn-insight");
+  if (!btn) return;
+  btn.disabled = generating;
+  btn.textContent = generating ? "Generating…" : "Generate Insight";
+}
+
+/**
+ * Minimal Markdown → HTML converter for AI insight output.
+ * Headers map to h3/h4/h5 (not h1/h2) to preserve page hierarchy.
+ * Escapes raw HTML before processing to prevent XSS from AI output.
+ */
+function simpleMarkdown(md) {
+  if (!md) return "";
+
+  const esc = s => String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  let text = esc(md);
+
+  const codeBlocks = [];
+  text = text.replace(/```[^\n]*\n([\s\S]*?)```/g, (_, inner) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push(`<pre><code>${inner}</code></pre>`);
+    return `\x00CODEBLOCK${idx}\x00`;
+  });
+
+  // Inline transform helper — applied per-line BEFORE structure tags are emitted.
+  const inlineTransform = s => {
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
+    // Italic *text*: require non-space immediately after opening * and before closing *.
+    s = s.replace(/\*(\S(?:[^*\n]*?\S)?)\*/g, "<em>$1</em>");
+    // Italic _text_: require word boundary + non-space content to avoid DB ids / underscores.
+    s = s.replace(/\b_(\S[^_\n]*?\S)_\b/g, "<em>$1</em>");
+    return s;
+  };
+
+  const lines = text.split("\n");
+  const out = [];
+  let inUl = false, inOl = false;
+
+  const closeList = () => {
+    if (inUl) { out.push("</ul>"); inUl = false; }
+    if (inOl) { out.push("</ol>"); inOl = false; }
+  };
+
+  lines.forEach(line => {
+    const h3 = line.match(/^### (.+)$/);
+    const h2 = line.match(/^## (.+)$/);
+    const h1 = line.match(/^# (.+)$/);
+    if (h3)      { closeList(); out.push(`<h5>${inlineTransform(h3[1])}</h5>`); return; }
+    if (h2)      { closeList(); out.push(`<h4>${inlineTransform(h2[1])}</h4>`); return; }
+    if (h1)      { closeList(); out.push(`<h3>${inlineTransform(h1[1])}</h3>`); return; }
+
+    const ulItem = line.match(/^[-*] (.+)$/);
+    if (ulItem) {
+      if (inOl) { out.push("</ol>"); inOl = false; }
+      if (!inUl) { out.push("<ul>"); inUl = true; }
+      out.push(`<li>${inlineTransform(ulItem[1])}</li>`);
+      return;
+    }
+
+    const olItem = line.match(/^\d+\. (.+)$/);
+    if (olItem) {
+      if (inUl) { out.push("</ul>"); inUl = false; }
+      if (!inOl) { out.push("<ol>"); inOl = true; }
+      out.push(`<li>${inlineTransform(olItem[1])}</li>`);
+      return;
+    }
+
+    closeList();
+    if (line.trim() === "") { out.push("<p></p>"); return; }
+    out.push(inlineTransform(line));
+  });
+
+  closeList();
+  text = out.join("\n");
+
+  text = text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i, 10)]);
+  text = text.replace(/\n/g, "<br>");
+  return text;
+}
+
+async function pollInsightJob(jobId) {
+  const insightBody = document.getElementById("insight-body");
+  const insightStat = document.getElementById("insight-status");
+  stopInsightPoll();
+  if (insightStat) insightStat.textContent = "Queued";
+  if (insightBody) { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Waiting for AI analysis..."; }
+
+  const myToken = ++_insightToken;
+  _insightPollTimer = setInterval(async () => {
+    let resp;
+    try { resp = await fetch(`/api/insights/${jobId}`); }
+    catch (e) {
+      if (myToken !== _insightToken) return;
+      stopInsightPoll();
+      if (insightStat) insightStat.textContent = "Error";
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = "Network error polling insight."; }
+      setInsightBtnState(false);
+      return;
+    }
+    if (myToken !== _insightToken) return;
+    if (!resp.ok) {
+      stopInsightPoll();
+      if (insightStat) insightStat.textContent = "Error";
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = `Error ${resp.status} polling insight job.`; }
+      setInsightBtnState(false);
+      return;
+    }
+    const job = await resp.json();
+    if (myToken !== _insightToken) return;
+    if (insightStat) insightStat.textContent = job.state.toUpperCase();
+    if (job.state === "done") {
+      stopInsightPoll();
+      const md = (job.markdown || "").trim();
+      if (insightBody) {
+        insightBody.className = "insight-panel-body";
+        insightBody.innerHTML = md ? simpleMarkdown(md) : "<em>No insight returned.</em>";
+      }
+      setInsightBtnState(false);
+    } else if (job.state === "failed") {
+      stopInsightPoll();
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = job.error || "Insight generation failed."; }
+      setInsightBtnState(false);
+    }
+  }, 2500);
+}
+
+function wireInsightButton(teamName) {
+  const btn = document.getElementById("btn-insight");
+  if (!btn) return;
+
+  // Wire close button
+  const closeBtn = document.getElementById("insight-close");
+  const panel    = document.getElementById("insight-panel");
+  if (closeBtn && panel) {
+    closeBtn.addEventListener("click", () => {
+      stopInsightPoll();
+      panel.style.display = "none";
+      setInsightBtnState(false);
+      restoreInsightFocus();
+    });
+  }
+
+  btn.addEventListener("click", async () => {
+    const insightPanel = document.getElementById("insight-panel");
+    const insightBody  = document.getElementById("insight-body");
+    const insightStat  = document.getElementById("insight-status");
+    // Capture focus owner so we can restore it on close (avoids scroll-jump to #btn-insight)
+    if (insightPanel) insightPanel.dataset.prevFocus = document.activeElement?.id || "";
+    stopInsightPoll();
+    if (insightPanel) insightPanel.style.display = "block";
+    if (insightStat)  insightStat.textContent = "Starting";
+    if (insightBody)  { insightBody.className = "insight-panel-body loading"; insightBody.textContent = "Submitting insight request..."; }
+    setInsightBtnState(true);
+
+    // Build DSL: prefix with team context, AND-merge typed filter + calendar date range
+    let dsl = `team:"${teamName}"`;
+    if (_dslFilter) dsl = `${dsl} ${_dslFilter}`;
+    const calFromVal = (_calFrom || "").trim();
+    const calToVal   = (_calTo   || "").trim();
+    const _dslHasDate = /(?:^|\s)date:/i.test(_dslFilter);
+    if ((calFromVal || calToVal) && !_dslHasDate) {
+      let dateClause = "";
+      if (calFromVal && calToVal) {
+        dateClause = `date:>=${calFromVal},<=${calToVal}`;
+      } else if (calFromVal) {
+        dateClause = `date:>=${calFromVal}`;
+      } else {
+        dateClause = `date:<=${calToVal}`;
+      }
+      dsl = `${dsl} ${dateClause}`;
+    } else if ((calFromVal || calToVal) && _dslHasDate) {
+      console.warn("team insight: typed DSL contains date: — calendar range ignored to avoid duplicate date: clauses");
+    }
+
+    // Evaluated-only guard: exclude today's unresolved games from the AI context.
+    // Clamp to yesterday-ISR when no upper bound exists OR when calToVal is beyond yesterday.
+    const todayISR = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
+    const [_gy, _gm, _gd] = todayISR.split("-").map(Number);
+    const _yesterdayDate = new Date(_gy, _gm - 1, _gd - 1);
+    const _yStr = `${_yesterdayDate.getFullYear()}-${String(_yesterdayDate.getMonth()+1).padStart(2,"0")}-${String(_yesterdayDate.getDate()).padStart(2,"0")}`;
+    const _hasUpper = /\bdate:<=/.test(dsl);
+    const _calToFuture = calToVal && calToVal > _yStr;
+    if (!_hasUpper || _calToFuture) {
+      console.warn("Insight: appending evaluated-only guard date:<=", _yStr);
+      dsl = dsl.replace(/\bdate:<=\S+/g, "").trim();
+      dsl = `${dsl} date:<=${_yStr}`;
+    }
+
+    let resp;
+    try {
+      resp = await fetch("/api/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filter_dsl: dsl }),
+      });
+    } catch (e) {
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = "Network error submitting insight request."; }
+      setInsightBtnState(false);
+      return;
+    }
+
+    if (resp.status === 422) {
+      if (insightPanel) insightPanel.style.display = "none";
+      setInsightBtnState(false);
+      return;
+    }
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      if (insightBody) { insightBody.className = "insight-panel-body error"; insightBody.textContent = err.detail || `Error ${resp.status}`; }
+      setInsightBtnState(false);
+      return;
+    }
+
+    const { job_id } = await resp.json();
+    pollInsightJob(job_id);
+  });
+}
+
+// ─── Restore focus after closing insight panel ───────────────────────────────
+// Prefers the element focused when the panel opened; falls back to #btn-insight
+// only when that element is gone or lives inside the panel.
+function restoreInsightFocus() {
+  const panel    = document.getElementById("insight-panel");
+  const prevId   = panel?.dataset.prevFocus || "";
+  const prevEl   = prevId ? document.getElementById(prevId) : null;
+  const fallback = document.getElementById("btn-insight");
+  const target   = (prevEl && !panel?.contains(prevEl)) ? prevEl : fallback;
+  target?.focus({ preventScroll: true });
+}
+
+// ─── Escape closes insight panel ─────────────────────────────────────────────
+// Document-level handler; skips when focus is inside a text input or modal.
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  const tag = (e.target.tagName || "").toUpperCase();
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  const panel = document.getElementById("insight-panel");
+  if (panel && panel.style.display !== "none") {
+    stopInsightPoll();
+    panel.style.display = "none";
+    setInsightBtnState(false);
+    restoreInsightFocus();
+  }
+});
+
+// ─── Keyboard pagination ──────────────────────────────────────────────────────
+// Arrow keys navigate the "All Bets" table when focus is in the table or paging
+// controls. The "Notable" table rarely exceeds 1 page, so only bets paging is wired.
+(function wireKeyboardPaging() {
+  document.addEventListener("keydown", e => {
+    const tag = (e.target.tagName || "").toUpperCase();
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+    const tableRegion = document.getElementById("bets-table");
+    const pagingRegion = document.getElementById("paging-bets");
+    const active = document.activeElement;
+    const inRegion = (tableRegion && tableRegion.contains(active)) ||
+                     (pagingRegion && pagingRegion.contains(active)) ||
+                     active === document.body || active === document.documentElement;
+    if (!inRegion) return;
+
+    const totalPages = Math.max(1, Math.ceil(_groups.length / _pageSize));
+
+    if (e.key === "ArrowLeft" || e.key === "PageUp") {
+      if (_currentPage <= 1) return;
+      e.preventDefault();
+      _currentPage--;
+      renderBetsPage();
+    } else if (e.key === "ArrowRight" || e.key === "PageDown") {
+      if (_currentPage >= totalPages) return;
+      e.preventDefault();
+      _currentPage++;
+      renderBetsPage();
+    } else if (e.key === "Home") {
+      if (_currentPage === 1) return;
+      e.preventDefault();
+      _currentPage = 1;
+      renderBetsPage();
+    } else if (e.key === "End") {
+      if (_currentPage === totalPages) return;
+      e.preventDefault();
+      _currentPage = totalPages;
+      renderBetsPage();
+    }
+  });
+})();
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 (async function init() {
   // Read slug from URL path: /team/<slug>
   const pathParts = window.location.pathname.split("/");
   const slug = pathParts[pathParts.length - 1] || "";
-  const teamName = decodeURIComponent(slug);
+  let teamName;
+  try {
+    teamName = decodeURIComponent(slug);
+  } catch (_e) {
+    teamName = slug; // malformed percent-encoding — use raw slug as fallback
+    const errEl2 = document.getElementById("error-msg");
+    if (errEl2) {
+      errEl2.textContent = "Team not found.";
+      errEl2.style.display = "block";
+    }
+  }
 
   if (teamName) {
-    document.title = `SoccerSmartBet — ${teamName}`;
+    document.title = `${teamName} · SoccerSmartBet`;
     document.getElementById("page-title").innerHTML =
-      `${teamName.toUpperCase().slice(0, 20)}<br><em>STATS</em>`;
+      `${escHtml(teamName.toUpperCase().slice(0, 20))}<br><em>STATS</em>`;
+    const bc = document.getElementById("breadcrumb-current");
+    if (bc) bc.textContent = `Team: ${teamName}`;
   }
 
   const errEl    = document.getElementById("error-msg");
@@ -620,7 +1150,7 @@ function onCalendarChange() {
     if (resp.status === 404) {
       errEl.textContent = `No bets found for team matching "${teamName}".`;
       errEl.style.display = "block";
-      if (tbodyBets) tbodyBets.innerHTML = `<tr><td colspan="5" class="empty-state">No data.</td></tr>`;
+      if (tbodyBets) tbodyBets.innerHTML = `<tr><td colspan="5" class="empty-state">No bets found for this team.</td></tr>`;
       document.getElementById("history-section").style.display = "block";
       return;
     }
@@ -640,28 +1170,69 @@ function onCalendarChange() {
   // Update heading to canonical name
   const canonical = data.team_name;
   if (canonical) {
-    document.title = `SoccerSmartBet — ${canonical}`;
+    document.title = `${canonical} · SoccerSmartBet`;
     document.getElementById("page-title").innerHTML =
-      `${canonical.toUpperCase().slice(0, 20)}<br><em>STATS</em>`;
+      `${escHtml(canonical.toUpperCase().slice(0, 20))}<br><em>STATS</em>`;
+    const bc = document.getElementById("breadcrumb-current");
+    if (bc) bc.textContent = `Team: ${canonical}`;
   }
 
   _rawBets = data.bets || [];
+
+  // Restore DSL + calendar from URL BEFORE building groups so initial render is filtered
+  const _urlParams = new URLSearchParams(window.location.search);
+  const _urlFilter = _urlParams.get("filter") || "";
+  const _urlFrom = _urlParams.get("from") || "";
+  const _urlTo   = _urlParams.get("to")   || "";
+  const calFrom = document.getElementById("cal-from");
+  const calTo   = document.getElementById("cal-to");
+  const _ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+  if (_urlFilter) {
+    _dslFilter = _urlFilter;
+    const dslInput = document.getElementById("filter-input");
+    if (dslInput) dslInput.value = _urlFilter;
+  }
+  if (_urlFrom && _ISO_DATE.test(_urlFrom)) { _calFrom = _urlFrom; if (calFrom) calFrom.value = _urlFrom; }
+  if (_urlTo   && _ISO_DATE.test(_urlTo))   { _calTo   = _urlTo;   if (calTo)   calTo.value   = _urlTo;   }
 
   // Build evaluated groups + render split stats
   _groups = sortGroups(buildGroups(_rawBets));
   renderSplitStats(_groups);
 
+  // Enable insight button once data is loaded (if there are rows)
+  const btnInsight = document.getElementById("btn-insight");
+  if (btnInsight) btnInsight.disabled = (_groups.length === 0);
+
+  // Wire insight button with resolved canonical team name
+  wireInsightButton(canonical || teamName);
+
   // Wire sort headers
   SORT_COLS.forEach(col => {
     const th = document.querySelector(`th[data-col="${col}"]`);
-    if (th) th.addEventListener("click", () => onSortClick(col));
+    if (th) {
+      th.addEventListener("click", () => onSortClick(col));
+      th.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSortClick(col); }
+      });
+    }
   });
 
   // Wire calendar
-  const calFrom = document.getElementById("cal-from");
-  const calTo   = document.getElementById("cal-to");
   if (calFrom) calFrom.addEventListener("change", onCalendarChange);
   if (calTo)   calTo.addEventListener("change", onCalendarChange);
+
+  // Wire DSL filter input + clear button
+  const dslInput = document.getElementById("filter-input");
+  if (dslInput) dslInput.addEventListener("input", onDslChange);
+  const dslClear = document.getElementById("dsl-clear");
+  if (dslClear && dslInput) {
+    dslClear.addEventListener("click", () => {
+      dslInput.value = "";
+      dslInput.focus();
+      onDslChange();
+    });
+  }
+  _syncDslClear(); // reflect URL-restored value
 
   // Wire paging — All Bets
   document.getElementById("b-first").addEventListener("click", () => { _currentPage = 1; renderBetsPage(); });

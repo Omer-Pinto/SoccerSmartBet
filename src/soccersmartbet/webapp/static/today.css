@@ -93,27 +93,6 @@ body {
   color: rgba(255,255,255,0.55);
   text-transform: uppercase;
 }
-.masthead-accent {
-  width: 220px;
-  height: 80px;
-  background: var(--magenta);
-  clip-path: polygon(20px 0%, 100% 0%, 100% 100%, 0% 100%);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 20px;
-  flex-shrink: 0;
-}
-.masthead-accent-text {
-  font-family: var(--font-display);
-  font-size: 13px;
-  letter-spacing: 2px;
-  color: #fff;
-  text-align: right;
-  line-height: 1.3;
-  text-transform: uppercase;
-}
-
 /* ─────────────────────────────────────────────
    STATUS STRIP
 ───────────────────────────────────────────── */
@@ -137,14 +116,23 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  border-radius: 0;
 }
 .stat-tile:last-child { border-right: none; }
+/* Inner content area for flow-timeline value: pill-like visual */
+#flow-timeline {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,233,196,0.18);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-top: 4px;
+}
 .stat-tile-label {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 3px;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.45);
+  color: rgba(255,255,255,0.60);
 }
 .stat-tile-value {
   font-family: var(--font-display);
@@ -153,11 +141,13 @@ body {
   color: #fff;
   text-transform: uppercase;
   word-break: break-all;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 .stat-tile-value .check     { color: var(--emerald); }
 .stat-tile-value .clock     { color: var(--yellow); }
 .stat-tile-value .highlight { color: var(--cobalt); }
-.stat-tile-value .sub       { color: rgba(255,255,255,0.5); font-size: 14px; }
+.stat-tile-value .sub       { color: rgba(255,255,255,0.55); font-size: 14px; }
 .stat-tile-value .err       { color: var(--vermilion); font-size: 13px; }
 
 /* ─────────────────────────────────────────────
@@ -193,6 +183,11 @@ body {
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--indigo);
+  border-bottom: 2px solid var(--yellow);
+  padding-bottom: 8px;
+  line-height: 1;
+  display: block;
+  width: 100%;
 }
 
 /* ─────────────────────────────────────────────
@@ -204,6 +199,12 @@ body {
   gap: 14px;
   flex-wrap: wrap;
   align-items: flex-start;
+}
+
+/* Uniform button widths in Operations row (3 buttons: Pre-Gambling, Post-Games, Override) */
+.controls-row .btn {
+  min-width: 240px;
+  justify-content: center;
 }
 
 .btn {
@@ -219,7 +220,7 @@ body {
   align-items: center;
   gap: 10px;
   position: relative;
-  transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.15s;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -246,16 +247,20 @@ body {
 }
 
 .btn-override {
-  background: var(--vermilion);
-  color: #fff;
-  box-shadow: 0 4px 18px rgba(242,97,48,0.45);
+  background: transparent;
+  color: var(--yellow);
+  border: 2.5px solid var(--yellow);
+  box-shadow: none;
 }
-.btn-override:hover:not(:disabled) {
-  box-shadow: 0 6px 28px rgba(242,97,48,0.6);
-  transform: translateY(-2px);
+.btn-override:hover:not(:disabled):not(.armed) {
+  background: rgba(255,201,48,0.1);
+  box-shadow: 0 0 14px rgba(255,201,48,0.3);
+  transform: translateY(-1px);
 }
 .btn-override.armed {
   background: #b91c1c;
+  color: #fff;
+  border-color: #b91c1c;
   animation: armed-pulse 1s ease-in-out infinite;
 }
 @keyframes armed-pulse {
@@ -270,6 +275,13 @@ body {
   cursor: not-allowed !important;
   box-shadow: none !important;
   transform: none !important;
+  opacity: 0.55;
+  border-color: transparent !important;
+}
+.btn:disabled:hover,
+.btn[disabled]:hover {
+  transform: none !important;
+  box-shadow: none !important;
 }
 .btn-queued {
   background: var(--yellow) !important;
@@ -288,6 +300,8 @@ body {
   z-index: 1000;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .modal-backdrop.open { display: flex; }
 .modal {
@@ -543,6 +557,17 @@ body {
   color: var(--vermilion);
   margin-left: 4px;
 }
+/* Lock-state: shown when the per-day lock fires while the edit row is open.
+   Grays out the form and shows an inline notice instead of silently closing. */
+.inline-edit-row.edit-row-locked .inline-edit-form {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.edit-feedback.edit-feedback-locked {
+  color: var(--text-sub);
+  font-style: italic;
+  pointer-events: none;
+}
 
 /* ─────────────────────────────────────────────
    SIDEBAR
@@ -557,9 +582,11 @@ body {
 
 .bankroll-block {
   background: var(--indigo);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   overflow: hidden;
   position: relative;
+  border: 1px solid rgba(255,233,196,0.25);
+  box-shadow: inset 0 1px 8px rgba(0,0,0,0.25), 0 4px 20px rgba(20,18,93,0.15);
 }
 .bankroll-stripe { height: 6px; display: flex; }
 .bankroll-stripe span { flex: 1; }
@@ -593,6 +620,8 @@ body {
   line-height: 1;
   letter-spacing: -1px;
   font-variant-numeric: tabular-nums;
+  transition: opacity 200ms ease;
+  will-change: opacity;
 }
 .bankroll-amount.positive { color: var(--emerald); }
 .bankroll-amount.negative { color: var(--vermilion); }
@@ -601,8 +630,9 @@ body {
   font-size: 20px;
   opacity: 0.5;
   margin-right: 4px;
-  font-family: var(--font-body);
+  font-family: var(--font-display);
   font-weight: 400;
+  letter-spacing: 1px;
 }
 .bankroll-delta {
   margin-top: 4px;
@@ -627,6 +657,33 @@ body {
 }
 .bankroll-today .pnl-positive { color: var(--emerald); }
 .bankroll-today .pnl-negative { color: var(--vermilion); }
+
+/* MEDIUM-5: inline bankroll error state */
+.bankroll-unavailable {
+  font-size: 13px;
+  font-family: var(--font-body, "Space Grotesk", sans-serif);
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 0;
+}
+.bankroll-retry-btn {
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: var(--font-body, "Space Grotesk", sans-serif);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.bankroll-retry-btn:hover {
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+}
 
 /* ─────────────────────────────────────────────
    P&L SPARKLINE
@@ -700,6 +757,43 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* HIGH-1: sparkline tooltip */
+#sparkline-tooltip {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  background: rgba(20, 18, 60, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 7px 11px;
+  font-size: 11px;
+  font-family: var(--font-body, "Space Grotesk", sans-serif);
+  font-weight: 500;
+  color: rgba(255,255,255,0.85);
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.stt-date {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.stt-user { color: #00a85a; }
+.stt-ai   { color: #f26130; }
+
+/* MEDIUM-7 / fallback: empty sparkline message */
+.sparkline-empty {
+  margin: 0;
+  padding: 60px 0;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255,255,255,0.3);
+  font-family: var(--font-body, "Space Grotesk", sans-serif);
+}
+
 /* ─────────────────────────────────────────────
    FLOW TIMELINE ARROW
 ───────────────────────────────────────────── */
@@ -712,42 +806,17 @@ body {
 .stat-tile-value .clock { color: var(--yellow); }
 
 /* ─────────────────────────────────────────────
-   TODAY FILTER BAR (calendar inputs)
+   CAL INPUT — today.css scoped override
+   (shared.css has the canonical .cal-input rule;
+    this ensures the dark-mode picker icon works
+    for hidden inputs too if they were ever shown)
 ───────────────────────────────────────────── */
-.today-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
+.cal-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  opacity: 0.7;
 }
-.today-filter-dates {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--indigo);
-  border-radius: var(--r);
-  padding: 8px 14px;
-}
-.today-filter-dates .filter-label {
-  color: rgba(255,255,255,0.45);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-.cal-input {
-  background: rgba(255,255,255,0.08);
-  border: 1.5px solid rgba(255,255,255,0.2);
-  border-radius: var(--r);
-  padding: 6px 10px;
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 500;
-  color: #fff;
-  color-scheme: dark;
-}
-.cal-input:focus { outline: none; border-color: var(--cobalt); }
+.cal-input::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 
 /* ─────────────────────────────────────────────
    PAGING CONTROLS
@@ -805,12 +874,53 @@ body {
    MERGED-ROW TABLE (Today)
 ───────────────────────────────────────────── */
 
+/* ─────────────────────────────────────────────
+   RESPONSIVE — narrow viewport (≤700px)
+   Today page specific: controls-row wraps 2×2
+───────────────────────────────────────────── */
+@media (max-width: 700px) {
+  /* Each control button wraps gracefully into a 2×2 grid */
+  .controls-row .btn {
+    min-width: 200px;
+    flex: 1 1 200px;
+  }
+
+  /* Page grid collapses to single column */
+  .page-body {
+    grid-template-columns: 1fr;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  /* Sidebar sits below the matches section */
+  .sidebar-column {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  /* Flow timeline pill stays readable */
+  #flow-timeline {
+    font-size: 14px;
+    word-break: break-word;
+  }
+
+  /* Bankroll amounts scale down */
+  .bankroll-amount { font-size: 36px; }
+}
+
+/* ─────────────────────────────────────────────
+   MERGED-ROW TABLE (Today)
+───────────────────────────────────────────── */
+
 /* Disable nth-child striping — we do it per group via JS class */
 .merged-row-table tbody tr:nth-child(even) { background: transparent; }
 
 .game-row--even { background: #fff; }
 .game-row--odd  { background: #faf7ff; }
-.game-row.row-hover { background: #eef4ff !important; }
+.game-row.row-hover {
+  background: #e8f0ff !important;
+  box-shadow: inset 3px 0 0 var(--yellow);
+}
 
 /* Separator between game groups */
 .game-group-separator td {
@@ -862,6 +972,11 @@ body {
   color: var(--text-sub);
   white-space: nowrap;
 }
+/* Colour variants */
+.status-pill--scheduled  { background: rgba(20,18,93,0.1);  color: var(--text-sub); }
+.status-pill--live       { background: var(--yellow);        color: var(--indigo); }
+.status-pill--finished   { background: var(--emerald);       color: #fff; }
+.status-pill--cancelled  { background: var(--vermilion);     color: #fff; }
 
 /* ─────────────────────────────────────────────
    FOOTER
@@ -886,6 +1001,84 @@ body {
   color: rgba(255,255,255,0.3);
   letter-spacing: 1px;
   text-transform: uppercase;
+}
+/* ─────────────────────────────────────────────
+   FOCUS RINGS (keyboard navigation)
+───────────────────────────────────────────── */
+.btn:focus-visible,
+.page-btn:focus-visible,
+.page-size-select:focus-visible,
+.nav-tab:focus-visible {
+  outline: 2.5px solid var(--cobalt);
+  outline-offset: 2px;
+}
+.btn-edit:focus-visible {
+  outline: 2.5px solid var(--cobalt);
+  outline-offset: 2px;
+}
+.cal-input:focus-visible {
+  outline: 2.5px solid var(--cobalt);
+  outline-offset: 2px;
+  border-color: var(--cobalt);
+}
+/* Disabled: clear hover, show not-allowed */
+.btn:disabled:hover { transform: none !important; box-shadow: none !important; }
+.page-btn:disabled:hover { background: #e8e4f5; color: #b0a8d0; }
+
+/* ─────────────────────────────────────────────
+   STALE-DATA NOTICE (Fix A)
+   Shown above the matches table while a poll
+   is skipped because an edit row is open.
+───────────────────────────────────────────── */
+.stale-data-notice {
+  background: var(--yellow);
+  color: var(--indigo);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  border-radius: var(--r);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stale-data-notice::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: var(--indigo);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────
+   EDIT AUTO-CLOSE TOAST
+───────────────────────────────────────────── */
+#edit-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--yellow);
+  color: var(--indigo);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 8px 18px;
+  border-radius: var(--r);
+  box-shadow: 0 2px 10px rgba(0,0,0,.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 9999;
+}
+#edit-toast.toast-visible {
+  opacity: 1;
 }
 
 /* ─────────────────────────────────────────────

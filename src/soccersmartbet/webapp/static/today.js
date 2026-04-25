@@ -52,6 +52,13 @@ let _calTo   = "";
 
 let _debounceTimer = null;
 
+// Stale-data notice (Fix A)
+let _staleNoticeShown = false;
+
+// Idle-cancel timer (Fix A) — tracks the 5-minute auto-cancel per open edit row
+let _idleTimer = null;
+const IDLE_CANCEL_MS = 5 * 60 * 1000;
+
 // ─────────────────────────────────────────────
 // DOM refs
 // ─────────────────────────────────────────────
@@ -67,7 +74,6 @@ function initRefs() {
     // buttons
     btnPreGambling: document.getElementById("btn-pre-gambling"),
     btnPostGames:   document.getElementById("btn-post-games"),
-    btnRegen:       document.getElementById("btn-regen"),
     btnOverride:    document.getElementById("btn-override"),
 
     // matches
@@ -108,6 +114,23 @@ function initRefs() {
 
     // date display
     mastheadDate:   document.getElementById("masthead-date"),
+
+    // stale-data notice (Fix A) — created once here, inserted above the table
+    staleNotice:    (function() {
+      let el = document.getElementById("stale-data-notice");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "stale-data-notice";
+        el.className = "stale-data-notice";
+        el.setAttribute("role", "status");
+        el.setAttribute("aria-live", "polite");
+        el.textContent = "";          // Fix iter-18: start empty so first mutation is announced
+        el.style.display = "none";
+        const tableSection = document.querySelector(".matches-section");
+        if (tableSection) tableSection.insertBefore(el, tableSection.firstChild);
+      }
+      return el;
+    })(),
   };
 }
 
@@ -130,7 +153,14 @@ async function poll() {
 async function fetchMatchData() {
   try {
     const resp = await fetch("/api/today/data");
-    if (!resp.ok) return;
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    // MEDIUM-3: clear any persisted error markup before assigning new data
+    for (const el of [els.userBalance, els.aiBalance]) {
+      if (el && el.querySelector(".bankroll-unavailable")) {
+        el.className = "bankroll-amount neutral";
+        el.innerHTML = `<span class="bankroll-currency">NIS</span>—`;
+      }
+    }
     const data = await resp.json();
     _allBets = data.bets || [];
     _bankroll = data.bankroll || null;
@@ -139,6 +169,17 @@ async function fetchMatchData() {
     updateModRibbon();
   } catch (e) {
     console.warn("fetchMatchData failed:", e);
+    // MEDIUM-5: surface error inline instead of silent placeholder
+    _showBankrollError();
+  }
+}
+
+function _showBankrollError() {
+  const retryBtn = `<button type="button" class="bankroll-retry-btn" onclick="fetchMatchData()">Retry</button>`;
+  for (const el of [els.userBalance, els.aiBalance]) {
+    if (!el) continue;
+    el.className = "bankroll-amount neutral";
+    el.innerHTML = `<span class="bankroll-unavailable">Bankroll unavailable ${retryBtn}</span>`;
   }
 }
 
@@ -198,7 +239,7 @@ function updateFlowTimeline(s) {
       const truncated = s.last_error.slice(0, 60) + (s.last_error.length > 60 ? "…" : "");
       els.statusError.innerHTML = `<span class="sub">${escHtml(truncated)}</span>`;
     } else {
-      els.statusError.innerHTML = `<span class="sub">none</span>`;
+      els.statusError.innerHTML = `<span class="sub">None</span>`;
     }
   }
 }
@@ -226,15 +267,20 @@ function updateButtons(s) {
       : `Will run post-games for ${pendingPostGamesDate}`,
   );
 
-  setBtnEnabled(
-    els.btnRegen,
-    !anyRunning && (st === "idle" || st === "failed" || st === "pre_gambling_done"),
-    anyRunning ? "Flow in progress" : null,
+  // Override Pre-Gambling: enabled only after pre-gambling has completed (or later stage / failed),
+  // and when nothing is currently running.
+  const overrideAllowed = !anyRunning && (
+    st === "pre_gambling_done" ||
+    st === "gambling_done" ||
+    st === "post_games_done" ||
+    st === "failed"
   );
-
   if (anyRunning) {
     disarmOverride();
     setBtnEnabled(els.btnOverride, false, "Flow in progress");
+  } else if (!overrideAllowed) {
+    disarmOverride();
+    setBtnEnabled(els.btnOverride, false, "No pre-gambling run yet today");
   } else {
     setBtnEnabled(els.btnOverride, true, null);
   }
@@ -259,17 +305,23 @@ async function triggerRun(flowType, force = false) {
     ? _status.pending_post_games_date
     : todayISO();
   const btn = {
-    pre_gambling:      els.btnPreGambling,
-    post_games:        els.btnPostGames,
-    regenerate_report: els.btnRegen,
+    pre_gambling: els.btnPreGambling,
+    post_games:   els.btnPostGames,
   }[flowType];
 
   if (btn) {
-    const orig = btn.textContent;
+    // Guard: ignore re-clicks while the queued state is active
+    if (btn.dataset.queued === "1") return;
+    btn.dataset.queued = "1";
     btn.disabled = true;
     btn.classList.add("btn-queued");
-    btn.textContent = "Queued…";
-    setTimeout(() => { btn.textContent = orig; btn.classList.remove("btn-queued"); }, 8000);
+    btn.innerHTML = `Queued<span class="loading-dots btn-queued-dots"><span></span><span></span><span></span></span>`;
+    setTimeout(() => {
+      // Restore from the label cached at boot, not from live textContent
+      btn.textContent = btn.dataset.label || btn.textContent;
+      btn.classList.remove("btn-queued");
+      delete btn.dataset.queued;
+    }, 8000);
   }
 
   try {
@@ -283,7 +335,7 @@ async function triggerRun(flowType, force = false) {
       alert(`Flow conflict: ${err.detail?.current_status || "already running"}`);
     } else if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      alert(`Error: ${JSON.stringify(err.detail || err)}`);
+      alert("Error: " + (err.detail?.message || err.detail || `HTTP ${resp.status}`));
     }
   } catch (e) {
     alert("Network error: " + e.message);
@@ -319,7 +371,7 @@ function disarmOverride() {
   if (_overrideTimer) { clearInterval(_overrideTimer); _overrideTimer = null; }
   if (!els.btnOverride) return;
   els.btnOverride.classList.remove("armed");
-  els.btnOverride.textContent = "Force Override";
+  els.btnOverride.textContent = "Override Pre-Gambling";
 }
 
 function onOverrideClick() {
@@ -338,6 +390,8 @@ function openModal() {
     els.modalDateInput.value = "";
     els.modalDateInput.focus();
   }
+  // Reset confirm button — disabled until correct date is typed
+  if (els.modalConfirmBtn) els.modalConfirmBtn.disabled = true;
 }
 
 function closeModal() {
@@ -410,8 +464,32 @@ function buildGroups(bets) {
 // ─────────────────────────────────────────────
 
 function applyFilterAndRender() {
+  // If the user is mid-edit, skip resetting groups / page so the open row survives.
+  // renderMatches() has its own identical guard; this one prevents the page-reset too.
+  const openEditRow = els.tbodyMatches?.querySelector(".inline-edit-row.open");
+  if (openEditRow) {
+    // Fix A: show stale-data banner on first bail
+    if (!_staleNoticeShown && els.staleNotice) {
+      els.staleNotice.textContent = "Refresh paused — close edit to update"; // Fix iter-18: set text on show to trigger live-region announce
+      els.staleNotice.style.display = "";
+      _staleNoticeShown = true;
+    }
+    return;
+  }
+
+  // Edit row is gone — clear stale notice
+  if (_staleNoticeShown && els.staleNotice) {
+    els.staleNotice.style.display = "none";
+    els.staleNotice.textContent = ""; // Fix iter-18: clear text so next show re-triggers announce
+    _staleNoticeShown = false;
+  }
+
   _groups = buildGroups(_allBets);
-  _currentPage = 1;
+  // Do NOT reset _currentPage here — this function is called from the 10s poll
+  // (fetchMatchData) and resetting would silently kick users back to page 1 mid-browse.
+  // Each user-initiated action (filter change, page-size change, btnFirst) sets
+  // _currentPage = 1 itself before calling applyFilterAndRender / renderPage.
+  // renderPage() already clamps _currentPage to the last valid page if data shrank.
   renderPage();
 }
 
@@ -457,6 +535,13 @@ function renderPage() {
 
 function renderMatches(groups) {
   if (!els.tbodyMatches) return;
+
+  // CRITICAL: If an inline-edit row is open the user is actively typing.
+  // Re-rendering would clobber their input with no warning. Skip this cycle.
+  // The status strip (poll()) and chip ticker (tickChips()) continue independently.
+  const openEditRow = els.tbodyMatches.querySelector(".inline-edit-row.open");
+  if (openEditRow) return;
+
   if (groups.length === 0) {
     els.tbodyMatches.innerHTML = `
       <tr><td colspan="7" class="empty-state">No bets for today</td></tr>`;
@@ -495,11 +580,11 @@ function renderMatches(groups) {
     tdKickoff.rowSpan = 2;
     tdKickoff.innerHTML = `
       <div class="kickoff-time">${escHtml(kickoffTime)}</div>
-      <div id="chip-game-${groupIdx}" class="countdown-chip chip-green" style="margin-top:4px;"></div>`;
+      <div id="chip-game-${group.game.game_id ?? group.userBet?.bet_id ?? group.aiBet?.bet_id ?? groupIdx}" class="countdown-chip chip-green" style="margin-top:4px;"></div>`;
 
     const tdLeague = document.createElement("td");
     tdLeague.rowSpan = 2;
-    tdLeague.innerHTML = `<span class="league-pill ${leagueCls}">${escHtml(game.league || "")}</span>`;
+    tdLeague.innerHTML = `<span class="league-pill ${leagueCls}">${escHtml(leagueDisplay(game.league || ""))}</span>`;
 
     const tdMatch = document.createElement("td");
     tdMatch.rowSpan = 2;
@@ -518,7 +603,7 @@ function renderMatches(groups) {
     const tdStatus = document.createElement("td");
     tdStatus.rowSpan = 2;
     tdStatus.className = "center";
-    tdStatus.innerHTML = `<span class="status-pill">${escHtml(game.status || "")}</span>`;
+    tdStatus.innerHTML = `<span class="status-pill ${statusPillClass(game.status)}">${escHtml(statusDisplay(game.status || ""))}</span>`;
 
     // RIGHT cells — USER sub-row
     const tdUserBet = document.createElement("td");
@@ -537,10 +622,11 @@ function renderMatches(groups) {
     if (userBet) {
       const locked = dayLocked;
       tdUserEdit.innerHTML = `<button
+        type="button"
         class="btn-edit"
         id="btn-edit-${userBet.bet_id}"
         data-bet-id="${userBet.bet_id}"
-        ${locked ? `disabled title="Edits close 30 min before the first kickoff today"` : ""}
+        ${locked ? `disabled title="Edits closed — within 30 min of first kickoff"` : ""}
         onclick="toggleEditRow(${userBet.bet_id})"
       >${locked ? "Locked" : "Edit"}</button>`;
     } else {
@@ -571,9 +657,9 @@ function renderMatches(groups) {
               <option value="2" ${userBet.prediction === "2" ? "selected" : ""}>2 (Away)</option>
             </select>
             <label>Stake (NIS)</label>
-            <input type="number" id="edit-stake-${userBet.bet_id}" value="${userBet.stake}" min="1" step="50" style="width:100px">
-            <button class="btn-save" onclick="saveEdit(${userBet.bet_id})">Save</button>
-            <button class="btn-cancel-edit" onclick="cancelEdit(${userBet.bet_id})">Cancel</button>
+            <input type="number" id="edit-stake-${userBet.bet_id}" value="${userBet.stake}" min="50" step="50" style="width:100px">
+            <button type="button" class="btn-save" onclick="saveEdit(${userBet.bet_id})">Save</button>
+            <button type="button" class="btn-cancel-edit" onclick="cancelEdit(${userBet.bet_id})">Cancel</button>
             <span class="edit-feedback" id="edit-fb-${userBet.bet_id}"></span>
           </div>
         </td>`;
@@ -622,34 +708,76 @@ function renderMatches(groups) {
 // ─────────────────────────────────────────────
 
 function wireHoverDelegation(tbody) {
-  if (!tbody) return;
-  // Remove any old listeners by replacing the node (simplest approach for re-renders)
-  const clone = tbody.cloneNode(true);
-  tbody.parentNode.replaceChild(clone, tbody);
-  els.tbodyMatches = clone;
-
-  // Re-wire onclick for edit buttons (since cloneNode doesn't copy event listeners,
-  // but inline onclick attributes ARE copied as HTML attributes — they'll still work
-  // because they reference window.toggleEditRow etc.)
-
-  clone.addEventListener("mouseenter", e => {
-    const row = e.target.closest("tr.game-row");
-    if (!row) return;
-    // Find sibling top/bottom rows
-    const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
-    const bot = top ? top.nextElementSibling : null;
-    if (top && top.classList.contains("game-row")) top.classList.add("row-hover");
-    if (bot && bot.classList.contains("game-row")) bot.classList.add("row-hover");
-  }, true);
-
-  clone.addEventListener("mouseleave", e => {
-    const row = e.target.closest("tr.game-row");
-    if (!row) return;
-    const top = row.classList.contains("game-row--top") ? row : row.previousElementSibling;
-    const bot = top ? top.nextElementSibling : null;
+  if (!tbody || tbody._hoverWired) return;
+  tbody._hoverWired = true;
+  // Use mouseover/mouseout (which bubble) instead of mouseenter/mouseleave (which don't).
+  // The tbody element is stable across renderMatches calls (innerHTML is replaced, not the
+  // element itself), so wiring once here is safe and no cloneNode dance is needed.
+  tbody.addEventListener("mouseover", e => {
+    const triggered = e.target.closest("tr.game-row");
+    if (!triggered) return;
+    let top = triggered.classList.contains("game-row--top") ? triggered : triggered.previousElementSibling;
+    while (top && !top.classList.contains("game-row--top")) top = top.previousElementSibling;
+    let bot = top ? top.nextElementSibling : null;
+    while (bot && !bot.classList.contains("game-row--bottom")) bot = bot.nextElementSibling;
+    if (top && bot) {
+      top.classList.add("row-hover");
+      bot.classList.add("row-hover");
+    }
+  });
+  tbody.addEventListener("mouseout", e => {
+    const triggered = e.target.closest("tr.game-row");
+    if (!triggered) return;
+    let top = triggered.classList.contains("game-row--top") ? triggered : triggered.previousElementSibling;
+    while (top && !top.classList.contains("game-row--top")) top = top.previousElementSibling;
+    let bot = top ? top.nextElementSibling : null;
+    while (bot && !bot.classList.contains("game-row--bottom")) bot = bot.nextElementSibling;
     if (top) top.classList.remove("row-hover");
     if (bot) bot.classList.remove("row-hover");
-  }, true);
+  });
+}
+
+// ─────────────────────────────────────────────
+// Edit idle-cancel helpers (Fix A)
+// ─────────────────────────────────────────────
+
+let _toastTimer = null;
+
+function _showEditToast(msg) {
+  let el = document.getElementById("edit-toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "edit-toast";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    document.body.appendChild(el);
+  }
+  if (_toastTimer !== null) {
+    clearTimeout(_toastTimer);
+    _toastTimer = null;
+  }
+  el.textContent = msg;
+  el.classList.add("toast-visible");
+  _toastTimer = setTimeout(() => {
+    el.classList.remove("toast-visible");
+    _toastTimer = null;
+  }, 4000);
+}
+
+function _startIdleTimer(betId) {
+  _clearIdleTimer();
+  _idleTimer = setTimeout(() => {
+    // Auto-cancel after 5 minutes of no input activity inside the edit form
+    cancelEdit(betId);
+    _showEditToast("Edit auto-closed after 5 minutes of inactivity");
+  }, IDLE_CANCEL_MS);
+}
+
+function _clearIdleTimer() {
+  if (_idleTimer !== null) {
+    clearTimeout(_idleTimer);
+    _idleTimer = null;
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -661,19 +789,85 @@ function toggleEditRow(betId) {
   const row = document.getElementById(`edit-row-${betId}`);
   if (!row) return;
   const open = row.classList.contains("open");
-  // Close all open edit rows
+  // Close all open edit rows (Fix 3: also clear any leaking idle timer from the outgoing row)
+  _clearIdleTimer();
   if (tbody) {
     tbody.querySelectorAll(".inline-edit-row.open").forEach(r => r.classList.remove("open"));
   }
-  if (!open) row.classList.add("open");
+  if (!open) {
+    row.classList.add("open");
+    // Auto-focus the prediction select for immediate keyboard navigation
+    const predEl = document.getElementById(`edit-pred-${betId}`);
+    if (predEl) predEl.focus();
+    // Wire keyboard shortcuts for this edit row (Escape = cancel, Enter = save)
+    // Use a one-time handler stored on the row element to avoid duplicates
+    if (!row._kbHandler) {
+      row._kbHandler = function onEditRowKeydown(e) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          cancelEdit(betId);
+        } else if (e.key === "Enter") {
+          const tag = (e.target.tagName || "").toUpperCase();
+          if (tag === "INPUT" || tag === "SELECT") {
+            e.preventDefault();
+            // Do not save when the row is day-locked — inputs are disabled
+            if (!row.classList.contains("edit-row-locked")) {
+              saveEdit(betId);
+            }
+          }
+        }
+      };
+      row.addEventListener("keydown", row._kbHandler);
+    }
+    // Fix A: wire input/change events to reset the idle timer on any user activity
+    if (!row._idleResetHandler) {
+      row._idleResetHandler = function() { _startIdleTimer(betId); };
+      row.addEventListener("input",  row._idleResetHandler);
+      row.addEventListener("change", row._idleResetHandler);
+    }
+    // Fix A: start the 5-minute idle timer when the row opens
+    _startIdleTimer(betId);
+  }
 }
 
 function cancelEdit(betId) {
+  // Fix A: stop the idle auto-cancel timer
+  _clearIdleTimer();
+
+  // Reset form fields to saved bet values before closing, so a quick re-open
+  // within the same poll window shows the actual stored values, not stale edits.
+  const userBet = _allBets.find(b => b.bet_id === betId && b.bettor === "user");
+  if (userBet) {
+    const predEl  = document.getElementById(`edit-pred-${betId}`);
+    const stakeEl = document.getElementById(`edit-stake-${betId}`);
+    if (predEl)  predEl.value  = userBet.prediction;
+    if (stakeEl) stakeEl.value = userBet.stake;
+  }
+
   const row = document.getElementById(`edit-row-${betId}`);
-  if (row) row.classList.remove("open");
+  if (row) {
+    row.classList.remove("open");
+
+    // Fix D: clear lock-state residue so re-opening the row shows a clean form
+    row.classList.remove("edit-row-locked");
+    // Re-enable any inputs that tickChips may have disabled
+    row.querySelectorAll("select, input, button.btn-save").forEach(el => {
+      el.disabled = false;
+    });
+    const fb = document.getElementById(`edit-fb-${betId}`);
+    if (fb) {
+      delete fb.dataset.lockNotice;
+      fb.className = "edit-feedback";
+      fb.textContent = "";
+    }
+  }
 }
 
 async function saveEdit(betId) {
+  // Guard: refuse to save if the row is day-locked (inputs are disabled)
+  const editRow = document.getElementById(`edit-row-${betId}`);
+  if (editRow && editRow.classList.contains("edit-row-locked")) return;
+
   const fb = document.getElementById(`edit-fb-${betId}`);
   const predEl = document.getElementById(`edit-pred-${betId}`);
   const stakeEl = document.getElementById(`edit-stake-${betId}`);
@@ -684,6 +878,8 @@ async function saveEdit(betId) {
     stake: parseFloat(stakeEl.value),
   };
 
+  // Fix A: stop idle timer while a save is in flight (and cancelEdit will also clear it)
+  _clearIdleTimer();
   if (fb) fb.textContent = "Saving…";
   try {
     const resp = await fetch(`/api/bets/${betId}`, {
@@ -697,7 +893,17 @@ async function saveEdit(betId) {
       await fetchMatchData(); // full re-render
     } else {
       const err = await resp.json().catch(() => ({}));
-      if (fb) fb.textContent = err.detail || `Error ${resp.status}`;
+      let msg;
+      if (typeof err.detail === "string") {
+        msg = err.detail;
+      } else if (typeof err.detail?.message === "string") {
+        msg = err.detail.message;
+      } else if (Array.isArray(err.detail)) {
+        msg = err.detail.map(d => d.msg).join("; ");
+      } else {
+        msg = `HTTP ${resp.status}`;
+      }
+      if (fb) fb.textContent = msg;
     }
   } catch (e) {
     if (fb) fb.textContent = "Network error";
@@ -720,7 +926,7 @@ function tickChips() {
 
   _groups.forEach((group, groupIdx) => {
     const { game, userBet } = group;
-    const chip = document.getElementById(`chip-game-${groupIdx}`);
+    const chip = document.getElementById(`chip-game-${game.game_id ?? group.userBet?.bet_id ?? group.aiBet?.bet_id ?? groupIdx}`);
     if (!chip) return;
 
     const kickoffMs = kickoffMillis(game.kickoff_iso);
@@ -744,9 +950,25 @@ function tickChips() {
         editBtn.disabled = dayLocked;
         editBtn.textContent = dayLocked ? "Locked" : "Edit";
         if (dayLocked) {
-          editBtn.title = "Edits close 30 min before the first kickoff today";
-          // Close open edit form if day just locked
-          cancelEdit(userBet.bet_id);
+          editBtn.title = "Edits closed — within 30 min of first kickoff";
+          // Do NOT silently close an open edit form when the lock kicks in —
+          // that would drop typed input with no warning.
+          // Instead, mark the open row as locked so the user sees an inline notice.
+          const editRow = document.getElementById(`edit-row-${userBet.bet_id}`);
+          if (editRow && editRow.classList.contains("open")) {
+            editRow.classList.add("edit-row-locked");
+            // Disable inputs so no further changes can be submitted
+            editRow.querySelectorAll("select, input, button.btn-save").forEach(el => {
+              el.disabled = true;
+            });
+            // Show the lock notice in the feedback span if not already shown
+            const fb = document.getElementById(`edit-fb-${userBet.bet_id}`);
+            if (fb && !fb.dataset.lockNotice) {
+              fb.dataset.lockNotice = "1";
+              fb.textContent = "Locked — edits closed for today";
+              fb.classList.add("edit-feedback-locked");
+            }
+          }
         } else {
           editBtn.removeAttribute("title");
         }
@@ -810,47 +1032,78 @@ function renderBankroll() {
   const { user, ai } = _bankroll;
   renderBankrollRow(
     els.userBalance, els.userDelta, els.todayPnlUser,
-    user?.balance, user?.today_pnl,
+    user?.balance, user?.today_pnl, "User",
   );
   renderBankrollRow(
     els.aiBalance, els.aiDelta, els.todayPnlAi,
-    ai?.balance, ai?.today_pnl,
+    ai?.balance, ai?.today_pnl, "AI",
   );
 }
 
-function renderBankrollRow(balEl, deltaEl, todayEl, balance, todayPnl) {
+function fmtNIS(n) {
+  // "NIS 1,234.50" — thousands separator, 2 decimal places
+  if (n == null) return null;
+  return parseFloat(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function renderBankrollRow(balEl, deltaEl, todayEl, balance, todayPnl, label) {
   const START = 10000;
   if (balEl) {
     const delta = balance != null ? balance - START : null;
-    balEl.className = "bankroll-amount " + (
+    const newClass = "bankroll-amount " + (
       delta == null ? "neutral" : delta >= 0 ? "positive" : "negative"
     );
-    balEl.innerHTML = balance != null
-      ? `<span class="bankroll-currency">NIS</span>${Math.round(balance).toLocaleString()}`
+    const newHtml = balance != null
+      ? `<span class="bankroll-currency">NIS</span>${fmtNIS(balance)}`
       : `<span class="bankroll-currency">NIS</span>—`;
 
+    // MEDIUM-3: opacity flash on update to avoid jarring snap at 56px font size
+    if (balEl.innerHTML !== newHtml || balEl.className !== newClass) {
+      balEl.style.opacity = "0.4";
+      setTimeout(() => {
+        balEl.className = newClass;
+        balEl.innerHTML = newHtml;
+        balEl.style.opacity = "1";
+      }, 50);
+    }
+
     if (deltaEl) {
+      let newDeltaClass, newDeltaHtml;
       if (delta == null) {
-        deltaEl.className = "bankroll-delta neutral";
-        deltaEl.innerHTML = `<span>Since 10,000</span>—`;
+        newDeltaClass = "bankroll-delta neutral";
+        newDeltaHtml  = `<span>vs baseline</span>—`;
       } else if (delta >= 0) {
-        deltaEl.className = "bankroll-delta positive";
-        deltaEl.innerHTML = `<span>Since 10,000</span>&#9650; +${Math.round(delta).toLocaleString()} NIS`;
+        newDeltaClass = "bankroll-delta positive";
+        newDeltaHtml  = `<span>vs baseline</span>&#9650; +${fmtNIS(delta)} NIS`;
       } else {
-        deltaEl.className = "bankroll-delta negative";
-        deltaEl.innerHTML = `<span>Since 10,000</span>&#9660; ${Math.round(delta).toLocaleString()} NIS`;
+        newDeltaClass = "bankroll-delta negative";
+        newDeltaHtml  = `<span>vs baseline</span>&#9660; ${fmtNIS(Math.abs(delta))} NIS`;
+      }
+      // HIGH-1: skip write when nothing changed — avoids layout churn and SR re-announce
+      if (deltaEl.innerHTML !== newDeltaHtml || deltaEl.className !== newDeltaClass) {
+        deltaEl.className = newDeltaClass;
+        deltaEl.innerHTML = newDeltaHtml;
       }
     }
   }
 
+  // HIGH-1 / HIGH-2: only rewrite today-pnl when value changes
   if (todayEl) {
+    const lbl = label || "User";
+    let newTodayClass, newTodayHtml;
     if (todayPnl == null) {
-      todayEl.innerHTML = "Today P&L: —";
-      todayEl.className = "";
-    } else if (todayPnl >= 0) {
-      todayEl.innerHTML = `Today P&L: <span class="pnl-positive">+${Math.round(todayPnl)} NIS</span>`;
+      newTodayHtml  = `Today P&L (${lbl}): —`;
+      newTodayClass = "";
+    } else if (parseFloat(todayPnl) >= 0) {
+      newTodayHtml  = `Today P&L (${lbl}): <span class="pnl-positive">+${parseFloat(todayPnl).toFixed(2)} NIS</span>`;
+      newTodayClass = todayEl.className;
     } else {
-      todayEl.innerHTML = `Today P&L: <span class="pnl-negative">${Math.round(todayPnl)} NIS</span>`;
+      newTodayHtml  = `Today P&L (${lbl}): <span class="pnl-negative">${parseFloat(todayPnl).toFixed(2)} NIS</span>`;
+      newTodayClass = todayEl.className;
+    }
+    if (todayEl.innerHTML !== newTodayHtml || todayEl.className !== newTodayClass) {
+      todayEl.className = newTodayClass;
+      todayEl.innerHTML = newTodayHtml;
     }
   }
 }
@@ -859,38 +1112,87 @@ function renderBankrollRow(balEl, deltaEl, todayEl, balance, todayPnl) {
 // 30-day P&L sparkline
 // ─────────────────────────────────────────────
 
+// Sparkline tooltip state
+let _sparklinePoints = [];
+
+function _showSparklineTooltip(idx, mouseEvt) {
+  const tooltip = document.getElementById("sparkline-tooltip");
+  const p = _sparklinePoints[idx];
+  if (!p || !tooltip) return;
+  const uVal = parseFloat(p.user_cumulative || 0);
+  const aVal = parseFloat(p.ai_cumulative   || 0);
+  tooltip.innerHTML =
+    `<div class="stt-date">${escHtml(p.date)}</div>` +
+    `<div class="stt-user">User: ${uVal >= 0 ? "+" : ""}${uVal.toFixed(2)}</div>` +
+    `<div class="stt-ai">AI: ${aVal >= 0 ? "+" : ""}${aVal.toFixed(2)}</div>`;
+  tooltip.style.display = "block";
+
+  if (mouseEvt) {
+    const wrap = tooltip.parentElement;
+    const rect = wrap.getBoundingClientRect();
+    const ttW  = tooltip.offsetWidth  || 140;
+    const ttH  = tooltip.offsetHeight || 60;
+    let left = mouseEvt.clientX - rect.left + 12;
+    let top  = mouseEvt.clientY - rect.top  - 20;
+    if (left + ttW > rect.width)  left = mouseEvt.clientX - rect.left - ttW - 12;
+    if (left < 0) left = 4; // LOW-7: clamp left edge on narrow viewports
+    if (top  + ttH > rect.height) top  = mouseEvt.clientY - rect.top  - ttH - 4;
+    if (top < 0) top = 4;
+    tooltip.style.left = left + "px";
+    tooltip.style.top  = top  + "px";
+  }
+}
+
+function _hideSparklineTooltip() {
+  const tooltip = document.getElementById("sparkline-tooltip");
+  if (tooltip) tooltip.style.display = "none";
+}
+
 function renderSparkline(history) {
+  // MEDIUM-4: dismiss any open tooltip before rebuilding the DOM
+  _hideSparklineTooltip();
   const svgEl = els.sparklineSvg;
   const xLabelsEl = els.xLabels;
   if (!svgEl) return;
 
   if (history.length < 2) {
-    svgEl.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="12">Not enough data</text>`;
+    svgEl.innerHTML = `<p class="sparkline-empty">Not enough data</p>`;
+    _sparklinePoints = [];
     return;
   }
-
-  const W = 760, H = 180;
-  const PADDING = { l: 30, r: 10, t: 10, b: 10 };
 
   const userVals = history.map(d => d.user_cumulative || 0);
   const aiVals   = history.map(d => d.ai_cumulative   || 0);
   const allVals  = [...userVals, ...aiVals];
   const minV = Math.min(0, ...allVals);
   const maxV = Math.max(0, ...allVals);
-  const range = maxV - minV || 1;
 
+  // MEDIUM-7: all-zero data — flat line is indistinguishable from real data
+  if (minV === 0 && maxV === 0) {
+    svgEl.innerHTML = `<p class="sparkline-empty">No P&L history yet</p>`;
+    _sparklinePoints = [];
+    if (xLabelsEl) xLabelsEl.innerHTML = "";
+    return;
+  }
+
+  _sparklinePoints = history;
+
+  const W = 760, H = 180;
+  const PADDING = { l: 30, r: 10, t: 10, b: 10 };
+  const range = maxV - minV || 1;
   const xw = W - PADDING.l - PADDING.r;
   const xh = H - PADDING.t - PADDING.b;
+  const n  = history.length;
 
-  function toX(i) { return PADDING.l + (i / (history.length - 1)) * xw; }
+  function toX(i) { return PADDING.l + (i / (n - 1)) * xw; }
   function toY(v) { return PADDING.t + (1 - (v - minV) / range) * xh; }
 
   const userPoints = history.map((_, i) => `${toX(i)},${toY(userVals[i])}`).join(" ");
   const aiPoints   = history.map((_, i) => `${toX(i)},${toY(aiVals[i])}`).join(" ");
   const zeroY      = toY(0);
 
-  const userFill = `${userPoints} ${toX(history.length - 1)},${zeroY} ${toX(0)},${zeroY}`;
-  const aiFill   = `${aiPoints}   ${toX(history.length - 1)},${zeroY} ${toX(0)},${zeroY}`;
+  const userFill = `${userPoints} ${toX(n - 1)},${zeroY} ${toX(0)},${zeroY}`;
+  const aiFill   = `${aiPoints}   ${toX(n - 1)},${zeroY} ${toX(0)},${zeroY}`;
 
   const yTick500 = maxV > 50
     ? `<text x="6" y="${toY(maxV) + 3}" font-size="9" fill="rgba(255,255,255,0.3)" font-family="Space Grotesk, sans-serif">+${Math.round(maxV)}</text>`
@@ -898,6 +1200,16 @@ function renderSparkline(history) {
   const yTickNeg = minV < -50
     ? `<text x="6" y="${toY(minV) + 3}" font-size="9" fill="rgba(255,255,255,0.3)" font-family="Space Grotesk, sans-serif">${Math.round(minV)}</text>`
     : "";
+
+  // HIGH-1: invisible hit-bars per data point, used for hover tooltips
+  const barW = Math.max(6, xw / n);
+  const hitBars = history.map((_, i) => {
+    const cx = toX(i);
+    return `<rect class="sparkline-hit" x="${(cx - barW / 2).toFixed(1)}" y="${PADDING.t}"
+                  width="${barW.toFixed(1)}" height="${xh}"
+                  fill="transparent" data-index="${i}"
+                  style="cursor:crosshair;"/>`;
+  }).join("");
 
   svgEl.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -909,10 +1221,25 @@ function renderSparkline(history) {
       <polyline points="${userPoints}" fill="none" stroke="#00a85a" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
       <polygon points="${aiFill}" fill="rgba(242,97,48,0.1)"/>
       <polyline points="${aiPoints}" fill="none" stroke="#f26130" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+      ${hitBars}
     </svg>`;
 
+  // Attach tooltip listeners after SVG is in DOM
+  const svg = svgEl.querySelector("svg");
+  if (svg) {
+    svg.querySelectorAll(".sparkline-hit").forEach(bar => {
+      bar.addEventListener("mouseenter", evt => {
+        _showSparklineTooltip(parseInt(bar.dataset.index, 10), evt);
+      });
+      bar.addEventListener("mousemove", evt => {
+        _showSparklineTooltip(parseInt(bar.dataset.index, 10), evt);
+      });
+      bar.addEventListener("mouseleave", _hideSparklineTooltip);
+    });
+  }
+
   if (xLabelsEl) {
-    const idxs = [0, Math.floor(history.length / 2), history.length - 1];
+    const idxs = [0, Math.floor(n / 2), n - 1];
     xLabelsEl.innerHTML = "";
     idxs.forEach(i => {
       const span = document.createElement("span");
@@ -940,13 +1267,50 @@ function fmt2(v) {
   return parseFloat(v).toFixed(2);
 }
 
+/** Normalize DB snake_case game.status → human-readable Title Case */
+function statusDisplay(s) {
+  if (!s) return "";
+  const map = {
+    pending:           "Pending",
+    selected:          "Selected",
+    processing:        "Processing",
+    ready_for_betting: "Ready",
+    betting_open:      "Open",
+    betting_closed:    "Closed",
+    completed:         "Finished",
+    cancelled:         "Cancelled",
+    // legacy / uppercase passthrough
+    scheduled:         "Scheduled",
+    live:              "Live",
+    finished:          "Finished",
+    postponed:         "Postponed",
+    in_play:           "Live",
+  };
+  return map[s.toLowerCase()] || s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/** CSS modifier for status pill colour */
+function statusPillClass(s) {
+  if (!s) return "";
+  const l = s.toLowerCase();
+  if (l === "completed" || l === "finished") return "status-pill--finished";
+  if (l === "live" || l === "in_play" || l === "betting_open") return "status-pill--live";
+  if (l === "cancelled" || l === "postponed") return "status-pill--cancelled";
+  return "status-pill--scheduled";
+}
+
 function leagueCssClass(league) {
   const l = (league || "").toLowerCase();
-  if (l.includes("la liga") || l.includes("laliga")) return "laliga";
+  if (l.includes("la liga") || l.includes("laliga") || l.includes("primera division")) return "laliga";
   if (l.includes("premier")) return "premier";
   if (l.includes("bundesliga")) return "bundesliga";
   if (l.includes("serie a") || l.includes("seriea")) return "seriea";
   return "";
+}
+function leagueDisplay(league) {
+  // U3: normalise legacy alias → canonical UI label (DB unchanged)
+  if ((league || "").trim().toLowerCase() === "primera division") return "La Liga";
+  return league;
 }
 
 function todayISO() {
@@ -954,7 +1318,7 @@ function todayISO() {
   const el = document.getElementById("today-date-iso");
   if (el && el.value) return el.value;
   if (_status && _status.run_date) return _status.run_date;
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
 }
 
 // ─────────────────────────────────────────────
@@ -962,6 +1326,16 @@ function todayISO() {
 // ─────────────────────────────────────────────
 
 function onCalendarChange() {
+  // Fix B: if an edit row is open, cancel it before applying the filter change.
+  // Without this, the calendar updates _calFrom/_calTo but applyFilterAndRender bails
+  // due to the open edit guard, leaving the rows visually out of sync with the filter.
+  if (els.tbodyMatches) {
+    const openEditRow = els.tbodyMatches.querySelector(".inline-edit-row.open");
+    if (openEditRow) {
+      const betId = openEditRow.id.replace("edit-row-", "");
+      cancelEdit(Number(betId));
+    }
+  }
   clearTimeout(_debounceTimer);
   _debounceTimer = setTimeout(() => {
     _calFrom = els.calFrom ? els.calFrom.value : "";
@@ -978,6 +1352,10 @@ function onCalendarChange() {
 document.addEventListener("DOMContentLoaded", async () => {
   initRefs();
 
+  // Cache original run-button labels once so rapid re-clicks cannot corrupt them
+  if (els.btnPreGambling) els.btnPreGambling.dataset.label = els.btnPreGambling.textContent;
+  if (els.btnPostGames)   els.btnPostGames.dataset.label   = els.btnPostGames.textContent;
+
   // Set calendar defaults to today
   const todayStr = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
   if (els.calFrom) els.calFrom.value = todayStr;
@@ -990,15 +1368,25 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (els.calTo)   els.calTo.addEventListener("change", onCalendarChange);
 
   // Wire paging
-  if (els.btnFirst) els.btnFirst.addEventListener("click", () => { _currentPage = 1; renderPage(); });
-  if (els.btnPrev)  els.btnPrev.addEventListener("click",  () => { _currentPage--; renderPage(); });
-  if (els.btnNext)  els.btnNext.addEventListener("click",  () => { _currentPage++; renderPage(); });
+  function _cancelOpenEdit() {
+    const openRow = document.querySelector(".inline-edit-row.open");
+    if (openRow) {
+      const betId = openRow.id.replace("edit-row-", "");
+      cancelEdit(parseInt(betId, 10));
+    }
+  }
+
+  if (els.btnFirst) els.btnFirst.addEventListener("click", () => { _cancelOpenEdit(); _currentPage = 1; renderPage(); });
+  if (els.btnPrev)  els.btnPrev.addEventListener("click",  () => { _cancelOpenEdit(); _currentPage--; renderPage(); });
+  if (els.btnNext)  els.btnNext.addEventListener("click",  () => { _cancelOpenEdit(); _currentPage++; renderPage(); });
   if (els.btnLast)  els.btnLast.addEventListener("click",  () => {
-    _currentPage = Math.ceil(_groups.length / _pageSize);
+    _cancelOpenEdit();
+    _currentPage = Math.ceil(_groups.length / _pageSize) || 1;
     renderPage();
   });
   if (els.pageSizeSelect) {
     els.pageSizeSelect.addEventListener("change", () => {
+      _cancelOpenEdit();
       _pageSize = parseInt(els.pageSizeSelect.value, 10);
       _currentPage = 1;
       renderPage();
@@ -1008,7 +1396,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Wire control buttons
   if (els.btnPreGambling) els.btnPreGambling.addEventListener("click", () => triggerRun("pre_gambling"));
   if (els.btnPostGames)   els.btnPostGames.addEventListener("click",   () => triggerRun("post_games"));
-  if (els.btnRegen)       els.btnRegen.addEventListener("click",       () => triggerRun("regenerate_report"));
   if (els.btnOverride)    els.btnOverride.addEventListener("click", onOverrideClick);
 
   // Wire modal
@@ -1019,10 +1406,24 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (e.target === els.modalBackdrop) closeModal();
     });
   }
+  // Document-level Escape closes modal regardless of which element has focus
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && els.modalBackdrop && els.modalBackdrop.classList.contains("open")) {
+      e.preventDefault();
+      closeModal();
+    }
+  });
   if (els.modalDateInput) {
     els.modalDateInput.addEventListener("keydown", e => {
       if (e.key === "Enter") onModalConfirm();
-      if (e.key === "Escape") closeModal();
+      // Escape is handled by the document-level handler above; no duplicate needed here
+    });
+    // Disable Confirm until typed date matches today
+    els.modalDateInput.addEventListener("input", () => {
+      const typed = (els.modalDateInput.value || "").trim();
+      if (els.modalConfirmBtn) {
+        els.modalConfirmBtn.disabled = (typed !== todayISO());
+      }
     });
   }
 
@@ -1031,12 +1432,41 @@ document.addEventListener("DOMContentLoaded", async () => {
   await fetchMatchData();
   await fetchPnlHistory();
 
-  // Polling & chip tick
-  setInterval(poll, POLL_MS);
-  setInterval(fetchMatchData, 10000);
-  setInterval(fetchPnlHistory, 60000);
-  setInterval(tickChips, 1000);
+  // Polling & chip tick — stored so we can pause/resume on visibility change
+  let _intervals = [
+    setInterval(poll,           POLL_MS),
+    setInterval(fetchMatchData, 10000),
+    setInterval(fetchPnlHistory, 60000),
+    setInterval(tickChips,      1000),
+  ];
   tickChips();
+
+  // LOW: Pause all pollers when the tab is hidden, resume when visible again.
+  // Avoids wasted network requests and prevents timer drift in background tabs.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      _intervals.forEach(id => clearInterval(id));
+      _intervals = [];
+      // Fix iter-18: clear idle timer so it doesn't fire silently while tab is hidden
+      _clearIdleTimer();
+      // Fix iter-19: disarm override countdown so it doesn't expire invisibly
+      if (_overrideArmed) disarmOverride();
+    } else {
+      // Fix iter-19: clear any stale intervals before re-creating to prevent doubling
+      _intervals.forEach(id => clearInterval(id));
+      _intervals = [];
+      // Resume immediately then restart intervals
+      poll();
+      fetchMatchData();
+      tickChips();
+      _intervals = [
+        setInterval(poll,           POLL_MS),
+        setInterval(fetchMatchData, 10000),
+        setInterval(fetchPnlHistory, 60000),
+        setInterval(tickChips,      1000),
+      ];
+    }
+  });
 });
 
 // Expose for inline onclick attributes
