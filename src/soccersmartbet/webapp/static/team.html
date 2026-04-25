@@ -135,7 +135,7 @@
     <div class="filter-bar" style="margin-bottom:16px;">
       <div class="filter-input-wrap" style="flex:1;min-width:0;">
         <div class="filter-label">Filters</div>
-        <!-- Filter builder mount point (4 keys only: bettor/outcome/result/prediction) -->
+        <!-- Filter builder mount point — full filter set except bettor (both bettors always shown) -->
         <div id="fb-container"></div>
         <!-- Hidden input kept for backwards-compat -->
         <input type="hidden" id="filter-input" value="">
@@ -262,108 +262,20 @@ function todayISR() {
 }
 
 // ─── State ───────────────────────────────────────────────────────────────────
-let _rawBets    = [];   // flat bets from API
-let _groups     = [];   // game-groups (evaluated, filtered, sorted)
+let _rawBets    = [];   // flat bets from API (initial load or latest server-side filter)
+let _groups     = [];   // game-groups (evaluated, sorted)
 let _notable    = [];   // notable groups
 let _pageSize   = 25;
 let _currentPage= 1;
 let _sortCol    = "date";
 let _sortDir    = "desc";
-let _dslFilter  = "";   // client-side DSL (bettor/outcome/result/prediction only)
-
-// ─── Client-side DSL parser ───────────────────────────────────────────────────
-// Supports: bettor:user|ai, outcome:win|loss|1|2|x|home_win|away_win|draw|tie,
-//           result:1|2|x, prediction:1|2|x
-// All keys are case-insensitive. Tokens are AND-combined.
-// Unknown keys are silently dropped so server-side-only keys (league, date, …)
-// in shared URLs don't produce visible errors on this page.
-const _DSL_SUPPORTED_KEYS = new Set(["bettor", "outcome", "result", "prediction"]);
-
-// outcome value aliases: maps user-facing strings → canonical form understood
-// by groupMatchesDsl.  "win"/"loss" are P&L-based; "1"/"x"/"2" and their
-// long-form aliases check the game outcome column.
-const _OUTCOME_ALIASES = {
-  "home_win": "1", "home": "1", "1": "1",
-  "away_win": "2", "away": "2", "2": "2",
-  "draw": "x",    "tie": "x",  "x": "x",
-  "win": "win",   "loss": "loss",
-};
-
-const _DSL_ALLOWLISTS = {
-  bettor:     new Set(["user", "ai"]),
-  outcome:    new Set(Object.keys(_OUTCOME_ALIASES)),
-  result:     new Set(["1", "x", "2"]),
-  prediction: new Set(["1", "x", "2"]),
-};
-
-function parseDslTokens(dsl) {
-  if (!dsl) return { tokens: [], unknowns: [], invalid: [] };
-  const tokens = [];
-  const unknowns = [];
-  const invalid = [];
-  // MED-1: detect leading "!" before key and surface a clear error token
-  const re = /(!?)(\w+):(\S+)/g;
-  let m;
-  while ((m = re.exec(dsl)) !== null) {
-    const negated = m[1] === "!";
-    const key = m[2].toLowerCase();
-    const rawVal = m[3].toLowerCase();
-    if (negated) {
-      // Surface negation as an error — do not silently drop it
-      invalid.push({ key: "!" + key, val: rawVal, reason: "negation" });
-      continue;
-    }
-    if (!_DSL_SUPPORTED_KEYS.has(key)) {
-      // Silently drop server-side-only keys (league, date, team, …) so URLs
-      // copied from history page work on team/league pages without error.
-      unknowns.push(key);
-      continue;
-    }
-    // Normalise outcome aliases before allowlist check
-    const val = key === "outcome" ? (_OUTCOME_ALIASES[rawVal] || rawVal) : rawVal;
-    // MED-2: validate value against per-key allowlist
-    const allowed = _DSL_ALLOWLISTS[key];
-    if (allowed && !allowed.has(rawVal) && !allowed.has(val)) {
-      invalid.push({ key, val: rawVal, reason: "value" });
-      continue;
-    }
-    tokens.push({ key, val });
-  }
-  return { tokens, unknowns, invalid };
-}
-
-function groupMatchesDsl(group, tokens) {
-  if (!tokens || tokens.length === 0) return true;
-  return tokens.every(({ key, val }) => {
-    if (key === "bettor") {
-      // Group must contain a bet for the specified bettor
-      if (val === "user") return !!group.userBet;
-      if (val === "ai")   return !!group.aiBet;
-    }
-    if (key === "outcome") {
-      const bets = [group.userBet, group.aiBet].filter(Boolean);
-      // P&L-based win/loss
-      if (val === "win")  return bets.some(b => b.pnl !== null && parseFloat(b.pnl) > 0);
-      if (val === "loss") return bets.some(b => b.pnl !== null && parseFloat(b.pnl) < 0);
-      // Game-result based (1/x/2): check the outcome column on any bet in the group
-      return bets.some(b => b.outcome !== null && String(b.outcome).toLowerCase() === val);
-    }
-    if (key === "result") {
-      const bets = [group.userBet, group.aiBet].filter(Boolean);
-      return bets.some(b => b.result !== null && String(b.result).toLowerCase() === val);
-    }
-    if (key === "prediction") {
-      const bets = [group.userBet, group.aiBet].filter(Boolean);
-      return bets.some(b => b.prediction !== null && String(b.prediction).toLowerCase() === val);
-    }
-    // Unknown key — pass through (don't exclude)
-    return true;
-  });
-}
+let _dslFilter  = "";   // current user DSL (additional filters beyond team pin)
+let _teamName   = "";   // canonical team name, set after initial load
+let _fetchGeneration = 0; // stale-response guard for server-side filter fetches
 
 // ─── Group bets into games ────────────────────────────────────────────────────
+// Note: _rawBets is now already server-filtered; no client-side DSL filtering needed.
 function buildGroups(bets) {
-  const todayStr = todayISR();
   const map = new Map();
 
   bets.forEach(bet => {
@@ -389,7 +301,7 @@ function buildGroups(bets) {
     }
   });
 
-  let groups = Array.from(map.values()).filter(g => {
+  const groups = Array.from(map.values()).filter(g => {
     const u = g.userBet;
     const a = g.aiBet;
 
@@ -408,12 +320,6 @@ function buildGroups(bets) {
     }
     return uOk && aOk;
   });
-
-  // Client-side DSL filter
-  if (_dslFilter) {
-    const { tokens } = parseDslTokens(_dslFilter);
-    groups = groups.filter(g => groupMatchesDsl(g, tokens));
-  }
 
   return groups;
 }
@@ -741,11 +647,52 @@ function _syncDslClear() {
   // no-op: filter builder handles its own state
 }
 
-// ─── DSL filter change (client-side only, driven by filter builder) ──────────
+// ─── Server-side filter fetch ─────────────────────────────────────────────────
+// Builds a DSL that pins the team and AND-merges the user's additional filters,
+// then hits /api/bets to get server-filtered results.
+async function fetchFilteredBets(additionalDsl) {
+  if (!_teamName) return;
+  const myGen = ++_fetchGeneration;
+
+  // Show loading state
+  const tbody = document.getElementById("tbody-bets");
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty-state is-loading">Loading<span class="loading-dots"><span></span><span></span><span></span></span></td></tr>`;
+
+  // Build pinned DSL: team constraint + optional user filters
+  let dsl = `team:"${_teamName}"`;
+  if (additionalDsl && additionalDsl.trim()) dsl = `${dsl} ${additionalDsl.trim()}`;
+
+  let data;
+  try {
+    const resp = await fetch(`/api/bets?filter=${encodeURIComponent(dsl)}`);
+    if (myGen !== _fetchGeneration) return; // stale
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      setDslError(err.detail?.detail || err.detail || `Error ${resp.status}`);
+      return;
+    }
+    data = await resp.json();
+  } catch (e) {
+    if (myGen !== _fetchGeneration) return;
+    setDslError("Network error: " + e.message);
+    return;
+  }
+  if (myGen !== _fetchGeneration) return;
+
+  setDslError(null);
+  _rawBets = data.rows || [];
+  _currentPage = 1;
+  _groups = sortGroups(buildGroups(_rawBets));
+  renderSplitStats(_groups);
+  renderBetsPage();
+  const btnInsight = document.getElementById("btn-insight");
+  if (btnInsight) btnInsight.disabled = (_groups.length === 0);
+}
+
+// ─── DSL filter change (server-side, driven by filter builder) ────────────────
 let _dslDebounce = null;
 function onDslChange(dslFromBuilder) {
   clearTimeout(_dslDebounce);
-  // Accept DSL from filter builder directly, or fall back to hidden input
   if (dslFromBuilder !== undefined) {
     _dslFilter = dslFromBuilder;
     const inp = document.getElementById("filter-input");
@@ -753,15 +700,9 @@ function onDslChange(dslFromBuilder) {
   } else {
     _dslFilter = (document.getElementById("filter-input") || {}).value || "";
   }
-  _currentPage = 1;
+  pushStateToUrl(_dslFilter);
   _dslDebounce = setTimeout(() => {
-    setDslError(null);
-    pushStateToUrl(_dslFilter);
-    _groups = sortGroups(buildGroups(_rawBets));
-    renderSplitStats(_groups);
-    renderBetsPage();
-    const btnInsight = document.getElementById("btn-insight");
-    if (btnInsight) btnInsight.disabled = (_groups.length === 0);
+    fetchFilteredBets(_dslFilter);
   }, 350);
 }
 
@@ -1112,30 +1053,24 @@ document.addEventListener("keydown", e => {
     if (bc) bc.textContent = `Team: ${canonical}`;
   }
 
-  _rawBets = data.bets || [];
+  // Save canonical team name for server-side filter construction
+  _teamName = canonical || teamName;
 
   // Restore DSL from URL BEFORE building groups
-  // (filter builder module script also restores DSL; this ensures buildGroups
-  //  on initial render uses the correct filter)
   const _urlParams = new URLSearchParams(window.location.search);
   const _urlFilter = _urlParams.get("filter") || "";
-  // Apply DSL to hidden input so buildGroups picks it up on initial render
   if (_urlFilter) {
     _dslFilter = _urlFilter;
     const dslInput = document.getElementById("filter-input");
     if (dslInput) dslInput.value = _urlFilter;
   }
 
-  // Build evaluated groups + render split stats
-  _groups = sortGroups(buildGroups(_rawBets));
-  renderSplitStats(_groups);
-
-  // Enable insight button once data is loaded (if there are rows)
-  const btnInsight = document.getElementById("btn-insight");
-  if (btnInsight) btnInsight.disabled = (_groups.length === 0);
+  // Initial bets load: server-side fetch with team pinned + optional URL filter
+  // This replaces the client-side filter on _rawBets from the stats endpoint
+  await fetchFilteredBets(_dslFilter);
 
   // Wire insight button with resolved canonical team name
-  wireInsightButton(canonical || teamName);
+  wireInsightButton(_teamName);
 
   // Wire sort headers
   SORT_COLS.forEach(col => {
@@ -1207,9 +1142,9 @@ document.addEventListener("keydown", e => {
   }
 
   // All Bets
+  // Show history section (fetchFilteredBets already populated and rendered)
   document.getElementById("history-section").style.display = "block";
   updateSortHeaders();
-  renderBetsPage();
 })();
 </script>
 
@@ -1222,16 +1157,15 @@ import { createFilterBuilder } from "/static/filter-builder.js";
 
   window._fb = createFilterBuilder({
     container:   document.getElementById("fb-container"),
-    enabledKeys: ["bettor","outcome","result","prediction"],
+    // Full filter set: bettor omitted (both bettors always shown side-by-side).
+    // League omitted too — team is pre-pinned server-side via /api/bets.
+    enabledKeys: ["date","month","stake","odds","outcome","result","prediction"],
     initialDsl,
     hiddenInput: document.getElementById("filter-input"),
     onChange: (dsl) => {
       onDslChange(dsl);
     },
   });
-  // Note: initial render already done in the main init() above.
-  // If DSL was in URL, we need to re-render with it now that builder is up.
-  // (The main init already applied _dslFilter from URL to buildGroups)
 })();
 </script>
 </body>

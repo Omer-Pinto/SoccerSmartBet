@@ -175,36 +175,43 @@
 
   </aside>
 
-  <!-- ── P&L CHART ── -->
-  <section class="chart-section">
+  <!-- ── TODAY'S SCOREBOARD ── -->
+  <section class="chart-section" id="scoreboard-section">
     <div class="section-label">
       <div class="section-label-bar" style="background:var(--emerald);"></div>
-      <h2>Form Guide &mdash; 30-Day P&amp;L</h2>
+      <h2>Today&rsquo;s Scoreboard</h2>
     </div>
-    <div class="chart-container">
-      <div class="chart-header">
-        <div class="chart-title">THIRTY DAY <span>FORM</span></div>
-        <div class="chart-legend">
-          <div class="legend-item">
-            <div class="legend-dot user"></div>
-            User
-          </div>
-          <div class="legend-item">
-            <div class="legend-dot ai"></div>
-            AI
-          </div>
+    <div class="chart-container scoreboard-container" id="scoreboard-container">
+      <div class="scoreboard-loading" id="scoreboard-loading">Loading&hellip;</div>
+      <div class="scoreboard-content" id="scoreboard-content" style="display:none;">
+        <!-- Games finished row -->
+        <div class="scoreboard-row scoreboard-row--games">
+          <span class="scoreboard-label">Games finished</span>
+          <span class="scoreboard-value" id="sb-games-finished">&mdash;</span>
         </div>
-      </div>
-
-      <div class="chart-svg-wrap" role="img" aria-label="30-day P&amp;L sparkline">
-        <div id="sparkline-svg"></div>
-        <div id="sparkline-tooltip" role="tooltip" style="display:none;"></div>
-      </div>
-
-      <div class="chart-x-labels" id="x-labels">
-        <span class="chart-x-label">&mdash;</span>
-        <span class="chart-x-label">&mdash;</span>
-        <span class="chart-x-label">&mdash;</span>
+        <!-- Money score row -->
+        <div class="scoreboard-row scoreboard-row--money">
+          <span class="scoreboard-label">Money</span>
+          <span class="scoreboard-money-score">
+            <span class="sb-user-money" id="sb-user-money">&mdash;</span>
+            <span class="scoreboard-sep">&middot;</span>
+            <span class="sb-ai-money" id="sb-ai-money">&mdash;</span>
+          </span>
+        </div>
+        <!-- Hits/misses row -->
+        <div class="scoreboard-row scoreboard-row--hits">
+          <span class="scoreboard-label">Record</span>
+          <span class="scoreboard-hits-score">
+            <span id="sb-user-record">&mdash;</span>
+            <span class="scoreboard-sep">&middot;</span>
+            <span id="sb-ai-record">&mdash;</span>
+          </span>
+        </div>
+        <!-- Leader trophy -->
+        <div class="scoreboard-row scoreboard-row--leader" id="sb-leader-row" style="display:none;">
+          <span class="scoreboard-trophy">&#127942;</span>
+          <span class="scoreboard-leader-label" id="sb-leader-label"></span>
+        </div>
       </div>
     </div>
   </section>

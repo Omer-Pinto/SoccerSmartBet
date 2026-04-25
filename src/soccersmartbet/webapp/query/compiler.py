@@ -212,7 +212,13 @@ def _compile_generic(
 
     if op == "eq":
         pname = _param_name(key, idx)
-        bound = _normalise_enum_value(key, str(values[0])) if is_enum else values[0]
+        raw_v = str(values[0])
+        if is_enum:
+            bound = _normalise_enum_value(key, raw_v)
+        elif key in _LOWERCASE_KEYS:
+            bound = raw_v.lower()
+        else:
+            bound = raw_v
         params[pname] = bound
         if is_text:
             return f"{col} ILIKE %({pname})s"
@@ -220,7 +226,13 @@ def _compile_generic(
 
     if op == "negated":
         pname = _param_name(key, idx)
-        bound = _normalise_enum_value(key, str(values[0])) if is_enum else values[0]
+        raw_v = str(values[0])
+        if is_enum:
+            bound = _normalise_enum_value(key, raw_v)
+        elif key in _LOWERCASE_KEYS:
+            bound = raw_v.lower()
+        else:
+            bound = raw_v
         params[pname] = bound
         if is_text:
             return f"NOT ({col} ILIKE %({pname})s)"
@@ -230,7 +242,13 @@ def _compile_generic(
         frags = []
         for sub_i, val in enumerate(values):
             pname = _param_name(key, idx, sub_i)
-            bound = _normalise_enum_value(key, str(val)) if is_enum else val
+            raw_v = str(val)
+            if is_enum:
+                bound = _normalise_enum_value(key, raw_v)
+            elif key in _LOWERCASE_KEYS:
+                bound = raw_v.lower()
+            else:
+                bound = raw_v
             params[pname] = bound
             frags.append(f"%({pname})s")
         in_list = ", ".join(frags)
@@ -273,6 +291,11 @@ def _is_text_key(key: str) -> bool:
     because their values are single-char CHECK-constrained ('1'|'x'|'2').
     """
     return key in {"league", "bettor"}
+
+
+#: Keys whose values should be lower-cased before binding to normalise
+#: case-variant user input (e.g. ``bettor:User`` → ``'user'``).
+_LOWERCASE_KEYS: frozenset[str] = frozenset({"bettor"})
 
 
 def _compile_team(

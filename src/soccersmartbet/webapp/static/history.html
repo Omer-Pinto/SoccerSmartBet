@@ -302,26 +302,14 @@ function buildGroups(rows) {
     const u = g.userBet;
     const a = g.aiBet;
 
-    // History rule: evaluated-only. Evaluated = result non-null AND pnl non-null for both.
-    // If it's today's game and either is unevaluated, exclude.
-    if (g.match_date === today) {
-      // Today's game — show only if fully evaluated
-      if (!u || !a) return false;
-      if (u.result === null || u.pnl === null || a.result === null || a.pnl === null) return false;
-      return true;
-    }
-
-    // Past games — show only evaluated
+    // Keep the group if at least one bet is present AND every present bet is evaluated
+    // (result non-null AND pnl non-null). Works for both today's and past games,
+    // and for single-bettor filters (bettor:ai or bettor:user).
     if (!u && !a) return false;
-    const uOk = u ? (u.result !== null && u.result !== undefined && u.pnl !== null && u.pnl !== undefined) : true;
-    const aOk = a ? (a.result !== null && a.result !== undefined && a.pnl !== null && a.pnl !== undefined) : true;
-
-    if ((u && !uOk) !== (a && !aOk)) {
-      // Anomaly: one evaluated, one not
-      console.warn("Partially-evaluated game hidden:", g.match_date, g.home_team, "vs", g.away_team);
-      return false;
-    }
-    if (!uOk || !aOk) return false;
+    const isEvaluated = bet => bet.result !== null && bet.result !== undefined &&
+                                bet.pnl   !== null && bet.pnl   !== undefined;
+    if (u && !isEvaluated(u)) return false;
+    if (a && !isEvaluated(a)) return false;
     return true;
   });
 

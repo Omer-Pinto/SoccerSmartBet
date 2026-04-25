@@ -104,11 +104,11 @@
       <div class="stat-tile-value" id="agg-points"><span class="sub">&mdash;</span></div>
     </div>
     <div class="stat-tile">
-      <div class="stat-tile-label">Final User</div>
+      <div class="stat-tile-label">Balance User</div>
       <div class="stat-tile-value" id="agg-user-final"><span class="sub">&mdash;</span></div>
     </div>
     <div class="stat-tile">
-      <div class="stat-tile-label">Final AI</div>
+      <div class="stat-tile-label">Balance AI</div>
       <div class="stat-tile-value" id="agg-ai-final"><span class="sub">&mdash;</span></div>
     </div>
     <div class="stat-tile">
@@ -202,6 +202,10 @@
     now.toLocaleTimeString("en-US", timeOpts) + " ISR";
 })();
 
+// ─── Starting balance ────────────────────────────────────────────────────────
+// TODO: source from config/settings endpoint when available.
+const STARTING_BALANCE = 10000;
+
 // ─── XSS helper ──────────────────────────────────────────────────────────────
 function escHtml(s) {
   return String(s)
@@ -247,10 +251,11 @@ function buildSvg(points) {
     </svg>`;
   }
 
-  // Gather values
-  const userVals = points.map(p => p.cumulative_user);
-  const aiVals   = points.map(p => p.cumulative_ai);
-  const allVals  = [...userVals, ...aiVals, 0]; // zero always included
+  // Convert cumulative P&L deltas to actual bankroll values
+  const userVals = points.map(p => STARTING_BALANCE + p.cumulative_user);
+  const aiVals   = points.map(p => STARTING_BALANCE + p.cumulative_ai);
+  // Always include STARTING_BALANCE as baseline
+  const allVals  = [...userVals, ...aiVals, STARTING_BALANCE];
 
   let yMin = Math.min(...allVals);
   let yMax = Math.max(...allVals);
@@ -276,16 +281,17 @@ function buildSvg(points) {
     const v = yMin + (s / steps) * (yMax - yMin);
     const y = yOf(v);
     gridLines += `<line class="grid-line" x1="${PAD_L}" y1="${y}" x2="${SVG_W - PAD_R}" y2="${y}"/>`;
-    yLabels   += `<text class="y-axis-label" x="${PAD_L - 6}" y="${y + 3.5}" text-anchor="end">${pnlSign(v)}${v.toFixed(0)}</text>`;
+    // Y-axis labels: show plain integer values (bankroll amounts, no sign prefix)
+    yLabels   += `<text class="y-axis-label" x="${PAD_L - 6}" y="${y + 3.5}" text-anchor="end">${Math.round(v).toLocaleString()}</text>`;
   }
 
-  // Zero line
-  const zeroY = yOf(0);
+  // Baseline line at STARTING_BALANCE (replaces old zero line)
+  const zeroY = yOf(STARTING_BALANCE);
   const zeroLine = `<line class="zero-line" x1="${PAD_L}" y1="${zeroY}" x2="${SVG_W - PAD_R}" y2="${zeroY}"/>`;
 
-  // Check whether a series has any non-zero value (used to suppress flat-zero lines
-  // that appear when a bettor filter hides all bets for that bettor).
-  function hasData(vals) { return vals.some(v => v !== 0); }
+  // Check whether a series has any value that differs from the starting baseline
+  // (used to suppress flat lines that appear when a bettor has no bets in filter).
+  function hasData(vals) { return vals.some(v => v !== STARTING_BALANCE); }
 
   // Polyline data — only rendered when the series contains at least one non-zero value
   function polyline(vals, color) {
@@ -315,13 +321,13 @@ function buildSvg(points) {
   const barW = Math.max(6, PLOT_W / n);
   const hitBars = points.map((p, i) => {
     const cx = xOf(i);
-    const uVal = p.cumulative_user.toFixed(2);
-    const aVal = p.cumulative_ai.toFixed(2);
+    const uBal = (STARTING_BALANCE + p.cumulative_user).toFixed(0);
+    const aBal = (STARTING_BALANCE + p.cumulative_ai).toFixed(0);
     return `<rect class="chart-hit" x="${(cx - barW/2).toFixed(1)}" y="${PAD_T}"
                   width="${barW.toFixed(1)}" height="${PLOT_H}"
                   fill="transparent" data-index="${i}"
                   tabindex="0" role="img"
-                  aria-label="${p.date}: User ${uVal}, AI ${aVal}"
+                  aria-label="${p.date}: User ${uBal} NIS, AI ${aBal} NIS"
                   style="cursor:crosshair;"/>`;
   }).join("");
 
@@ -361,17 +367,28 @@ function showTooltipForIndex(idx, anchorEl) {
   const p = _tooltipPoints[idx];
   if (!p || !tooltip) return;
 
-  // Compute daily diff vs previous point (first point has no prior, show cumulative as daily)
+  // Bankroll = starting balance + cumulative P&L at this point
+  const userBal = STARTING_BALANCE + p.cumulative_user;
+  const aiBal   = STARTING_BALANCE + p.cumulative_ai;
+
+  // Daily diff vs previous point
   const prev = _tooltipPoints[idx - 1];
   const userDaily = prev ? (p.cumulative_user - prev.cumulative_user) : p.cumulative_user;
   const aiDaily   = prev ? (p.cumulative_ai   - prev.cumulative_ai)   : p.cumulative_ai;
 
+  // Percentage change relative to starting balance
+  const userPct = ((userBal - STARTING_BALANCE) / STARTING_BALANCE * 100);
+  const aiPct   = ((aiBal   - STARTING_BALANCE) / STARTING_BALANCE * 100);
+
+  function fmtPct(v) { return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
+  function fmtNis(v) { return (v >= 0 ? "+" : "") + v.toFixed(0) + " NIS"; }
+
   tooltip.innerHTML =
     `<div class="tt-date">${escHtml(p.date)}</div>` +
-    `<div class="tt-user">User: ${pnlSign(p.cumulative_user)}${p.cumulative_user.toFixed(2)}</div>` +
-    `<div class="tt-user" style="opacity:0.7;font-size:11px;">Day: ${pnlSign(userDaily)}${userDaily.toFixed(2)}</div>` +
-    `<div class="tt-ai">AI: ${pnlSign(p.cumulative_ai)}${p.cumulative_ai.toFixed(2)}</div>` +
-    `<div class="tt-ai" style="opacity:0.7;font-size:11px;">Day: ${pnlSign(aiDaily)}${aiDaily.toFixed(2)}</div>`;
+    `<div class="tt-user">User: ${Math.round(userBal).toLocaleString()} NIS</div>` +
+    `<div class="tt-user" style="opacity:0.7;font-size:11px;">Daily: ${fmtNis(userDaily)} &nbsp; ${fmtPct(userPct)}</div>` +
+    `<div class="tt-ai">AI: ${Math.round(aiBal).toLocaleString()} NIS</div>` +
+    `<div class="tt-ai" style="opacity:0.7;font-size:11px;">Daily: ${fmtNis(aiDaily)} &nbsp; ${fmtPct(aiPct)}</div>`;
   tooltip.style.display = "block";
 
   // Position near the anchor element when keyboard-triggered (anchorEl provided)
@@ -513,12 +530,12 @@ async function fetchAndRender(dsl) {
 
   if (points.length > 0) {
     const last = points[points.length - 1];
-    const userFin = last.cumulative_user;
-    const aiFin   = last.cumulative_ai;
+    const userBal = STARTING_BALANCE + last.cumulative_user;
+    const aiBal   = STARTING_BALANCE + last.cumulative_ai;
     const uEl = document.getElementById("agg-user-final");
     const aEl = document.getElementById("agg-ai-final");
-    uEl.innerHTML = `<span class="${userFin >= 0 ? 'pos' : 'neg'}">${pnlSign(userFin)}${userFin.toFixed(2)}</span>`;
-    aEl.innerHTML = `<span class="${aiFin   >= 0 ? 'pos' : 'neg'}">${pnlSign(aiFin  )}${aiFin.toFixed(2)}</span>`;
+    uEl.innerHTML = `<span class="${userBal >= STARTING_BALANCE ? 'pos' : 'neg'}">${Math.round(userBal).toLocaleString()} NIS</span>`;
+    aEl.innerHTML = `<span class="${aiBal   >= STARTING_BALANCE ? 'pos' : 'neg'}">${Math.round(aiBal).toLocaleString()} NIS</span>`;
     document.getElementById("agg-range").innerHTML =
       `<span class="sub">${escHtml(points[0].date.slice(5))} &rarr; ${escHtml(last.date.slice(5))}</span>`;
   } else {

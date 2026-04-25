@@ -1095,3 +1095,70 @@ body {
   text-transform: uppercase;
   opacity: 0.6;
 }
+
+/* ─────────────────────────────────────────────
+   TODAY'S SCOREBOARD
+───────────────────────────────────────────── */
+.scoreboard-container {
+  padding: 24px 28px;
+  color: #fff;
+  position: relative;
+  z-index: 1;
+}
+.scoreboard-loading {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  font-family: var(--font-body);
+  padding: 16px 0;
+}
+.scoreboard-content { display: flex; flex-direction: column; gap: 14px; }
+
+.scoreboard-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 26px;
+}
+.scoreboard-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  min-width: 100px;
+}
+.scoreboard-value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: #fff;
+  letter-spacing: 2px;
+}
+.scoreboard-money-score,
+.scoreboard-hits-score {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.scoreboard-sep {
+  color: rgba(255,255,255,0.25);
+  font-size: 14px;
+}
+.sb-user-money,
+.sb-ai-money,
+#sb-user-record,
+#sb-ai-record {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+}
+.scoreboard-row--leader { gap: 8px; }
+.scoreboard-trophy { font-size: 20px; line-height: 1; }
+.scoreboard-leader-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--yellow);
+  text-transform: uppercase;
+}

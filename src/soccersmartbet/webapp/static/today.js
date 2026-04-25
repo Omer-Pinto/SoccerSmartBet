@@ -166,6 +166,7 @@ async function fetchMatchData() {
     _bankroll = data.bankroll || null;
     applyFilterAndRender();
     renderBankroll();
+    renderScoreboard();
     updateModRibbon();
   } catch (e) {
     console.warn("fetchMatchData failed:", e);
@@ -192,6 +193,90 @@ async function fetchPnlHistory() {
   } catch (e) {
     console.warn("fetchPnlHistory failed:", e);
   }
+}
+
+// ─────────────────────────────────────────────
+// Today's Scoreboard
+// ─────────────────────────────────────────────
+
+function renderScoreboard() {
+  const loadingEl = document.getElementById("scoreboard-loading");
+  const contentEl = document.getElementById("scoreboard-content");
+  if (!contentEl) return;
+
+  // Count games that have finished today (pnl is non-null, result set)
+  const finishedBets = _allBets.filter(b => b.pnl !== null && b.result !== null);
+  // Unique finished games (by game_id)
+  const finishedGameIds = new Set(finishedBets.map(b => b.game_id));
+  const gamesFinished = finishedGameIds.size;
+
+  // P&L per bettor today
+  const pnlByBettor = { user: 0, ai: 0 };
+  const winsByBettor = { user: 0, ai: 0 };
+  const lossesByBettor = { user: 0, ai: 0 };
+
+  finishedBets.forEach(b => {
+    const who = b.bettor;
+    if (who !== "user" && who !== "ai") return;
+    pnlByBettor[who] += b.pnl || 0;
+    if (b.pnl > 0) winsByBettor[who]++;
+    else if (b.pnl < 0) lossesByBettor[who]++;
+  });
+
+  const fmtMoney = (v) => {
+    const sign = v > 0 ? "+" : v < 0 ? "" : "";
+    return `User: ${sign}${parseFloat(v).toFixed(0)} NIS`;
+  };
+  const fmtMoneyAI = (v) => {
+    const sign = v > 0 ? "+" : v < 0 ? "" : "";
+    return `AI: ${sign}${parseFloat(v).toFixed(0)} NIS`;
+  };
+
+  // Update DOM
+  const sbGames = document.getElementById("sb-games-finished");
+  if (sbGames) sbGames.textContent = gamesFinished;
+
+  const sbUserMoney = document.getElementById("sb-user-money");
+  if (sbUserMoney) {
+    const v = pnlByBettor.user;
+    const sign = v > 0 ? "+" : "";
+    sbUserMoney.textContent = `User: ${sign}${v.toFixed(0)} NIS`;
+    sbUserMoney.style.color = v > 0 ? "var(--emerald)" : v < 0 ? "var(--vermilion)" : "rgba(255,255,255,0.7)";
+  }
+
+  const sbAiMoney = document.getElementById("sb-ai-money");
+  if (sbAiMoney) {
+    const v = pnlByBettor.ai;
+    const sign = v > 0 ? "+" : "";
+    sbAiMoney.textContent = `AI: ${sign}${v.toFixed(0)} NIS`;
+    sbAiMoney.style.color = v > 0 ? "var(--emerald)" : v < 0 ? "var(--vermilion)" : "rgba(255,255,255,0.7)";
+  }
+
+  const sbUserRecord = document.getElementById("sb-user-record");
+  if (sbUserRecord) sbUserRecord.textContent = `User: ${winsByBettor.user}W / ${lossesByBettor.user}L`;
+
+  const sbAiRecord = document.getElementById("sb-ai-record");
+  if (sbAiRecord) sbAiRecord.textContent = `AI: ${winsByBettor.ai}W / ${lossesByBettor.ai}L`;
+
+  // Trophy — show next to whoever leads by money (only if there's a clear winner)
+  const leaderRow = document.getElementById("sb-leader-row");
+  const leaderLabel = document.getElementById("sb-leader-label");
+  if (leaderRow && leaderLabel && gamesFinished > 0) {
+    if (pnlByBettor.user > pnlByBettor.ai) {
+      leaderLabel.textContent = "User leads today";
+      leaderRow.style.display = "flex";
+    } else if (pnlByBettor.ai > pnlByBettor.user) {
+      leaderLabel.textContent = "AI leads today";
+      leaderRow.style.display = "flex";
+    } else {
+      leaderRow.style.display = "none";
+    }
+  } else if (leaderRow) {
+    leaderRow.style.display = "none";
+  }
+
+  if (loadingEl) loadingEl.style.display = "none";
+  contentEl.style.display = "flex";
 }
 
 // ─────────────────────────────────────────────

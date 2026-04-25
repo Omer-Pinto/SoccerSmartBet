@@ -30,25 +30,74 @@
 
 // ── Per-key metadata ────────────────────────────────────────────────────────
 const KEY_META = {
-  league:     { kind: "enum",    label: "League",     color: "var(--chip-league)"     },
-  team:       { kind: "enum",    label: "Team",       color: "var(--chip-team)"       },
-  bettor:     { kind: "enum",    label: "Bettor",     color: "var(--chip-bettor)"     },
-  outcome:    { kind: "enum",    label: "Outcome",    color: "var(--chip-outcome)"    },
-  prediction: { kind: "enum",    label: "Prediction", color: "var(--chip-prediction)" },
-  result:     { kind: "enum",    label: "Result",     color: "var(--chip-result)"     },
-  date:       { kind: "date",    label: "Date",       color: "var(--chip-date)"       },
-  month:      { kind: "enum",    label: "Month",      color: "var(--chip-month)"      },
-  stake:      { kind: "numeric", label: "Stake",      color: "var(--chip-stake)"      },
-  odds:       { kind: "numeric", label: "Odds",       color: "var(--chip-odds)"       },
+  league:     { kind: "enum",    label: "League",     color: "var(--chip-league)",     hint: "Filter by competition (e.g. Premier League)"  },
+  team:       { kind: "enum",    label: "Team",       color: "var(--chip-team)",       hint: "Filter by home or away team"                  },
+  bettor:     { kind: "enum",    label: "Bettor",     color: "var(--chip-bettor)",     hint: "user or ai"                                   },
+  outcome:    { kind: "enum",    label: "Outcome",    color: "var(--chip-outcome)",    hint: "Actual game result (home win / draw / away win)" },
+  prediction: { kind: "enum",    label: "Prediction", color: "var(--chip-prediction)", hint: "What you bet on (1 / X / 2)"                  },
+  result:     { kind: "enum",    label: "Result",     color: "var(--chip-result)",     hint: "Bet outcome: win / loss / 1 / X / 2"          },
+  date:       { kind: "date",    label: "Date",       color: "var(--chip-date)",       hint: "Filter by match date (YYYY-MM-DD)"            },
+  month:      { kind: "enum",    label: "Month",      color: "var(--chip-month)",      hint: "Filter by YYYY-MM (e.g. 2026-04)"             },
+  stake:      { kind: "numeric", label: "Stake",      color: "var(--chip-stake)",      hint: "NIS wagered per bet (e.g. >=100)"             },
+  odds:       { kind: "numeric", label: "Odds",       color: "var(--chip-odds)",       hint: "Decimal multiplier (e.g. >=2.5×)"             },
 };
 
 // Static fallback values used when the /api/filter/values endpoint is unavailable
 const STATIC_FALLBACKS = {
   bettor:     ["user", "ai"],
   outcome:    ["win", "loss"],
-  result:     ["1", "2", "X"],
-  prediction: ["1", "2", "X"],
+  result:     ["1", "X", "2"],
+  prediction: ["1", "X", "2"],
 };
+
+// Canonical deduplicated display labels for outcome/prediction/result values.
+// The API returns many aliases (home, home_win, 1, draw, tie, x, away, away_win, 2).
+// We collapse them into ONE human-readable label per actual value, shown in the
+// picker dropdown. The chip still stores the backend DSL alias the user selected.
+const _ENUM_CANONICAL_LABELS = {
+  // outcome/prediction/result share the same backend aliases
+  "1":        "Home win (1)",
+  "home_win": "Home win (1)",
+  "home":     "Home win (1)",
+  "x":        "Draw (X)",
+  "draw":     "Draw (X)",
+  "tie":      "Draw (X)",
+  "2":        "Away win (2)",
+  "away_win": "Away win (2)",
+  "away":     "Away win (2)",
+};
+
+// Canonical value to use in the DSL chip when a deduped label is chosen.
+// Maps canonical label back to the preferred DSL token.
+const _LABEL_TO_DSL = {
+  "Home win (1)": "1",
+  "Draw (X)":     "x",
+  "Away win (2)": "2",
+  "win":          "win",
+  "loss":         "loss",
+};
+
+/**
+ * Deduplicate an enum value list by collapsing aliases to their canonical label.
+ * Returns a new array with one entry per distinct canonical label.
+ * For keys that have an alias map, values are replaced with canonical labels.
+ */
+function _dedupeEnumValues(key, values) {
+  if (!values || !values.length) return values;
+  const isGameEnum = (key === "outcome" || key === "prediction" || key === "result");
+  if (!isGameEnum) return values;
+
+  const seen = new Set();
+  const out = [];
+  values.forEach(v => {
+    const label = _ENUM_CANONICAL_LABELS[v.toLowerCase()] || v;
+    if (!seen.has(label)) {
+      seen.add(label);
+      out.push(label);
+    }
+  });
+  return out;
+}
 
 // In-memory cache for /api/filter/values responses (keyed by key name)
 const _valuesCache = new Map();
@@ -552,9 +601,18 @@ export function createFilterBuilder({ container, enabledKeys, initialDsl, onChan
         dot.style.background = meta.color;
         li.appendChild(dot);
 
-        const label = document.createElement("span");
-        label.textContent = meta.label;
-        li.appendChild(label);
+        const labelWrap = document.createElement("span");
+        labelWrap.style.cssText = "display:flex;flex-direction:column;gap:1px;";
+        const labelEl = document.createElement("span");
+        labelEl.textContent = meta.label;
+        labelWrap.appendChild(labelEl);
+        if (meta.hint) {
+          const hintEl = document.createElement("span");
+          hintEl.style.cssText = "font-size:9px;color:rgba(255,255,255,0.38);font-weight:400;";
+          hintEl.textContent = meta.hint;
+          labelWrap.appendChild(hintEl);
+        }
+        li.appendChild(labelWrap);
 
         if (usedKeys.has(key) && meta.kind === "enum") {
           const hint = document.createElement("span");
@@ -706,8 +764,12 @@ export function createFilterBuilder({ container, enabledKeys, initialDsl, onChan
     list.setAttribute("aria-multiselectable", "true");
     dd.appendChild(list);
 
-    // Selected set (copy from chip.value so edits can be cancelled via Escape)
-    const selected = new Set(chip.value || []);
+    // Selected set (copy from chip.value so edits can be cancelled via Escape).
+    // Convert stored DSL values → canonical display labels for enum keys with dedup.
+    // e.g. stored "1" → display "Home win (1)" so the list item shows as checked.
+    const _dslToLabel = (v) => _ENUM_CANONICAL_LABELS[v] || _ENUM_CANONICAL_LABELS[v.toLowerCase()] || v;
+    const isGameEnumKey = (chip.key === "outcome" || chip.key === "prediction" || chip.key === "result");
+    const selected = new Set((chip.value || []).map(v => isGameEnumKey ? _dslToLabel(v) : v));
 
     // Apply button
     const applyBtn = document.createElement("button");
@@ -760,7 +822,9 @@ export function createFilterBuilder({ container, enabledKeys, initialDsl, onChan
 
     function applySelection() {
       closeDropdown();
-      const newVal = Array.from(selected);
+      const rawSelected = Array.from(selected);
+      // Map canonical display labels back to preferred DSL tokens when deduped
+      const newVal = rawSelected.map(v => _LABEL_TO_DSL[v] || v);
       if (newVal.length === 0) {
         // Empty selection: keep chip empty rather than delete
         chip.value = [];
@@ -820,15 +884,19 @@ export function createFilterBuilder({ container, enabledKeys, initialDsl, onChan
 
     // Fetch values from API
     let _allValues = [];
+    // Whether values displayed are canonical labels (need DSL mapping on apply)
+    let _isDeduped = false;
     const apiData = await fetchValues(chip.key);
 
     // Remove loading message
     loadMsg.remove();
 
     if (apiData && apiData.kind === "enum" && apiData.values) {
-      _allValues = apiData.values;
+      _allValues = _dedupeEnumValues(chip.key, apiData.values);
+      _isDeduped = (_allValues !== apiData.values); // true when deduplication ran
     } else if (STATIC_FALLBACKS[chip.key]) {
-      _allValues = STATIC_FALLBACKS[chip.key];
+      _allValues = _dedupeEnumValues(chip.key, STATIC_FALLBACKS[chip.key]);
+      _isDeduped = true;
     } else {
       // Endpoint unavailable: free-text fallback
       const unavailMsg = document.createElement("div");
