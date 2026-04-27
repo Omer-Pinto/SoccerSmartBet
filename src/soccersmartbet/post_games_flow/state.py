@@ -19,6 +19,9 @@ class SkippedGame(TypedDict):
         away_team: Away team name as stored in the DB.
         match_date: Match date string (YYYY-MM-DD).
         reason: Short human-readable explanation, e.g. "no FotMob fixture match".
+        transient: True when the skip is due to a transient FotMob failure
+            (retries exhausted or null scores on finished match). False for
+            permanent skips such as missing fixture or unknown team.
     """
 
     game_id: int
@@ -26,6 +29,7 @@ class SkippedGame(TypedDict):
     away_team: str
     match_date: str
     reason: str
+    transient: bool
 
 
 class PostGamesState(TypedDict):
