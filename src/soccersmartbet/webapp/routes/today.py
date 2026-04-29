@@ -516,6 +516,22 @@ async def today_data() -> dict:
         WHERE g.match_date = %s
         ORDER BY g.kickoff_time, b.bettor
     """
+    games_sql = """
+        SELECT
+            game_id,
+            kickoff_time,
+            match_date,
+            home_team,
+            away_team,
+            league,
+            home_win_odd,
+            draw_odd,
+            away_win_odd,
+            status
+        FROM games
+        WHERE match_date = %s
+        ORDER BY kickoff_time
+    """
     bankroll_sql = """
         SELECT bettor, total_bankroll
         FROM bankroll
@@ -531,6 +547,8 @@ async def today_data() -> dict:
     with get_cursor(commit=False) as cur:
         cur.execute(bets_sql, (today,))
         bet_rows = cur.fetchall()
+        cur.execute(games_sql, (today,))
+        game_rows = cur.fetchall()
         cur.execute(bankroll_sql)
         bankroll_rows = cur.fetchall()
         cur.execute(today_pnl_sql, (today,))
@@ -574,8 +592,26 @@ async def today_data() -> dict:
     bankroll_by_bettor = {r[0]: float(r[1]) for r in bankroll_rows}
     pnl_by_bettor = {r[0]: float(r[1]) for r in pnl_rows}
 
+    games_list = [
+        {
+            "game_id": r[0],
+            "kickoff_time": r[1].strftime("%H:%M"),
+            "kickoff_iso": _kickoff_iso(r[2], r[1]),
+            "match_date": r[2].isoformat(),
+            "home_team": r[3],
+            "away_team": r[4],
+            "league": r[5],
+            "home_win_odd": float(r[6]),
+            "draw_odd": float(r[7]),
+            "away_win_odd": float(r[8]),
+            "status": r[9],
+        }
+        for r in game_rows
+    ]
+
     return {
         "bets": bets,
+        "games": games_list,
         "bankroll": {
             "user": {
                 "balance": bankroll_by_bettor.get("user"),

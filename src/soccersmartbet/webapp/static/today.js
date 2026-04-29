@@ -40,6 +40,7 @@ const LIVE_START_MIN    = 5;    // minutes before kickoff to start live polling
 
 let _status = null;
 let _allBets = [];      // all bets from /api/today/data (raw, unfiltered)
+let _allGames = [];     // all games from /api/today/data (always present after pre-gambling)
 let _groups = [];       // game-groups after grouping + calendar filtering
 let _bankroll = null;
 
@@ -176,6 +177,7 @@ async function fetchMatchData() {
     }
     const data = await resp.json();
     _allBets = data.bets || [];
+    _allGames = data.games || [];
     _bankroll = data.bankroll || null;
     applyFilterAndRender();
     renderBankroll();
@@ -932,6 +934,24 @@ async function onModalConfirm() {
 }
 
 // ─────────────────────────────────────────────
+// Pre-gambling phase detection
+// ─────────────────────────────────────────────
+
+/**
+ * True when pre-gambling has completed but no bets have been placed yet.
+ * In this state we show game rows with a "Competitors haven't gambled yet" placeholder.
+ * Once _allBets is non-empty, this returns false and the standard UI takes over.
+ */
+function _isPreGamblingPhase() {
+  return (
+    _allBets.length === 0 &&
+    _allGames.length > 0 &&
+    !!(_status && _status.pre_gambling_completed_at) &&
+    !(_status && _status.gambling_completed_at)
+  );
+}
+
+// ─────────────────────────────────────────────
 // Grouping: pair USER + AI bets per game
 // ─────────────────────────────────────────────
 
@@ -942,6 +962,21 @@ async function onModalConfirm() {
  * Applies calendar filter after grouping.
  */
 function buildGroups(bets) {
+  // Pre-gambling phase: no bets yet, but games are available — build stub groups
+  if (bets.length === 0 && _isPreGamblingPhase()) {
+    let groups = _allGames.map(game => ({ game, userBet: null, aiBet: null }));
+    if (_calFrom || _calTo) {
+      groups = groups.filter(g => {
+        const d = g.game.match_date || "";
+        if (_calFrom && d < _calFrom) return false;
+        if (_calTo   && d > _calTo)   return false;
+        return true;
+      });
+    }
+    groups.sort((a, b) => (a.game.kickoff_iso || "") < (b.game.kickoff_iso || "") ? -1 : 1);
+    return groups;
+  }
+
   const map = new Map(); // game_id → {game, userBet, aiBet}
 
   bets.forEach(bet => {
@@ -1065,7 +1100,7 @@ function renderMatches(groups) {
 
   if (groups.length === 0) {
     els.tbodyMatches.innerHTML = `
-      <tr><td colspan="8" class="empty-state">No bets for today</td></tr>`;
+      <tr><td colspan="8" class="empty-state">No games selected yet</td></tr>`;
     return;
   }
 
@@ -1084,6 +1119,7 @@ function renderMatches(groups) {
   }
 
   els.tbodyMatches.innerHTML = "";
+  const preGamblingView = _isPreGamblingPhase();
 
   groups.forEach((group, groupIdx) => {
     const { game, userBet, aiBet } = group;
@@ -1187,6 +1223,8 @@ function renderMatches(groups) {
         ${escHtml((userBet.prediction || "").toUpperCase())}
         <br><span class="bet-amount">NIS ${fmt2(userBet.stake)}</span>
         ${pnlHtml}`;
+    } else if (preGamblingView) {
+      tdUserBet.innerHTML = `<span class="bettor-label bet-user">USER</span><span class="sub">Competitors haven&rsquo;t gambled yet</span>`;
     } else {
       tdUserBet.innerHTML = `<span class="sub">—</span>`;
     }
@@ -1256,6 +1294,8 @@ function renderMatches(groups) {
         ${escHtml((aiBet.prediction || "").toUpperCase())}
         <br><span class="bet-amount">NIS ${fmt2(aiBet.stake)}</span>
         ${pnlHtml}`;
+    } else if (preGamblingView) {
+      tdAiBet.innerHTML = `<span class="bettor-label bet-ai">AI</span><span class="sub">—</span>`;
     } else {
       tdAiBet.innerHTML = `<span class="sub">—</span>`;
     }
@@ -1626,6 +1666,28 @@ function kickoffMillis(kickoffIso) {
 
 function updateModRibbon() {
   if (!els.modRibbon) return;
+
+  // Pre-gambling phase: show gambling cutoff time based on today's games
+  if (_isPreGamblingPhase()) {
+    let earliest = Infinity;
+    _allGames.forEach(game => {
+      const ms = kickoffMillis(game.kickoff_iso);
+      if (ms < earliest) earliest = ms;
+    });
+    if (earliest !== Infinity) {
+      const lockTime = new Date(earliest - LOCK_MINUTES * 60000);
+      const hhmm = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Jerusalem",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(lockTime);
+      els.modRibbon.innerHTML =
+        `Competitors haven&rsquo;t gambled yet&nbsp;&mdash;&nbsp;Gambling window closes at&nbsp;<strong>${hhmm} ISR</strong>`;
+      return;
+    }
+  }
+
   let earliest = Infinity;
   _allBets.forEach(bet => {
     const ms = kickoffMillis((bet.game || {}).kickoff_iso);
