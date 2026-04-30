@@ -8,6 +8,7 @@ the main site first.
 
 import json
 import uuid
+from datetime import timedelta
 from typing import Any, Dict, Optional
 
 import requests
@@ -118,7 +119,8 @@ def _parse_edate(e_date: int, m_hour: str) -> Optional[str]:
         day = int(date_str[4:6])
         hour = int(m_hour[0:2])
         minute = int(m_hour[2:4])
-        dt = isr_datetime(year, month, day, hour, minute)
+        # winner.co.il m_hour is "last bet acceptance time" = kickoff - 1 min
+        dt = isr_datetime(year, month, day, hour, minute) + timedelta(minutes=1)
         return dt.isoformat()
     except Exception:
         return None
