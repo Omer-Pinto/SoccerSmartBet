@@ -104,7 +104,7 @@ def _derive_period(data: dict) -> str:
         finished: bool = bool(status.get("finished"))
         ongoing: bool = bool(status.get("ongoing"))
         reason_short: str = (status.get("reason") or {}).get("short") or ""
-        halfs = data.get("halfs") or {}
+        halfs = status.get("halfs") or {}
         second_half_started: str = halfs.get("secondHalfStarted") or ""
 
         if not started:
