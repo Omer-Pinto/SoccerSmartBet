@@ -40,6 +40,29 @@ logger = logging.getLogger(__name__)
 
 _TIMEOUT = 10
 
+# ---------------------------------------------------------------------------
+# League-name normalisation for FOTMOB_LEAGUES lookup
+# ---------------------------------------------------------------------------
+# Strips known prefixes / suffixes that don't appear in FOTMOB_LEAGUES keys so
+# that "UEFA Champions League" resolves to "Champions League" even when the
+# aliases in persist_games._LEAGUE_NAME_ALIASES are not yet populated.
+_STRIP_PREFIXES = ("uefa ",)
+
+
+def _normalise_league_for_lookup(name: str) -> str:
+    """Return a normalised form of *name* for matching against FOTMOB_LEAGUES.
+
+    Applies lower-casing, whitespace collapse, and strips well-known prefixes
+    (e.g. "UEFA ") that the league-key map does not include.  Pure string ops —
+    no fuzzy matching.
+    """
+    s = " ".join(name.strip().lower().split())
+    for prefix in _STRIP_PREFIXES:
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+            break  # only strip one prefix
+    return s
+
 
 def _fotmob_get(url: str) -> Optional[dict]:
     """GET a FotMob URL with the x-mas auth header.  Returns None on failure."""
@@ -152,17 +175,21 @@ def _resolve_fotmob_id(
     Returns:
         FotMob match ID (int) if a confident match is found, else None.
     """
-    # Map league_name to FotMob league_id
+    # Map league_name to FotMob league_id.
+    # Use the tolerant normaliser on both sides so that, e.g.,
+    # "UEFA Champions League" matches the "Champions League" key.
     league_id: Optional[int] = None
-    league_lower = league_name.strip().lower()
+    needle = _normalise_league_for_lookup(league_name)
     for name, lid in FOTMOB_LEAGUES.items():
-        if name.lower() == league_lower:
+        if _normalise_league_for_lookup(name) == needle:
             league_id = lid
             break
 
     if league_id is None:
-        logger.warning(
-            "FotMob enrichment: no FOTMOB_LEAGUES entry for league '%s' — skipping",
+        # Caller (enrich_games_with_fotmob_ids) emits a WARNING with full
+        # game context; this is the lower-level detail.
+        logger.debug(
+            "FotMob enrichment: no FOTMOB_LEAGUES entry for league '%s'",
             league_name,
         )
         return None
@@ -274,6 +301,15 @@ def enrich_games_with_fotmob_ids(game_ids: list[int]) -> None:
                 fotmob_id = _resolve_fotmob_id(home_team, away_team, match_date, league)
                 if fotmob_id is not None:
                     updates.append((fotmob_id, game_id))
+                else:
+                    logger.warning(
+                        "FotMob enrichment: game_id=%d (%s vs %s, league='%s') "
+                        "could not be resolved — live scoring will be DISABLED for this game",
+                        game_id,
+                        home_team,
+                        away_team,
+                        league,
+                    )
             except Exception as exc:
                 logger.warning(
                     "FotMob enrichment: error resolving game_id=%d (%s vs %s): %s",

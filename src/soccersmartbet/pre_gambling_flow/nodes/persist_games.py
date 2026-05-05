@@ -23,12 +23,26 @@ from soccersmartbet.pre_gambling_flow.state import GameContext, Phase, PreGambli
 # accumulating aliases like "Primera Division" alongside "La Liga" that are the
 # same competition.  Add entries here whenever a new alias appears.
 _LEAGUE_NAME_ALIASES: dict[str, str] = {
+    # La Liga variants
     "primera division": "La Liga",
     "primera división": "La Liga",
     "laliga": "La Liga",
     "la liga": "La Liga",
     "spanish la liga": "La Liga",
     "spain primera division": "La Liga",
+    # Champions League — Winner.co.il emits "UEFA Champions League"
+    "uefa champions league": "Champions League",
+    "champions league": "Champions League",
+    "ucl": "Champions League",
+    # Europa League — Winner.co.il may emit "UEFA Europa League"
+    "uefa europa league": "Europa League",
+    "europa league": "Europa League",
+    "uel": "Europa League",
+    # Conference League — both common spellings
+    "uefa conference league": "Conference League",
+    "uefa europa conference league": "Conference League",
+    "conference league": "Conference League",
+    "uecl": "Conference League",
 }
 
 
