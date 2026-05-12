@@ -44,7 +44,7 @@ def _generate_xmas_header(url: str) -> str:
 
 class FotMobClient:
     def __init__(self) -> None:
-        self._team_cache: Dict[str, Dict[str, Any]] = {}
+        pass
 
     def _normalize(self, name: str) -> str:
         return normalize_team_name(name)
@@ -129,8 +129,6 @@ class FotMobClient:
     def find_team(self, team_name: str) -> Optional[Dict[str, Any]]:
         """Find team by name across major leagues."""
         key = self._normalize(team_name)
-        if key in self._team_cache:
-            return self._team_cache[key]
 
         # Fast path 1: team_registry has a known fotmob_id — search by ID
         from soccersmartbet.team_registry import resolve_team, get_source_id
@@ -142,9 +140,7 @@ class FotMobClient:
                     teams = self._load_league(league_id)
                     for norm, info in teams.items():
                         if info.get("id") == fotmob_id:
-                            result = {**info, "league_name": league_name}
-                            self._team_cache[key] = result
-                            return result
+                            return {**info, "league_name": league_name}
 
             # Fast path 2: no fotmob_id but registry resolved a canonical name —
             # search league tables using the normalized canonical name
@@ -153,27 +149,19 @@ class FotMobClient:
                 for league_name, league_id in FOTMOB_LEAGUES.items():
                     teams = self._load_league(league_id)
                     if canonical_key in teams:
-                        result = {**teams[canonical_key], "league_name": league_name}
-                        self._team_cache[key] = result
-                        return result
+                        return {**teams[canonical_key], "league_name": league_name}
                     for norm, info in teams.items():
                         if canonical_key in norm or norm in canonical_key:
-                            result = {**info, "league_name": league_name}
-                            self._team_cache[key] = result
-                            return result
+                            return {**info, "league_name": league_name}
 
         # Fallback: search by the original normalized name
         for league_name, league_id in FOTMOB_LEAGUES.items():
             teams = self._load_league(league_id)
             if key in teams:
-                result = {**teams[key], "league_name": league_name}
-                self._team_cache[key] = result
-                return result
+                return {**teams[key], "league_name": league_name}
             for norm, info in teams.items():
                 if key in norm or norm in key:
-                    result = {**info, "league_name": league_name}
-                    self._team_cache[key] = result
-                    return result
+                    return {**info, "league_name": league_name}
         return None
 
     def get_league_standings(self, league_id: int) -> List[Dict[str, Any]]:
