@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 import unicodedata
 from typing import Optional
@@ -215,7 +216,7 @@ def resolve_team(name: str) -> Optional[str]:
 
     Resolution order:
       1. Exact match after normalization
-      2. Substring match (normalized query contained in a normalized key, or vice-versa)
+      2. Word-boundary substring match (longest matching key wins)
       3. Levenshtein distance <= min(3, len(query)//3) against all index keys
 
     Args:
@@ -231,10 +232,29 @@ def resolve_team(name: str) -> Optional[str]:
     if norm in _index:
         return _index[norm]
 
-    # 2. Substring — query inside key or key inside query
+    # 2. Substring — key must appear (or contain) as a whole word in the query.
+    # Collect all word-boundary matches and return the canonical of the *longest*
+    # matching key.  This prevents short aliases such as "ol" (Olympique Lyonnais)
+    # from firing on unrelated names that contain those letters inside a token
+    # (e.g. "futbol").  Longest-key-wins additionally handles the case where
+    # multiple keys match (e.g. "sociedad" and "real sociedad" both match
+    # "real sociedad de futbol" — we want the more specific one).
+    substring_matches: list[tuple[str, str]] = []
     for key, canonical in _index.items():
-        if norm in key or key in norm:
-            return canonical
+        try:
+            key_pat = re.escape(key)
+            norm_pat = re.escape(norm)
+            if re.search(r"\b" + key_pat + r"\b", norm) or re.search(
+                r"\b" + norm_pat + r"\b", key
+            ):
+                substring_matches.append((key, canonical))
+        except re.error:
+            # Fallback for keys that re.escape can't handle (e.g. raw Hebrew)
+            if norm in key or key in norm:
+                substring_matches.append((key, canonical))
+    if substring_matches:
+        _, best_canonical = max(substring_matches, key=lambda t: len(t[0]))
+        return best_canonical
 
     # 3. Fuzzy Levenshtein
     threshold = max(1, min(3, len(norm) // 3))
