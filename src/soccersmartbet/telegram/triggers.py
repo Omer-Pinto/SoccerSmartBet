@@ -7,7 +7,7 @@ from datetime import date
 from typing import Coroutine, Any
 
 import uvicorn
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import Bot, Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -23,6 +23,7 @@ from soccersmartbet.telegram.bot import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHAT_ID,
     is_owner,
+    send_no_games_prompt,
 )
 from soccersmartbet.utils.timezone import now_isr
 from soccersmartbet.webapp.runtime_state import LAST_POLLER_TICK
@@ -161,33 +162,7 @@ async def trigger_pre_gambling_and_notify() -> None:
 
     if not game_ids:
         logger.info("No games selected — sending no-games confirmation prompt")
-        text = (
-            "⚠️ <b>No games selected today</b>\n\n"
-            "The pre-gambling flow ran but found no games for betting.\n"
-            "This could be a real no-games day or a bug in the picker.\n\n"
-            "Does this make sense to you?"
-        )
-        today_iso = today.isoformat()
-        keyboard = InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton(
-                        "✅ Yes, expected", callback_data=f"no_games_yes:{today_iso}"
-                    ),
-                    InlineKeyboardButton(
-                        "❌ No, looks wrong", callback_data=f"no_games_no:{today_iso}"
-                    ),
-                ]
-            ]
-        )
-        bot = Bot(token=TELEGRAM_BOT_TOKEN)
-        async with bot:
-            await bot.send_message(
-                chat_id=int(TELEGRAM_CHAT_ID),
-                text=text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
+        await send_no_games_prompt(today)
         return
 
     # Telegram notifications (gambling time + HTML reports + want-to-bet prompt)
