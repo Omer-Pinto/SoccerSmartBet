@@ -3,8 +3,9 @@ from __future__ import annotations
 import io
 import logging
 import os
+from datetime import date
 
-from telegram import Bot
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
 from soccersmartbet.reports.telegram_message import format_gambling_time_message
 
@@ -77,6 +78,57 @@ async def send_html_report(game_id: int, html_content: str, filename: str) -> No
         filename,
         TELEGRAM_CHAT_ID,
     )
+
+
+async def send_no_games_prompt(target_date: date) -> None:
+    """Send the no-games confirmation prompt to the owner chat.
+
+    Builds an inline keyboard with Yes/No buttons so the operator can confirm
+    whether the absence of games is expected.  Callable from both the scheduler
+    path and the manual-trigger path so both surfaces behave identically.
+
+    Args:
+        target_date: The run date — NOT necessarily today; manual triggers may
+            pass a historical or future date.
+
+    Raises:
+        RuntimeError: If TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured.
+    """
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        raise RuntimeError(
+            "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set to send messages."
+        )
+
+    logger.info("send_no_games_prompt: sending for %s", target_date)
+
+    text = (
+        "⚠️ <b>No games selected today</b>\n\n"
+        "The pre-gambling flow ran but found no games for betting.\n"
+        "This could be a real no-games day or a bug in the picker.\n\n"
+        "Does this make sense to you?"
+    )
+    date_iso = target_date.isoformat()
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "✅ Yes, expected", callback_data=f"no_games_yes:{date_iso}"
+                ),
+                InlineKeyboardButton(
+                    "❌ No, looks wrong", callback_data=f"no_games_no:{date_iso}"
+                ),
+            ]
+        ]
+    )
+
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    async with bot:
+        await bot.send_message(
+            chat_id=int(TELEGRAM_CHAT_ID),
+            text=text,
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
 
 
 async def send_gambling_time(game_ids: list[int]) -> None:

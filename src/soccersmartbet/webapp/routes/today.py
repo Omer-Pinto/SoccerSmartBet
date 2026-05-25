@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from soccersmartbet.daily_runs import upsert_daily_run
+from soccersmartbet.telegram.bot import send_no_games_prompt
 from soccersmartbet.db import get_conn, get_cursor
 from soccersmartbet.utils.timezone import format_isr_time, isr_datetime, now_isr, today_isr
 from soccersmartbet.webapp.audit import EventType, write_run_event
@@ -282,6 +283,11 @@ async def _wrap_flow(
 
     if flow_type in ("pre_gambling", "regenerate_report"):
         upsert_daily_run(run_date, pre_gambling_completed_at=now_isr(), game_ids=game_ids, games_found=len(game_ids))
+        if not game_ids:
+            try:
+                await send_no_games_prompt(run_date)
+            except Exception:
+                logger.exception("Failed to send no-games prompt for manual %s", flow_type)
     else:
         upsert_daily_run(run_date, post_games_completed_at=now_isr())
 
