@@ -33,9 +33,13 @@ PICKER_MODEL = os.getenv("SMART_PICKER_MODEL", "gpt-5.4-mini")
 
 _ISRAELI_LEAGUE_ID = 127
 
-# Hebrew league names on winner.co.il that correspond to UEFA competitions not
-# covered by the football-data.org free tier.
-_WINNER_EUROPEAN_LEAGUES = {"הליגה האירופית", "ליגת הועידה"}  # Europa League, Conference League
+# winner.co.il league keys (Hebrew or English) → canonical competition name.
+_WINNER_EUROPEAN_LEAGUE_NAMES: dict[str, str] = {
+    "הליגה האירופית": "Europa League",
+    "Europa League": "Europa League",
+    "קונפרנס ליג": "Conference League",
+    "Conference League": "Conference League",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -131,8 +135,9 @@ def _fallback_winner_european(
     """
     eligible: list[dict[str, Any]] = []
     for event in winner_events:
-        league_he: str = event.get("league", "")
-        if league_he not in _WINNER_EUROPEAN_LEAGUES:
+        league_key: str = event.get("league", "")
+        league_en = _WINNER_EUROPEAN_LEAGUE_NAMES.get(league_key)
+        if league_en is None:
             continue
 
         home_canonical = resolve_team(event["home_team"])
@@ -140,7 +145,8 @@ def _fallback_winner_european(
 
         if not home_canonical or not away_canonical:
             logger.info(
-                "smart_game_picker: EL/ECL skip — unresolved team(s): %s [%s] vs %s [%s]",
+                "smart_game_picker: EL/ECL skip — unresolved team(s) in %s: %s [%s] vs %s [%s]",
+                league_key,
                 event["home_team"],
                 home_canonical,
                 event["away_team"],
@@ -149,9 +155,6 @@ def _fallback_winner_european(
             continue
 
         match_date, kickoff_time = _parse_winner_kickoff(event.get("commence_time", ""))
-        league_en = (
-            "Europa League" if league_he == "הליגה האירופית" else "Conference League"
-        )
 
         eligible.append(
             {
@@ -277,15 +280,16 @@ def smart_game_picker(state: PreGamblingState) -> dict:  # noqa: ARG001
 
     logger.info("smart_game_picker: %d eligible games", len(eligible))
 
-    # Fallback: football-data.org free tier excludes EL/ECL; on those days
-    # the cross-ref loop produces nothing even though winner has the events.
-    if not eligible:
-        eligible = _fallback_winner_european(winner_events)
-        if eligible:
-            logger.info(
-                "smart_game_picker: %d eligible games from winner EL/ECL fallback",
-                len(eligible),
-            )
+    # Always merge winner.co.il EL/ECL events: football-data.org free tier
+    # excludes both, so the main cross-ref never sees them.
+    fallback = _fallback_winner_european(winner_events)
+    if fallback:
+        eligible.extend(fallback)
+        logger.info(
+            "smart_game_picker: +%d eligible games from winner EL/ECL fallback (total now %d)",
+            len(fallback),
+            len(eligible),
+        )
 
     # Assemble top-6 names for the prompt
     top6_display = ", ".join(sorted(top6_israeli)) if top6_israeli else "unavailable"
