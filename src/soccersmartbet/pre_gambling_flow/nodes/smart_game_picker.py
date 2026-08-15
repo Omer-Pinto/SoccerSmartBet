@@ -31,6 +31,13 @@ from soccersmartbet.team_registry import normalize_team_name, resolve_team
 
 PICKER_MODEL = os.getenv("SMART_PICKER_MODEL", "gpt-5.4-mini")
 
+# Bound the picker LLM call.  Without these, ChatOpenAI inherits the SDK
+# default (600s x 3 attempts), so a stalled request holds the flow mutex for
+# ~30 minutes and daily_runs stays 'pre_gambling_running' — which locks every
+# dashboard button and blocks the wall-clock poller from re-firing.
+_PICKER_TIMEOUT_S = float(os.getenv("SMART_PICKER_TIMEOUT_S", "120"))
+_PICKER_MAX_RETRIES = int(os.getenv("SMART_PICKER_MAX_RETRIES", "2"))
+
 _ISRAELI_LEAGUE_ID = 127
 
 # winner.co.il league keys (Hebrew or English) → canonical competition name.
@@ -322,7 +329,12 @@ Select the most interesting games for today's betting analysis."""
     system_msg = SystemMessage(content=SMART_GAME_PICKER_PROMPT)
     human_msg = HumanMessage(content=user_message_text)
 
-    model = ChatOpenAI(model=PICKER_MODEL, temperature=0.3)
+    model = ChatOpenAI(
+        model=PICKER_MODEL,
+        temperature=0.3,
+        timeout=_PICKER_TIMEOUT_S,
+        max_retries=_PICKER_MAX_RETRIES,
+    )
     structured_model = model.with_structured_output(SelectedGames)
 
     selected: SelectedGames = structured_model.invoke([system_msg, human_msg])

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import signal
 from datetime import date
 from typing import Coroutine, Any
@@ -434,10 +435,14 @@ async def start_scheduler() -> None:
     # Build uvicorn server for FastAPI dashboard
     from soccersmartbet.webapp.app import app as fastapi_app  # noqa: PLC0415
 
+    # Host/port are env-configurable so the always-on host can expose the
+    # dashboard beyond loopback (e.g. WEBAPP_HOST=0.0.0.0 to reach it over
+    # Tailscale).  Default stays 127.0.0.1 — opening it up is opt-in, because
+    # the dashboard has no authentication and its buttons trigger real flows.
     config = uvicorn.Config(
         fastapi_app,
-        host="127.0.0.1",
-        port=8083,
+        host=os.getenv("WEBAPP_HOST", "127.0.0.1"),
+        port=int(os.getenv("WEBAPP_PORT", "8083")),
         log_level="info",
         lifespan="on",
     )
