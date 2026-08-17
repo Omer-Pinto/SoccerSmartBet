@@ -17,7 +17,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from soccersmartbet.pre_gambling_flow.prompts import SMART_GAME_PICKER_PROMPT
-from soccersmartbet.utils.timezone import utc_to_isr
+from soccersmartbet.utils.timezone import now_isr, utc_to_isr
 from soccersmartbet.pre_gambling_flow.state import GameContext, Phase, PreGamblingState
 from soccersmartbet.pre_gambling_flow.structured_outputs import SelectedGames
 from soccersmartbet.pre_gambling_flow.tools.fotmob_client import get_fotmob_client
@@ -131,7 +131,8 @@ def _fallback_winner_european(
     """Extract EL/ECL games directly from winner events when cross-ref yields nothing.
 
     Only includes events where both team names resolve to English canonical names
-    via :func:`resolve_team`, so downstream LLM prompts receive consistent names.
+    via :func:`resolve_team`, and where the parsed kickoff date is today (ISR),
+    so downstream LLM prompts don't get games from days ahead.
 
     Args:
         winner_events: Raw event dicts from :func:`fetch_all_winner_odds`.
@@ -140,6 +141,7 @@ def _fallback_winner_european(
         List of eligible-game dicts in the same shape produced by the normal
         cross-reference loop, with ``match_id`` set to ``None``.
     """
+    today = now_isr().strftime("%Y-%m-%d")
     eligible: list[dict[str, Any]] = []
     for event in winner_events:
         league_key: str = event.get("league", "")
@@ -162,6 +164,16 @@ def _fallback_winner_european(
             continue
 
         match_date, kickoff_time = _parse_winner_kickoff(event.get("commence_time", ""))
+
+        if match_date != today:
+            logger.info(
+                "smart_game_picker: EL/ECL skip — not today (%s) — %s vs %s [%s]",
+                today,
+                home_canonical,
+                away_canonical,
+                match_date or "unparseable",
+            )
+            continue
 
         eligible.append(
             {
